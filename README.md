@@ -30,8 +30,11 @@ This repository contains a complete setup including global instructions, multi-l
 ├── plugins/                     # Plugin marketplace configurations
 │   └── README.md                # Plugin installation guide (9 plugins, 5 marketplaces)
 ├── skills/                      # Custom skills
-│   └── paper-reading/
-│       └── SKILL.md             # Research paper summarization skill
+│   ├── paper-reading/
+│   │   └── SKILL.md             # Research paper summarization skill
+│   └── frontend-slides/
+│       ├── SKILL.md             # HTML presentation creation skill
+│       └── STYLE_PRESETS.md     # 12 style presets reference
 ├── memory/                      # Cross-session memory templates
 │   ├── MEMORY.md                # Memory index template
 │   └── lessons.md               # Self-correction log template
@@ -75,6 +78,7 @@ cp -r rules/golang ~/.claude/rules/golang
 
 # 4. Install skills
 cp -r skills/paper-reading ~/.claude/skills/paper-reading
+cp -r skills/frontend-slides ~/.claude/skills/frontend-slides
 
 # 5. Install MCP servers
 claude mcp add --scope user --transport stdio context7 -- npx -y @upstash/context7-mcp@latest
@@ -107,12 +111,11 @@ Each language file explicitly extends its common counterpart. This avoids duplic
 
 The key differentiator: Claude Code **learns from corrections** across sessions.
 
-```
-User corrects Claude → Claude writes to memory/lessons.md
-                           ↓
-Next session starts  → Claude reviews lessons.md
-                           ↓
-Pattern confirmed    → Rule promoted to CLAUDE.md
+```mermaid
+flowchart TD
+    A[User corrects Claude] --> B[Claude writes to memory/lessons.md]
+    B --> C[Next session starts — Claude reviews lessons.md]
+    C --> D[Pattern confirmed — Rule promoted to CLAUDE.md]
 ```
 
 This creates a feedback loop where recurring mistakes are permanently eliminated.
@@ -137,15 +140,24 @@ Three recommended MCP servers for maximum productivity:
 
 See [`mcp/README.md`](mcp/README.md) for detailed installation and configuration.
 
+## Custom Skills
+
+Custom skills independent of plugin marketplaces, installed separately:
+
+| Skill | Purpose | Source |
+|-------|---------|--------|
+| **paper-reading** | Structured research paper summaries with auto figure screenshots | Self-built |
+| **[frontend-slides](https://github.com/zarazhangrui/frontend-slides)** | Zero-dependency HTML presentations, 12 style presets, PPT conversion | [@zarazhangrui](https://github.com/zarazhangrui/frontend-slides) |
+
 ## Plugins
 
 9 plugins across 5 marketplaces, covering development workflows, document creation, and ML/AI research:
 
 | Category | Plugins | Marketplace |
 |----------|---------|-------------|
-| **Dev Workflows** | superpowers, everything-claude-code | obra, affaan-m |
-| **Documents** | document-skills, example-skills | anthropics/skills |
-| **ML/AI Research** | fine-tuning, post-training, inference-serving, distributed-training, optimization | zechenzhangAGI |
+| **Dev Workflows** | [superpowers](https://github.com/obra/superpowers-marketplace), [everything-claude-code](https://github.com/affaan-m/everything-claude-code) | [obra](https://github.com/obra/superpowers-marketplace), [affaan-m](https://github.com/affaan-m/everything-claude-code) |
+| **Documents** | [document-skills](https://github.com/anthropics/skills), [example-skills](https://github.com/anthropics/skills) | [anthropics/skills](https://github.com/anthropics/skills) |
+| **ML/AI Research** | [fine-tuning](https://github.com/zechenzhangAGI/AI-research-SKILLs), [post-training](https://github.com/zechenzhangAGI/AI-research-SKILLs), [inference-serving](https://github.com/zechenzhangAGI/AI-research-SKILLs), [distributed-training](https://github.com/zechenzhangAGI/AI-research-SKILLs), [optimization](https://github.com/zechenzhangAGI/AI-research-SKILLs) | [zechenzhangAGI](https://github.com/zechenzhangAGI/AI-research-SKILLs) |
 
 See [`plugins/README.md`](plugins/README.md) for the full list with installation commands.
 
@@ -170,45 +182,15 @@ This section describes how all the tools in this configuration work together acr
 
 ### Overview: The Full Pipeline
 
-```
-Feature Request / Bug Report
-         │
-         ▼
-┌──────────────────┐
-│  1. PLANNING     │  brainstorming → writing-plans → Plan Mode
-│                  │  MCP: Context7 (lookup API docs)
-└────────┬─────────┘
-         ▼
-┌──────────────────┐
-│  2. TDD          │  test-driven-development, tdd-workflow
-│  Write tests     │  Rules: testing.md (80% coverage)
-│  first           │  Agent: tdd-guide
-└────────┬─────────┘
-         ▼
-┌──────────────────┐
-│  3. IMPLEMENT    │  coding-standards, *-patterns
-│                  │  Rules: coding-style.md, patterns.md
-│                  │  MCP: Context7 (live docs)
-└────────┬─────────┘
-         ▼
-┌──────────────────┐
-│  4. REVIEW       │  code-review, security-review
-│                  │  python-review / go-review
-│                  │  Rules: security.md
-└────────┬─────────┘
-         ▼
-┌──────────────────┐
-│  5. E2E TEST     │  e2e, webapp-testing
-│                  │  MCP: Playwright (browser)
-└────────┬─────────┘
-         ▼
-┌──────────────────┐
-│  6. COMMIT & PR  │  verification-before-completion
-│                  │  Rules: git-workflow.md
-│                  │  MCP: GitHub (create PR)
-└────────┬─────────┘
-         ▼
-       Done ✓
+```mermaid
+flowchart TD
+    START["Feature Request / Bug Report"] --> P
+    P["1. PLANNING<br/>brainstorming → writing-plans → Plan Mode<br/>MCP: Context7 (lookup API docs)"] --> T
+    T["2. TDD<br/>test-driven-development, tdd-workflow<br/>Rules: testing.md (80% coverage) | Agent: tdd-guide"] --> I
+    I["3. IMPLEMENT<br/>coding-standards, *-patterns<br/>Rules: coding-style.md, patterns.md | MCP: Context7"] --> R
+    R["4. REVIEW<br/>code-review, security-review<br/>python-review / go-review | Rules: security.md"] --> E
+    E["5. E2E TEST<br/>e2e, webapp-testing<br/>MCP: Playwright (browser)"] --> C
+    C["6. COMMIT & PR<br/>verification-before-completion<br/>Rules: git-workflow.md | MCP: GitHub"] --> D["Done"]
 ```
 
 ---
@@ -728,7 +710,7 @@ Session N: Pattern confirmed across sessions → rule promoted to CLAUDE.md
 
 ### Creating Custom Skills
 
-Place skill files in `skills/<skill-name>/SKILL.md`. See `skills/paper-reading/SKILL.md` for the format.
+Place skill files in `skills/<skill-name>/SKILL.md`. See `skills/paper-reading/SKILL.md` for the format. Community skills (like `frontend-slides`) can also be added — see the Custom Skills section above for examples.
 
 ### Adapting CLAUDE.md
 
