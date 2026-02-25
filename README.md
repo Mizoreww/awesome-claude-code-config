@@ -171,45 +171,44 @@ This section describes how all the tools in this configuration work together acr
 ### Overview: The Full Pipeline
 
 ```
- Feature Request / Bug Report
-          │
-          ▼
- ┌─────────────────┐
- │  1. PLANNING     │  Skills: brainstorming, writing-plans, plan
- │                   │  Mode: Plan Mode (Shift+Tab ×2)
- │                   │  MCP: Context7 (lookup API docs)
- └────────┬──────────┘
-          ▼
- ┌─────────────────┐
- │  2. TDD          │  Skills: test-driven-development, tdd, tdd-workflow
- │  Write tests     │  Rules: testing.md (80% coverage)
- │  first           │  Agent: tdd-guide
- └────────┬──────────┘
-          ▼
- ┌─────────────────┐
- │  3. IMPLEMENT    │  Skills: coding-standards, *-patterns
- │                   │  Rules: coding-style.md, patterns.md
- │                   │  MCP: Context7 (live docs)
- └────────┬──────────┘
-          ▼
- ┌─────────────────┐
- │  4. REVIEW       │  Skills: requesting-code-review, security-review
- │                   │  Skills: python-review, go-review
- │                   │  Rules: security.md
- └────────┬──────────┘
-          ▼
- ┌─────────────────┐
- │  5. E2E TEST     │  Skills: e2e, webapp-testing
- │                   │  MCP: Playwright (browser automation)
- └────────┬──────────┘
-          ▼
- ┌─────────────────┐
- │  6. COMMIT & PR  │  Rules: git-workflow.md
- │                   │  MCP: GitHub (create PR, manage issues)
- │                   │  Skill: verification-before-completion
- └────────┬──────────┘
-          ▼
-        Done ✓
+Feature Request / Bug Report
+         │
+         ▼
+┌──────────────────┐
+│  1. PLANNING     │  brainstorming → writing-plans → Plan Mode
+│                  │  MCP: Context7 (lookup API docs)
+└────────┬─────────┘
+         ▼
+┌──────────────────┐
+│  2. TDD          │  test-driven-development, tdd-workflow
+│  Write tests     │  Rules: testing.md (80% coverage)
+│  first           │  Agent: tdd-guide
+└────────┬─────────┘
+         ▼
+┌──────────────────┐
+│  3. IMPLEMENT    │  coding-standards, *-patterns
+│                  │  Rules: coding-style.md, patterns.md
+│                  │  MCP: Context7 (live docs)
+└────────┬─────────┘
+         ▼
+┌──────────────────┐
+│  4. REVIEW       │  code-review, security-review
+│                  │  python-review / go-review
+│                  │  Rules: security.md
+└────────┬─────────┘
+         ▼
+┌──────────────────┐
+│  5. E2E TEST     │  e2e, webapp-testing
+│                  │  MCP: Playwright (browser)
+└────────┬─────────┘
+         ▼
+┌──────────────────┐
+│  6. COMMIT & PR  │  verification-before-completion
+│                  │  Rules: git-workflow.md
+│                  │  MCP: GitHub (create PR)
+└────────┬─────────┘
+         ▼
+       Done ✓
 ```
 
 ---
@@ -220,27 +219,41 @@ This section describes how all the tools in this configuration work together acr
 
 **When**: Any task with 3+ steps, multi-file changes, or architectural decisions.
 
-**How**:
+**Example prompts you can use**:
 
+```bash
+# Prompt 1: Open-ended feature — let Claude brainstorm first
+> I need to add user authentication to this Next.js app. What are my options?
+
+# Prompt 2: Specific feature — go straight to planning
+> Plan the implementation of JWT-based auth with refresh tokens for this Express API.
+> Break it into phases with risks and dependencies.
+
+# Prompt 3: Enter plan mode manually for complex tasks
+> [Press Shift+Tab twice to enter Plan Mode]
+> Analyze this codebase and plan how to refactor the database layer
+> from raw SQL to Prisma ORM. Don't change anything yet.
+
+# Prompt 4: Force brainstorming before planning
+> /brainstorming — I want to add real-time notifications.
+> Consider WebSockets, SSE, polling, and any other approaches.
+> Evaluate each on complexity, scalability, and browser support.
+
+# Prompt 5: Delegate research to subagents
+> Research these 3 state management options in parallel:
+> 1. Redux Toolkit  2. Zustand  3. Jotai
+> Compare bundle size, learning curve, and TypeScript support.
 ```
-You: "Add user authentication with JWT"
 
-Claude auto-activates:
-  1. /brainstorming          → Explore approaches (session vs JWT vs OAuth)
-  2. /writing-plans          → Structured plan with phases and risks
-  3. Plan Mode (Shift+Tab)   → Read-only exploration, no accidental edits
-  4. Context7 MCP            → Pull latest docs for chosen libraries
-```
+**What Claude does behind the scenes**:
 
-**Tools activated**:
-
-| Tool | Role |
-|------|------|
-| `superpowers:brainstorming` | Generate and evaluate multiple approaches before committing |
-| `superpowers:writing-plans` | Create step-by-step plan with checkpoints |
-| `everything-claude-code:plan` | Restate requirements, assess risks, wait for confirmation |
-| **Context7 MCP** | Look up current API docs for frameworks (e.g., NextAuth, Passport) |
-| `rules/common/agents.md` | Dispatch parallel subagents for research if needed |
+| Step | Tool | What happens |
+|------|------|-------------|
+| 1 | `superpowers:brainstorming` | Generates 3-5 approaches, evaluates trade-offs |
+| 2 | `superpowers:writing-plans` | Creates phased plan with checkpoints and risks |
+| 3 | `everything-claude-code:plan` | Restates requirements, waits for your confirmation |
+| 4 | **Context7 MCP** | Pulls latest docs for chosen libraries |
+| 5 | `rules/common/agents.md` | Dispatches parallel subagents for research |
 
 **Anti-pattern**: Jumping straight to `vim` or `code .` without a plan.
 
@@ -252,28 +265,53 @@ Claude auto-activates:
 
 **When**: Every feature and every bug fix.
 
-**How**:
+**Example prompts you can use**:
+
+```bash
+# Prompt 1: New feature with TDD
+> Implement a password strength validator using TDD.
+> Write the tests first, then implement.
+
+# Prompt 2: Bug fix with TDD
+> Users report that discount codes over 50% break the checkout total.
+> Write a failing test that reproduces this, then fix it.
+
+# Prompt 3: Explicit TDD for an existing module
+> Add input validation to the /api/users endpoint using TDD:
+> 1. Write tests for valid/invalid email, missing fields, SQL injection
+> 2. Make them fail
+> 3. Implement the validation
+> 4. Check coverage
+
+# Prompt 4: Python-specific TDD
+> Using pytest, write table-driven tests for the calculate_shipping() function.
+> Cover edge cases: zero weight, international, oversized packages.
+> Then implement to make them pass.
+
+# Prompt 5: Go-specific TDD
+> Write table-driven tests with race detection for the concurrent cache.
+> go test -race -cover ./...
+```
+
+**The TDD cycle Claude follows**:
 
 ```
-Claude follows the TDD cycle:
-
-  RED    → Write a failing test that defines the expected behavior
-  GREEN  → Write minimal code to make the test pass
-  REFACTOR → Clean up while keeping tests green
-  VERIFY → Check coverage ≥ 80%
+  RED       → Write a failing test that defines expected behavior
+  GREEN     → Write minimal code to make the test pass
+  REFACTOR  → Clean up while keeping tests green
+  VERIFY    → Check coverage ≥ 80%
 ```
 
 **Tools activated**:
 
-| Tool | Role |
-|------|------|
-| `superpowers:test-driven-development` | Enforces write-test-first discipline |
-| `everything-claude-code:tdd` | Scaffold interfaces → generate tests → implement |
-| `everything-claude-code:tdd-workflow` | Full TDD lifecycle management |
-| `everything-claude-code:python-testing` | pytest fixtures, parametrize, mocking |
-| `everything-claude-code:golang-testing` | Table-driven tests, race detection |
-| `rules/common/testing.md` | 80% coverage minimum, test isolation |
-| **Language-specific rules** | `python/testing.md`, `typescript/testing.md`, `golang/testing.md` |
+| Step | Tool | What happens |
+|------|------|-------------|
+| RED | `superpowers:test-driven-development` | Enforces write-test-first discipline |
+| RED | `everything-claude-code:tdd` | Scaffold interfaces → generate tests |
+| GREEN | `everything-claude-code:tdd-workflow` | Minimal implementation to pass |
+| VERIFY | `everything-claude-code:python-testing` | pytest fixtures, parametrize, mocking |
+| VERIFY | `everything-claude-code:golang-testing` | Table-driven tests, `-race` flag |
+| VERIFY | `rules/common/testing.md` | 80% coverage minimum |
 
 **Anti-pattern**: Writing implementation first, then retroactively adding tests.
 
@@ -285,10 +323,39 @@ Claude follows the TDD cycle:
 
 **When**: After tests are written (Phase 2) and the plan is approved (Phase 1).
 
-**How**:
+**Example prompts you can use**:
+
+```bash
+# Prompt 1: Implement to pass tests (continues from Phase 2)
+> Now implement the password strength validator to make all tests pass.
+> Use immutable patterns. No mutation.
+
+# Prompt 2: Ask Context7 for latest API before coding
+> I need to use Zod for validation in this Express app.
+> Look up the latest Zod API docs first, then implement
+> the request validation middleware.
+
+# Prompt 3: Full-stack feature
+> Implement the user profile page:
+> - Backend: GET /api/profile endpoint with Prisma
+> - Frontend: React component with SWR for data fetching
+> - Use the repository pattern for data access
+> Check latest Prisma and SWR docs before writing code.
+
+# Prompt 4: Database work
+> Add a PostgreSQL migration for the orders table.
+> Include proper indexes for the queries in orders.service.ts.
+> Use parameterized queries — no string concatenation.
+
+# Prompt 5: Refactor with constraints
+> Refactor src/utils/helpers.ts — it's 1200 lines.
+> Split into focused modules under src/utils/.
+> Each file should be under 400 lines. Keep all existing tests passing.
+```
+
+**Coding standards Claude enforces**:
 
 ```
-Claude writes code following:
   - Immutable data patterns (no mutation)
   - Small files (200-400 lines, 800 max)
   - Small functions (<50 lines)
@@ -320,13 +387,36 @@ Claude writes code following:
 
 **When**: After any code is written or modified.
 
-**How**:
+**Example prompts you can use**:
+
+```bash
+# Prompt 1: Review code you just wrote
+> Review the code I just wrote in src/auth/.
+> Check for security issues, edge cases, and code quality.
+
+# Prompt 2: Security-focused review
+> Run a security review on the entire /api directory.
+> Focus on: injection, auth bypass, secrets leakage, CSRF.
+
+# Prompt 3: Language-specific review
+> Review src/services/payment.py for Pythonic idioms,
+> type hint completeness, and potential security issues.
+
+# Prompt 4: Review before committing
+> I'm about to commit. Review all staged changes.
+> Flag anything a senior engineer would reject.
+
+# Prompt 5: Review someone else's code (from a PR)
+> Review PR #42 on this repo. Focus on correctness,
+> security, and whether it follows our coding standards.
+```
+
+**What Claude checks**:
 
 ```
-Claude auto-triggers after implementation:
   1. Code review    → Style, correctness, edge cases
   2. Security scan  → OWASP Top 10, secrets, injection
-  3. Language review → Python/Go/TS-specific checks
+  3. Language review → Python/Go/TS-specific idioms
 ```
 
 **Tools activated**:
@@ -355,14 +445,35 @@ Claude auto-triggers after implementation:
 
 **When**: Critical user flows, UI changes, API integration points.
 
-**How**:
+**Example prompts you can use**:
 
-```
-Claude uses Playwright MCP to:
-  1. Navigate to the page
-  2. Fill forms, click buttons
-  3. Assert expected outcomes
-  4. Capture screenshots as evidence
+```bash
+# Prompt 1: Generate E2E tests for a user flow
+> Write Playwright E2E tests for the login flow:
+> 1. Navigate to /login
+> 2. Fill email and password
+> 3. Click submit
+> 4. Assert redirect to /dashboard
+> 5. Screenshot each step
+
+# Prompt 2: Test a specific page visually
+> Open http://localhost:3000/settings in the browser,
+> take a screenshot, and verify all form fields are present.
+
+# Prompt 3: Test form validation
+> Test the registration form E2E:
+> - Submit with empty fields → expect error messages
+> - Submit with invalid email → expect email error
+> - Submit with valid data → expect success redirect
+
+# Prompt 4: Debug a visual issue
+> Users say the checkout button is hidden on mobile.
+> Open the page at 375px width, screenshot it, and check.
+
+# Prompt 5: Full test suite
+> Generate a complete E2E test suite for the checkout flow:
+> cart → shipping → payment → confirmation.
+> Run it and report results with screenshots.
 ```
 
 **Tools activated**:
@@ -384,10 +495,39 @@ Claude uses Playwright MCP to:
 
 **When**: Code is reviewed, tests pass, ready to ship.
 
-**How**:
+**Example prompts you can use**:
+
+```bash
+# Prompt 1: Commit with verification
+> Run all tests, verify everything passes, then commit
+> the changes in src/auth/ with an appropriate message.
+
+# Prompt 2: Create a PR
+> Create a PR for this branch. Include:
+> - Summary of all changes (not just the last commit)
+> - Test plan
+> - Link to issue #23
+
+# Prompt 3: Work in isolation with worktrees
+> Start a worktree for the payment-refactor feature.
+> I want to keep my current workspace clean.
+
+# Prompt 4: Review before pushing
+> Before I push: run tests, check for secrets in staged files,
+> verify no console.log statements. Then push.
+
+# Prompt 5: Squash and merge
+> This branch has 12 commits. Squash them into one clean commit,
+> then create a PR to main.
+
+# Prompt 6: Simple commit
+> /commit
+```
+
+**The commit flow**:
 
 ```
-1. Verify everything works        → /verification-before-completion
+1. Verify everything works        → run tests, check logs
 2. Stage specific files            → git add (never git add -A blindly)
 3. Commit with conventional format → feat: / fix: / refactor: / test:
 4. Push and create PR              → GitHub MCP handles it
@@ -404,13 +544,6 @@ Claude uses Playwright MCP to:
 | `rules/common/git-workflow.md` | Commit format, PR checklist, branch strategy |
 | **GitHub MCP** | Create PR, link issues, manage reviews — without leaving the terminal |
 
-**Commit format**:
-```
-<type>: <description>
-
-Types: feat, fix, refactor, docs, test, chore, perf, ci
-```
-
 ---
 
 ### Phase 7: Debugging
@@ -419,10 +552,37 @@ Types: feat, fix, refactor, docs, test, chore, perf, ci
 
 **When**: Any bug, test failure, or unexpected behavior.
 
-**How**:
+**Example prompts you can use**:
+
+```bash
+# Prompt 1: Bug report — just fix it
+> Users report 500 errors on POST /api/orders when quantity is 0.
+> Find the root cause and fix it.
+
+# Prompt 2: Failing test
+> test_calculate_discount is failing. Debug it systematically:
+> reproduce, isolate, fix, verify.
+
+# Prompt 3: Build errors
+> The Go build is broken after the last merge.
+> Fix all build errors and vet warnings.
+
+# Prompt 4: UI bug with visual debugging
+> The sidebar overlaps the main content on screens < 768px.
+> Open the page in the browser, screenshot it, identify the CSS issue, fix it.
+
+# Prompt 5: Performance issue
+> The /api/search endpoint takes 3 seconds.
+> Profile the database queries, find the bottleneck, and optimize.
+
+# Prompt 6: Mysterious failure
+> CI is green locally but fails on GitHub Actions.
+> Check the CI logs, identify environment differences, and fix.
+```
+
+**The debugging cycle Claude follows**:
 
 ```
-Claude follows systematic debugging:
   1. Reproduce the issue with a minimal test case
   2. Form hypothesis about root cause
   3. Add diagnostic logging/assertions
@@ -451,15 +611,31 @@ Claude follows systematic debugging:
 
 **When**: 2+ tasks with no shared state or sequential dependency.
 
-**How**:
+**Example prompts you can use**:
 
-```
-Claude dispatches parallel subagents:
-  Agent 1: Security review of auth module
-  Agent 2: Unit tests for payment service
-  Agent 3: E2E test for checkout flow
-  ─── all run simultaneously ───
-  Results merged when all complete
+```bash
+# Prompt 1: Parallel reviews
+> In parallel:
+> 1. Security review of src/auth/
+> 2. Code review of src/api/
+> 3. Check test coverage for src/utils/
+
+# Prompt 2: Parallel research
+> Research these 3 ORMs in parallel and compare:
+> Prisma, Drizzle, TypeORM.
+> I need: type safety, performance, migration support.
+
+# Prompt 3: Multi-agent team for a large feature
+> Use an agent team to build the notification system:
+> - Agent 1: Backend API endpoints
+> - Agent 2: Database schema + migrations
+> - Agent 3: Frontend notification component
+
+# Prompt 4: Parallel testing
+> Run these test suites in parallel:
+> 1. Unit tests for services/
+> 2. Integration tests for api/
+> 3. E2E tests for the checkout flow
 ```
 
 **Tools activated**:
@@ -475,6 +651,26 @@ Claude dispatches parallel subagents:
 ### Cross-Session Learning
 
 > Every correction makes the system permanently smarter.
+
+**Example prompts you can use**:
+
+```bash
+# Prompt 1: Correct Claude (triggers auto-learning)
+> No, that's wrong. In this project we use dayjs, not moment.
+> Remember this for future sessions.
+# → Claude auto-saves to memory/lessons.md
+
+# Prompt 2: Teach a preference
+> Always use pnpm in this project, never npm or yarn.
+# → Claude saves to memory/MEMORY.md
+
+# Prompt 3: Review what Claude has learned
+> Show me your lessons.md — what have you learned from past corrections?
+
+# Prompt 4: Promote a lesson to a permanent rule
+> The lesson about using dayjs keeps coming up.
+> Add it to CLAUDE.md as a permanent rule.
+```
 
 **How it works**:
 
