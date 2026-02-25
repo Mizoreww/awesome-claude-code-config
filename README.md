@@ -36,7 +36,6 @@ This repository contains a complete setup including global instructions, multi-l
 │       ├── SKILL.md             # HTML presentation creation skill
 │       └── STYLE_PRESETS.md     # 12 style presets reference
 ├── memory/                      # Cross-session memory templates
-│   ├── MEMORY.md                # Memory index template
 │   └── lessons.md               # Self-correction log template
 └── install.sh                   # One-command installer
 ```
@@ -135,10 +134,12 @@ This creates a feedback loop where recurring mistakes are permanently eliminated
 ### Memory System
 
 ```
-~/.claude/projects/<project>/memory/
-├── MEMORY.md      # Index file — loaded into every conversation
-└── lessons.md     # Correction log — reviewed at session start
+~/.claude/CLAUDE.md                              # Always auto-loaded (global instructions + verified rules)
+~/.claude/memory/lessons.md                      # Global correction log (NOT auto-loaded, must be read explicitly)
+~/.claude/projects/<path>/memory/MEMORY.md       # Per-project memory (auto-loaded when in that directory)
 ```
+
+**How it works**: Only `CLAUDE.md` and project-level `MEMORY.md` are auto-loaded into context. The global `~/.claude/memory/` directory is a staging area — Claude reads `lessons.md` at session start and writes relevant lessons to the project's auto-loaded `MEMORY.md`.
 
 ## MCP Servers
 
@@ -743,25 +744,21 @@ This section describes how all the tools in this configuration work together acr
 
 **How it works**:
 
-```
-┌──────────────┐     ┌─────────────────────────┐     ┌────────────────────────────┐
-│  Session 1   │ ──▶ │ User corrects Claude    │ ──▶ │ Saved to lessons.md        │
-└──────────────┘     └─────────────────────────┘     └────────────────────────────┘
-┌──────────────┐     ┌─────────────────────────┐     ┌────────────────────────────┐
-│  Session 2   │ ──▶ │ Reads lessons.md        │ ──▶ │ Avoids same mistake        │
-└──────────────┘     └─────────────────────────┘     └────────────────────────────┘
-┌──────────────┐     ┌─────────────────────────┐     ┌────────────────────────────┐
-│  Session N   │ ──▶ │ Pattern confirmed       │ ──▶ │ Promoted to CLAUDE.md      │
-└──────────────┘     └─────────────────────────┘     └────────────────────────────┘
-```
+| Step | What happens |
+|------|-------------|
+| Session 1 | User corrects Claude → saved to `~/.claude/memory/lessons.md` |
+| Session 2 | Claude reads `lessons.md` → writes relevant lessons to project `MEMORY.md` → avoids same mistake |
+| Session N | Pattern confirmed across sessions → user promotes rule to `CLAUDE.md` |
+
+**Key design**: `lessons.md` is a global staging area (NOT auto-loaded). At each session start, Claude reads it and populates the project's auto-loaded `MEMORY.md` with relevant entries. Verified rules are promoted to `CLAUDE.md` for permanent, guaranteed loading.
 
 **Tools activated**:
 
 | Tool | Role |
 |------|------|
-| `CLAUDE.md` → Self-Improvement Loop | Core instruction to record and review lessons |
-| `memory/lessons.md` | Persistent correction log |
-| `memory/MEMORY.md` | Index of environment info and preferences |
+| `CLAUDE.md` → Memory System | Core instruction to read lessons and populate project memory |
+| `~/.claude/memory/lessons.md` | Global correction log (staging area) |
+| Project `MEMORY.md` | Auto-loaded per-project memory with filtered lessons |
 | `everything-claude-code:continuous-learning` | Auto-extract reusable patterns from sessions |
 | `everything-claude-code:continuous-learning-v2` | Instinct-based learning with confidence scores |
 

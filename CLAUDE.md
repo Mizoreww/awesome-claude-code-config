@@ -51,24 +51,43 @@ $HOME/anaconda3/envs/<env_name>/bin/python script.py
 - All web searches must use the current date as context to ensure up-to-date results
 - When searching for documentation, news, or recent developments, include the current year in search queries
 
-## Self-Improvement Loop
+## Memory System
 
-### What counts as a "correction" (low threshold)
+### Architecture
+
+- `~/.claude/CLAUDE.md`: Global instructions, auto-loaded every session (this file)
+- `~/.claude/memory/lessons.md`: Global correction log, manually read
+- Project `MEMORY.md`: Located at `~/.claude/projects/<path>/memory/MEMORY.md`, auto-loaded per project
+
+**Key insight**: Only `CLAUDE.md` and project `MEMORY.md` are auto-loaded. The global `~/.claude/memory/` directory is NOT auto-loaded — it must be explicitly read.
+
+### Session Startup Flow
+
+**Before executing the user's first task**, you MUST:
+1. Read `~/.claude/memory/lessons.md`
+2. Filter lessons relevant to the current project/task
+3. Write them to the project-level `MEMORY.md` (the auto memory path shown in the system prompt)
+
+This ensures lessons are available in context for the rest of the session.
+
+### Self-Improvement Loop
+
+#### What counts as a "correction" (low threshold)
 - User directly points out an error
 - User says "remember", "don't do ... again", "last time you ..."
 - User's tone conveys frustration or repeats the same request
 - Same operation fails 2+ times (e.g., connection, push, build)
 - **When in doubt whether it's a correction, treat it as one**
 
-### Mandatory post-correction flow
-1. **First action**: write to global `memory/lessons.md` (date, context, mistake, rule) — before doing anything else
+#### Mandatory post-correction flow
+1. **First action**: write to `~/.claude/memory/lessons.md` (date, context, mistake, rule) — before doing anything else
 2. The "rule" must be a concrete instruction to prevent recurrence, not vague reflection
 3. Only after writing lessons.md, continue handling the user's request
+4. lessons.md has **only one valid path**: `~/.claude/memory/lessons.md` — any path containing `projects/` is WRONG
 
-### Memory hierarchy
-- `memory/lessons.md`: first landing point for all lessons, write anytime (global only, never project-level)
-- `memory/MEMORY.md`: at each new session start, summarize recurring items from lessons.md into this file
-- `CLAUDE.md`: only modify when the user **explicitly asks** — never self-promote rules
+#### Rule promotion
+- Verified rules (confirmed across multiple sessions) should be promoted to `CLAUDE.md`
+- `CLAUDE.md` can only be modified when the user **explicitly asks** — never self-promote
 
 ## Workflow Guidelines
 
