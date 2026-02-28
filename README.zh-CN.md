@@ -2,15 +2,19 @@
 
 # Codex 配置
 
-面向生产使用的 Codex 配置：全局指令、基于 lessons 的自我改进、通过技能实现分层编码规范、MCP 集成，以及一键安装。
+面向生产使用的 Codex 配置：全局指令、Codex 原生持久记忆、通过技能实现分层编码规范、MCP 集成，以及一键安装。
 
 ## 目录结构
 
 ```
 .
 ├── AGENTS.md              # 全局指令
-├── config.toml            # Codex 设置（模型、权限、MCP、lessons 注入）
-├── lessons.md             # 自我纠正日志模板
+├── config.toml            # Codex 设置（模型、权限、MCP、MEMORY.md 注入）
+├── lessons.md             # 自我纠正源日志
+├── codex-mem/             # Codex 原生记忆 CLI
+├── skills/
+│   ├── codex-mem/         # 记忆总控技能
+│   └── mem-search/        # Codex 兼容的记忆检索技能
 └── install.sh             # 一键安装脚本
 ```
 
@@ -26,21 +30,40 @@ bash install.sh
 
 ## 核心特性
 
-### 自我改进循环
+### 自我改进 + 持久记忆循环
 
 1. 用户纠正会记录到 `~/.codex/lessons.md`
-2. 新会话会自动加载 lessons
-3. 稳定模式会沉淀到 `~/.codex/AGENTS.md`
+2. `codex-mem` 将观察记录到 `~/.codex/memory/codex_mem.db`
+3. `codex-mem build-context` 合成 `~/.codex/MEMORY.md`
+4. 新会话自动加载 `~/.codex/MEMORY.md`
+5. 稳定模式沉淀到 `~/.codex/AGENTS.md`
 
-### Lessons 自动加载（Codex 原生）
+### MEMORY 自动注入（Codex 原生）
 
 `config.toml` 使用：
 
 ```toml
-model_instructions_file = "~/.codex/lessons.md"
+model_instructions_file = "~/.codex/MEMORY.md"
 ```
 
-这样无需额外的启动 hooks，也能保持纠错记忆生效。
+这样 lessons 与长期记忆会一起进入自动加载上下文。
+
+### `codex-mem`（按 claude-mem 思路实现，面向 Codex）
+
+安装路径：`~/.codex/bin/codex-mem`
+
+```bash
+# 记录观察
+~/.codex/bin/codex-mem note --type decision --title \"...\" --details \"...\"
+
+# 检索历史
+~/.codex/bin/codex-mem search --project \"$(pwd)\" --query \"auth retry\"
+~/.codex/bin/codex-mem timeline --project \"$(pwd)\" --query \"auth retry\"
+~/.codex/bin/codex-mem get --ids 12,15
+
+# 刷新自动加载上下文
+~/.codex/bin/codex-mem build-context --project \"$(pwd)\" --output ~/.codex/MEMORY.md --lessons ~/.codex/lessons.md
+```
 
 ### 通过技能实现分层规则
 
@@ -61,7 +84,8 @@ skills/rules  → claude-rules、python-patterns、golang-patterns、frontend-pa
 | superpowers | [obra/superpowers](https://github.com/obra/superpowers) | 计划、调试、TDD 工作流 |
 | everything-claude-code | [affaan-m/everything-claude-code](https://github.com/affaan-m/everything-claude-code) | 语言模式、测试、安全、验证 |
 | anthropic skills packs | [anthropics/skills](https://github.com/anthropics/skills) | 文档处理、前端设计、画布/艺术、MCP builder |
-| claude-mem | [thedotmack/claude-mem](https://github.com/thedotmack/claude-mem) | 持久记忆工作流（`make-plan`、`do`、`mem-search`） |
+| claude-mem workflows | [thedotmack/claude-mem](https://github.com/thedotmack/claude-mem) | 规划/执行技能（`make-plan`、`do`） |
+| codex-mem（本地） | 本仓库 | Codex 原生持久记忆（`codex-mem`、`mem-search`、`MEMORY.md` 同步） |
 | AI research skills | [zechenzhangAGI/AI-research-SKILLs](https://github.com/zechenzhangAGI/AI-research-SKILLs) | 微调、后训练、推理服务、分布式训练、优化 |
 
 ### MCP 集成

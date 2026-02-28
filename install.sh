@@ -4,6 +4,7 @@ set -euo pipefail
 CODEX_DIR="${HOME}/.codex"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALLER="${CODEX_DIR}/skills/.system/skill-installer/scripts/install-skill-from-github.py"
+CODEX_MEM_BIN="${CODEX_DIR}/bin/codex-mem"
 
 info(){ printf "[INFO] %s\n" "$*"; }
 warn(){ printf "[WARN] %s\n" "$*"; }
@@ -66,13 +67,29 @@ install_skills() {
   python3 "$INSTALLER" --repo obra/superpowers --path skills/using-superpowers skills/systematic-debugging skills/writing-plans skills/test-driven-development || true
 
   # Claude Mem
-  python3 "$INSTALLER" --repo thedotmack/claude-mem --path openclaw skills/do skills/make-plan skills/mem-search skills/smart-explore || true
+  python3 "$INSTALLER" --repo thedotmack/claude-mem --path skills/do skills/make-plan || true
+}
+
+install_codex_mem() {
+  mkdir -p "$CODEX_DIR/bin" "$CODEX_DIR/skills/codex-mem" "$CODEX_DIR/skills/mem-search"
+  cp "$SCRIPT_DIR/codex-mem/codex-mem.py" "$CODEX_MEM_BIN"
+  chmod +x "$CODEX_MEM_BIN"
+
+  # Codex-native memory skills (override incompatible mem-search from upstream if present)
+  cp "$SCRIPT_DIR/skills/codex-mem/SKILL.md" "$CODEX_DIR/skills/codex-mem/SKILL.md"
+  cp "$SCRIPT_DIR/skills/mem-search/SKILL.md" "$CODEX_DIR/skills/mem-search/SKILL.md"
+
+  "$CODEX_MEM_BIN" init >/dev/null 2>&1 || true
+  "$CODEX_MEM_BIN" build-context \
+    --output "$CODEX_DIR/MEMORY.md" \
+    --lessons "$CODEX_DIR/lessons.md" >/dev/null 2>&1 || true
 }
 
 main() {
   install_core
   install_mcp
   install_skills
+  install_codex_mem
   info "Done. Restart Codex to load new skills and config."
 }
 
