@@ -1,8 +1,0 @@
-{
-  "lark-mcp": {
-    "type": "stdio",
-    "command": "npx",
-    "args": ["-y", "@larksuiteoapi/lark-mcp", "mcp", "-a", "YOUR_APP_ID", "-s", "YOUR_APP_SECRET"],
-    "env": {}
-  }
-}
