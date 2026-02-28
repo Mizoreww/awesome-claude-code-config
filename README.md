@@ -1,4 +1,4 @@
-[Claude Main Branch](https://github.com/Mizoreww/claude-code-config/tree/main) | [中文 README（main）](https://github.com/Mizoreww/claude-code-config/blob/main/README.zh-CN.md) | **English** | [中文](./README.zh-CN.md)
+[Main English](https://github.com/Mizoreww/claude-code-config/blob/main/README.md) | [Main 中文](https://github.com/Mizoreww/claude-code-config/blob/main/README.zh-CN.md) | **Codex English** | [Codex 中文](./README.zh-CN.md)
 
 # Codex Configuration
 
@@ -100,11 +100,9 @@ If you prefer safer defaults, adjust these in `~/.codex/config.toml`.
 
 ## Acknowledgements
 
-- [**AI Agent Workflow Orchestration Guidelines**](https://gist.github.com/OmerFarukOruc/a02a5883e27b5b52ce740cadae0e4d60) by [@OmerFarukOruc](https://github.com/OmerFarukOruc) — Inspiration for workflow orchestration
-- [**Harness Engineering**](https://openai.com/index/harness-engineering/) by OpenAI — engineers shift from writing code to designing systems with agents
 - [**Working for 10 Claude Codes**](https://mp.weixin.qq.com/s/9qPD3gXj3HLmrKC64Q6fbQ) by Hu Yuanming — practical experience running multiple coding agents in parallel
+- [**Harness Engineering**](https://openai.com/index/harness-engineering/) by OpenAI — engineers shift from writing code to designing systems with agents
 - [**Claude Code in Action**](https://anthropic.skilljar.com/claude-code-in-action) by Anthropic Academy — official workflow training
-- [**ChatGPT Prompt Engineering for Developers**](https://www.deeplearning.ai/short-courses/chatgpt-prompt-engineering-for-developers/) by DeepLearning.AI & OpenAI — prompt engineering foundations
 
 ## License
 

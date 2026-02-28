@@ -1,4 +1,4 @@
-[Claude Main Branch](https://github.com/Mizoreww/claude-code-config/tree/main) | [中文 README（main）](https://github.com/Mizoreww/claude-code-config/blob/main/README.zh-CN.md) | [English](./README.md) | **中文**
+[Main English](https://github.com/Mizoreww/claude-code-config/blob/main/README.md) | [Main 中文](https://github.com/Mizoreww/claude-code-config/blob/main/README.zh-CN.md) | [Codex English](./README.md) | **Codex 中文**
 
 # Codex 配置
 
@@ -100,11 +100,9 @@ skills/rules  → claude-rules、python-patterns、golang-patterns、frontend-pa
 
 ## 致谢
 
-- [**AI Agent Workflow Orchestration Guidelines**](https://gist.github.com/OmerFarukOruc/a02a5883e27b5b52ce740cadae0e4d60) by [@OmerFarukOruc](https://github.com/OmerFarukOruc) — 工作流编排灵感来源
+- [**我给 10 个 Claude Code 打工**](https://mp.weixin.qq.com/s/9qPD3gXj3HLmrKC64Q6fbQ) by 胡渊明 — 多个编码 Agent 并行协作的实践经验
 - [**Harness Engineering**](https://openai.com/zh-Hans-CN/index/harness-engineering/) by OpenAI — 从“写代码”转向“设计系统并驾驭 Agent”
-- [**我给 10 个 Claude Code 打工**](https://mp.weixin.qq.com/s/9qPD3gXj3HLmrKC64Q6fbQ) by 胡渊鸣 — 多个编码 Agent 并行协作的实践经验
 - [**Claude Code in Action**](https://anthropic.skilljar.com/claude-code-in-action) by Anthropic Academy — 官方工作流课程
-- [**ChatGPT Prompt Engineering for Developers**](https://www.deeplearning.ai/short-courses/chatgpt-prompt-engineering-for-developers/) by DeepLearning.AI & OpenAI — 提示工程基础
 
 ## 许可证
 
