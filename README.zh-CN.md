@@ -159,6 +159,10 @@ golang/       → gofmt、表驱动测试、gosec
 
 详见 [`plugins/README.md`](plugins/README.md) 了解安装方式。
 
+### 版本变更日志策略
+
+CLAUDE.md 包含 **版本变更日志** 规则：在做版本级改动（新功能、重大重构、Breaking Change）时，Claude 会主动在项目根目录维护 `CHANGELOG.md`，每条记录包含功能、设计理念和注意细节。使设计决策与代码同步可追溯。
+
 ### 自定义技能
 
 | 技能 | 说明 |
