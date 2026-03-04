@@ -190,6 +190,19 @@ Capture **3-8** key figures per paper.
 
 ### After identifying paper type, select the corresponding template
 
+### Writing Principles (Critical)
+
+**Depth-first**: For every section, ask "why" and "how", not just "what".
+
+| Shallow writing (prohibited) | Deep writing (required) |
+|------------------------------|------------------------|
+| "Proposes a new method" | "Addresses bottleneck Y in problem X via mechanism Z" |
+| "Achieves SOTA results" | "Improves X% over method B on dataset A, primarily because of Y" |
+| "Uses a Transformer" | "Uses L-layer Transformer with input dim D, H attention heads, key modification is Z" |
+| "Has some limitations" | "Only validated in scenario X, does not account for distribution shift Y, assumption Z may not hold in practice" |
+
+### After identifying paper type, select the corresponding template
+
 All types share these sections:
 
 ```markdown
@@ -200,11 +213,13 @@ All types share these sections:
 - **Published:**
 - **Link:**
 - **Paper Type:** [Empirical / Theoretical / Survey / Systems]
+- **One-line summary:** What was done + how + what was the result
 
 ## Research Problem
-- **What problem does it solve?**
+- **What problem does it solve?** Identify the specific gap in existing methods
 - **Key assumptions:** What constraints/limitations frame the research
-- **Why is it important?** (optional)
+- **Why is it important?** The practical impact on the field
+- **Positioning among related work:** What are the 2-3 closest prior works? What is the key difference?
 ```
 
 ---
@@ -221,6 +236,10 @@ All types share these sections:
 
 <!-- Insert problem definition/motivation figure here if available -->
 
+## Key Insight
+> Distill the paper's core new idea in 2-3 sentences. Not "what was done", but "what insight makes this method work".
+> Example: Rather than predicting frame-by-frame, first establish long-term 3D point tracking, then leverage temporal consistency for joint optimization.
+
 ## Technical Method
 ### Overall Framework and Principles
 <!-- Insert architecture diagram -->
@@ -229,25 +248,49 @@ All types share these sections:
 - Overall system architecture description
 - Modules/components and their responsibilities
 - Signal/data flow direction
+- **Why this design?** Advantages over the intuitive/naive approach
 
 ### Core Component Details
 <!-- Insert algorithm flowchart here if available -->
 
 - Model/algorithm architecture details (layers, dimensions, input/output)
 - Training objective and loss function (write key equations)
-- Training data source (synthetic/real/mixed, dataset names)
+- Training data source (synthetic/real/mixed, dataset names and scale)
 - Key tricks and design decisions
+- **Motivation for each design choice:** Why use A instead of B? Does the paper provide justification?
 
 ## Experimental Results
 <!-- Insert experiment result figures/tables -->
 ![Figure Y: Description](./images/figure_Y.png)
 
+### Results (Facts)
 - **Experimental setup:** Environment, hardware, hyperparameters
-- **Baselines compared:**
-- **Key results summary:** Quantitative improvement margins
-- **Ablation study:** Component contributions
+- **Baselines compared:** List specific method names and sources
+- **Key results:** Quantitative improvement margins (specific numbers + percentages)
+- **Ablation study:** Component contributions (removing X decreases performance by Y%)
+- **Surprising findings:** Any counterintuitive results
+
+### Analysis (Interpretation)
+- Authors' explanation and attribution of results
+- Which scenarios/datasets show best performance? Worst?
+- Root cause of performance gains (authors' claims vs actual evidence)
 
 <!-- Insert ablation or visualization result figures here if available -->
+
+## Critical Analysis
+### Strengths
+- Specific improvements over prior work (not just "good results")
+
+### Limitations
+- **Acknowledged by authors:**
+- **My observations:** Issues not mentioned in the paper
+  - Do assumptions hold in practice?
+  - Are compute/data requirements reasonable?
+  - Are evaluation metrics comprehensive?
+
+### Reproducibility Assessment
+- Is code open-sourced? Is data available?
+- Are key implementation details sufficiently described?
 
 ## Summary
 [shared section]
@@ -265,24 +308,36 @@ All types share these sections:
 [shared section]
 - **Mathematical formulation:** Formal problem definition
 
+## Key Insight
+> Distill the paper's core theoretical contribution in 2-3 sentences. What new mathematical tool/perspective makes this result possible?
+
 ## Theoretical Framework
 ### Problem Formalization
 - Symbol definitions and notation conventions
 - Core mathematical definitions
 
 ### Main Theorems and Proof Sketches
-- **Theorem 1:** Statement + key proof idea (not full proof, but key steps)
+- **Theorem 1:** Statement + key proof idea (not full proof, but key steps and key lemmas)
 - **Theorem 2:** ...
-- Key techniques/lemmas used in proofs
+- Key techniques used in proofs: Why does this technique work? Is there a more intuitive explanation?
 
 ### Theoretical Analysis
-- Implications and intuitive interpretation of results
+- Implications and intuitive interpretation of results (restate in non-mathematical language)
 - Tightness of upper/lower bounds
-- Relationship to and comparison with known results
+- Relationship to and comparison with known results: Which bound was improved? Which assumption was relaxed?
 
 ## Validation (if experiments exist)
 - Experimental setup
 - Comparison of theoretical predictions vs actual results
+- How is the gap between theory and experiments explained?
+
+## Critical Analysis
+### Strengths
+- Importance and novelty of the theoretical contribution
+
+### Limitations
+- **Acknowledged by authors:**
+- **My observations:** Reasonableness of assumptions, practical utility, difficulty of generalization
 
 ## Summary
 [shared section]
@@ -300,30 +355,40 @@ All types share these sections:
 ## Research Problem
 [shared section]
 
+## Key Insight
+> What is the core contribution of this survey? What classification perspective was proposed, or what important trends were identified?
+
 ## Taxonomy
 <!-- Insert taxonomy/classification figure -->
 ![Figure X: Description](./images/figure_X.png)
 
-- Main classification dimensions
+- Main classification dimensions and rationale for their selection
 - Category definitions and representative works
 
 ### Direction 1: [Name]
 - Key methods and advances
 - Representative works (author, year)
 - Pros and cons
+- **Current bottleneck:** The core challenge facing this direction
 
 ### Direction 2: [Name]
 - ...
 
 ### Method Comparison
-| Method Type | Strengths | Weaknesses | Representative Works |
-|-------------|-----------|------------|---------------------|
-| ... | ... | ... | ... |
+| Method Type | Strengths | Weaknesses | Representative Works | Best Use Case |
+|-------------|-----------|------------|---------------------|---------------|
+| ... | ... | ... | ... | ... |
 
 ## Open Problems and Trends
 - Current major challenges in the field
 - Emerging trends and directions
 - Authors' predictions and recommendations
+- **Most promising direction:** Based on the survey analysis, which direction deserves most attention? Why?
+
+## Critical Analysis
+- Is the survey's coverage comprehensive? Any important directions missed?
+- Is the taxonomy reasonable? Could it be organized better?
+- Do the authors' opinions/biases affect the survey's objectivity?
 
 ## Summary
 [shared section]
@@ -341,6 +406,9 @@ All types share these sections:
 [shared section]
 - **Design goals:** Key requirements the system must meet
 
+## Key Insight
+> What is the core design insight of this system? What trade-off or observation makes this design superior to existing solutions?
+
 ## System Design
 ### Architecture Overview
 <!-- Insert system architecture diagram -->
@@ -350,8 +418,8 @@ All types share these sections:
 - Component responsibilities and interfaces
 
 ### Key Design Decisions
-- Decision 1: What choice was made, why
-- Decision 2: Trade-offs considered
+- Decision 1: What choice was made, why (and not the alternative)
+- Decision 2: Trade-offs considered (performance vs complexity vs maintainability)
 - Key differences from existing systems
 
 ### Implementation Details
@@ -363,14 +431,27 @@ All types share these sections:
 <!-- Insert performance comparison figures/tables -->
 ![Figure Y: Description](./images/figure_Y.png)
 
+### Experimental Facts
 - **Benchmark setup:** Environment, hardware, workloads
 - **Compared systems:**
-- **Key metrics:** Throughput, latency, resource usage
+- **Key metrics:** Throughput, latency, resource usage (specific numbers)
 - **Scalability:** Performance as scale increases
+
+### Result Interpretation
+- Under what conditions does it perform best? When does it degrade?
+- Root cause of performance advantages
 
 ## Deployment Experience (if available)
 - Real-world production performance
 - Problems encountered and solutions
+
+## Critical Analysis
+### Strengths
+- Design elegance and practicality
+
+### Limitations
+- **Acknowledged by authors:**
+- **My observations:** Deployment assumptions, hardware dependencies, generalizability
 
 ## Summary
 [shared section]
@@ -381,11 +462,27 @@ All types share these sections:
 ### Shared Summary Section
 
 ```markdown
-## Summary
+## Summary and Evaluation
+
+### Three-Perspective Conclusion (Andrew Ng Framework)
+
+**Authors' conclusion:** What do the authors claim to have accomplished? What goals were achieved?
+
+**Personal assessment:**
+- Did the authors truly achieve their claimed goals? Is the evidence sufficient?
+- How much does this work actually advance the field?
+
+**Overall evaluation:**
 - **Core idea:** One sentence summarizing the core contribution
-- **Main highlight:** What makes this stand out from prior work
+- **Main highlight:** What stands out compared to prior work
 - **Future directions:** Natural next steps
-- **Critiques:** Specific limitations (must name concrete issues, not vague statements)
+- **Rating:** [Breakthrough / Important / Valuable / Incremental]
+
+### Comprehension Verification (Self-check after writing)
+1. What were the authors trying to accomplish?
+2. What are the key elements of the approach?
+3. What can I use in my own research?
+4. What references are worth reading further?
 ```
 
 ## Section Writing Guidelines
@@ -393,45 +490,66 @@ All types share these sections:
 ### Basic Information
 - Extract from paper header, abstract, or metadata
 - For links: use DOI if available, otherwise arXiv or publisher URL
+- **One-line summary must include: what was done + how + what was the result**
 
 ### Research Problem
-- Focus on the GAP the paper addresses
+- Focus on the **specific gap** the paper addresses, not generic field descriptions
 - Mathematical description: include key equations if present
 - Assumptions: what constraints or simplifications does the approach make?
+- **Related work positioning:** Must mention 2-3 closest prior works and explain what makes this paper unique
+
+### Key Insight
+- This is the most important paragraph — distill the **key insight** that makes the method work
+- Not a paraphrase of the abstract, but answering "what is this paper's core new idea?"
+- Good example: "Observed phenomenon X, thus leveraging Y to achieve Z"
+- Bad example: "Proposes a new method to solve problem A" (too vague)
 
 ### Technical Method (Empirical)
 - **Architecture first:** Draw the big picture before diving into components
 - **Be specific:** Dimensions, layer counts, parameter counts — not just "a network"
 - **Loss functions:** Write the actual LaTeX equation if provided
 - **Training data:** Note if synthetic, real-world, or mixed; mention dataset names and scale
+- **Design motivation:** Every key design choice should explain why (paper's justification or inferred reasoning)
 - **Must insert architecture diagram screenshot**
 
 ### Experimental Results
+- **Separate facts from interpretation:** Results section writes experimental data only; Analysis section writes explanations and attribution
 - Focus on **quantitative improvements** over baselines (specific numbers and percentages)
 - Note which metrics matter most for this problem domain
 - Mention any surprising or counterintuitive results
+- Note best and worst performing scenarios/datasets
 - **Must insert main result figure/table screenshot**
 
-### Summary
-- **Core idea:** One sentence
-- **Highlight:** What is this paper's unique contribution
-- **Extensions:** Natural next steps
-- **Critiques:** Must be specific ("only validated in X scenario" not "has limitations")
+### Critical Analysis
+- **Strengths:** Must specify concrete improvements, not just "good results"
+- **Limitations:** Separately list author-acknowledged and self-discovered ones
+- **Reproducibility:** Is code/data open-sourced? Are implementation details sufficient?
+
+### Summary and Evaluation
+- **Three perspectives:** Authors' conclusion → Personal assessment → Overall evaluation
+- **Rating:** Choose from [Breakthrough / Important / Valuable / Incremental] with justification
+- **Comprehension verification:** Self-check with 4 questions after writing (Andrew Ng framework)
 
 ## Common Mistakes
 
 | Mistake | Correction |
 |---------|------------|
-| Copying abstract verbatim | Synthesize in your own words |
+| Copying abstract verbatim | Synthesize in your own words, distill the key insight |
 | Missing key assumptions | Explicitly state what the method assumes |
 | Vague architecture description | Include specific dimensions and layer types |
-| Ignoring failure cases | Note where method underperforms |
+| Ignoring failure cases | Note where method underperforms and on which datasets |
 | Skipping mathematical notation | Include key LaTeX equations when available |
 | Not screenshotting paper figures | Must capture architecture and main result figures |
 | Misplaced image insertion | Images should be adjacent to corresponding text |
 | Vague critiques | Must name specific limitations (scenario, data, assumptions) |
 | Wrong paper type classification | Read abstract and intro fully before classifying; default to Empirical |
 | Giving up after screenshot failure | Try element screenshot first, fall back to clip-based screenshot |
+| Writing only "what" without "why" | Every design choice should explain the motivation and justification |
+| Mixing results and conclusions | Separate experimental facts (Results) from author interpretation (Analysis) |
+| Missing related work positioning | Must compare against 2-3 closest prior works |
+| Key Insight too vague or missing | Key Insight must be a specific, actionable new idea |
+| Evaluation missing three perspectives | Separately write authors' conclusion, personal assessment, overall evaluation |
+| Not distinguishing author-acknowledged vs self-discovered limitations | Critical Analysis must separate the two types of limitations |
 
 ## Language
 
