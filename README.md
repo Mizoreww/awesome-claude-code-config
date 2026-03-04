@@ -100,6 +100,10 @@ This keeps common principles and language-specific practices aligned.
 Bundled local skill in this repo:
 - `paper-reading` (`skills/paper-reading/SKILL.md`) from main branch, installed to `~/.codex/skills/paper-reading/`
 
+### Version Changelog Policy
+
+AGENTS.md includes a **Version Changelog** rule: when making version-level changes (new features, major refactors, breaking changes), the agent proactively maintains a `CHANGELOG.md` in the project root with structured entries covering features, design rationale, and caveats. This keeps design decisions traceable alongside the code.
+
 ### MCP Integration
 
 Default MCP servers in `config.toml`:
