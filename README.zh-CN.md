@@ -4,6 +4,8 @@
 
 # Awesome Claude Code 配置
 
+![Statusline](assets/statusline.png)
+
 [Claude Code](https://claude.com/claude-code) 的生产级配置：全局指令、多语言编码规则、插件、MCP 集成、自我改进循环。
 
 ## 目录结构
@@ -101,10 +103,6 @@ cd awesome-claude-code-config
 ### 状态栏
 
 单行状态栏，渐变进度条，由 `hooks/statusline.sh` 驱动：
-
-```
-🧠 Claude Opus 4.6 │ 📂 project │  main │ context ████████░░░░░░░░░░░░ 40% 200k │ 5h ██████░░░░░░░░░░░░░░ 29% 3h42m
-```
 
 - **模型** + **目录** + **git 分支**
 - **Context 窗口**：渐变进度条（绿 → 黄 → 红），显示百分比和大小

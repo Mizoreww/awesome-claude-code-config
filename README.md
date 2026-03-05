@@ -4,6 +4,8 @@
 
 # Awesome Claude Code Configuration
 
+![Statusline](assets/statusline.png)
+
 Production-ready configuration for [Claude Code](https://claude.com/claude-code): global instructions, multi-language coding rules, plugins, MCP integration, and a self-improvement loop.
 
 ## Directory Structure
@@ -101,10 +103,6 @@ Replaces the previous approach of requiring manual `Read lessons.md` in CLAUDE.m
 ### Statusline
 
 A single-line status bar with gradient progress bars, powered by `hooks/statusline.sh`:
-
-```
-🧠 Claude Opus 4.6 │ 📂 project │  main │ context ████████░░░░░░░░░░░░ 40% 200k │ 5h ██████░░░░░░░░░░░░░░ 29% 3h42m
-```
 
 - **Model** + **directory** + **git branch**
 - **Context window**: gradient bar (green → yellow → red) with percentage and size
