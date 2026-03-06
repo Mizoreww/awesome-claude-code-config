@@ -2,7 +2,7 @@
 
 # Codex 配置
 
-面向生产使用的 Codex 配置：全局指令、基于 lessons 的自我纠正、通过技能实现分层编码规范、MCP 集成，以及一键安装。
+[Codex CLI](https://github.com/openai/codex) 的生产级配置——一键安装全局指令、多 Agent 角色、通过技能实现分层编码规范、MCP 集成、自定义状态栏，以及基于 lessons 的自我改进循环。与 [Claude Code 主配置](https://github.com/Mizoreww/awesome-claude-code-config/tree/main)互为姐妹分支。
 
 ## 目录结构
 

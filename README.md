@@ -2,7 +2,7 @@
 
 # Codex Configuration
 
-Production-ready configuration for Codex: global instructions, lessons-driven self-correction, layered coding standards through skills, MCP integration, and one-command bootstrap.
+Production-ready configuration for [Codex CLI](https://github.com/openai/codex) — one-command install of global instructions, multi-agent roles, layered coding standards through skills, MCP integration, custom status bar, and a lessons-driven self-improvement loop. Companion branch to the [Claude Code main config](https://github.com/Mizoreww/awesome-claude-code-config/tree/main).
 
 ## Directory Structure
 
