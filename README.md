@@ -6,7 +6,7 @@
 
 ![Statusline](assets/statusline.png)
 
-Production-ready configuration for [Claude Code](https://claude.com/claude-code) — one-command install of global instructions, multi-language coding rules (Python / TypeScript / Go), 19 curated plugins, custom skills, MCP integration, cross-model code review (Claude + Codex), and a self-improvement loop that remembers corrections across sessions. Also ships a [Codex CLI branch](https://github.com/Mizoreww/awesome-claude-code-config/tree/codex) with parallel support for OpenAI's coding agent.
+Production-ready configuration for [Claude Code](https://claude.com/claude-code) — one-command install of global instructions, multi-language coding rules (Python / TypeScript / Go), 19 curated plugins, custom skills, custom status bar, MCP integration, cross-model code review (Claude + Codex), and a self-improvement loop that remembers corrections across sessions. Also ships a [Codex CLI branch](https://github.com/Mizoreww/awesome-claude-code-config/tree/codex) with parallel support for OpenAI's coding agent.
 
 ## Directory Structure
 

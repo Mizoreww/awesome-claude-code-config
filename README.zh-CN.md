@@ -6,7 +6,7 @@
 
 ![Statusline](assets/statusline.png)
 
-[Claude Code](https://claude.com/claude-code) 的生产级配置——一键安装全局指令、多语言编码规则（Python / TypeScript / Go）、19 个精选插件、自定义技能、MCP 集成、跨模型代码审查（Claude + Codex），以及跨 session 自动记忆纠正的自我改进循环。同时提供 [Codex CLI 分支](https://github.com/Mizoreww/awesome-claude-code-config/tree/codex)，并行支持 OpenAI 的编码 Agent。
+[Claude Code](https://claude.com/claude-code) 的生产级配置——一键安装全局指令、多语言编码规则（Python / TypeScript / Go）、19 个精选插件、自定义技能、自定义状态栏、MCP 集成、跨模型代码审查（Claude + Codex），以及跨 session 自动记忆纠正的自我改进循环。同时提供 [Codex CLI 分支](https://github.com/Mizoreww/awesome-claude-code-config/tree/codex)，并行支持 OpenAI 的编码 Agent。
 
 ## 目录结构
 
