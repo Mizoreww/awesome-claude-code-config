@@ -47,6 +47,7 @@ MANAGED_SKILLS=(
   awq gptq gguf flash-attention bitsandbytes
   vllm sglang tensorrt-llm llama-cpp
   paper-reading
+  adversarial-review
 )
 
 detect_script_dir() {
@@ -360,20 +361,19 @@ install_skill_paths() {
   python3 "$INSTALLER" --repo "$repo" --path "$@" || warn "Skill install from $repo returned non-zero (possibly already installed)"
 }
 
-install_local_paper_reading() {
-  if [[ ! -f "$SCRIPT_DIR/skills/paper-reading/SKILL.md" ]]; then
-    warn "Local skill missing: skills/paper-reading/SKILL.md"
-    return 0
-  fi
+install_local_skills() {
+  for skill_dir in "$SCRIPT_DIR"/skills/*/; do
+    [[ -d "$skill_dir" ]] || continue
+    local skill
+    skill=$(basename "$skill_dir")
 
-  if $DRY_RUN; then
-    info "Would copy: skills/paper-reading/SKILL.md -> $CODEX_DIR/skills/paper-reading/SKILL.md"
-    return 0
-  fi
-
-  mkdir -p "$CODEX_DIR/skills/paper-reading"
-  cp "$SCRIPT_DIR/skills/paper-reading/SKILL.md" "$CODEX_DIR/skills/paper-reading/SKILL.md"
-  ok "Installed local skill: paper-reading"
+    if $DRY_RUN; then
+      info "Would copy: skills/$skill/ -> $CODEX_DIR/skills/$skill/"
+    else
+      cp -r "$skill_dir" "$CODEX_DIR/skills/$skill"
+      ok "Installed local skill: $skill"
+    fi
+  done
 }
 
 install_skills() {
@@ -382,7 +382,7 @@ install_skills() {
   if [[ ! -f "$INSTALLER" ]]; then
     warn "skill-installer not found at $INSTALLER"
     warn "Install Codex system skill-installer first, then rerun."
-    install_local_paper_reading
+    install_local_skills
     return 0
   fi
 
@@ -399,7 +399,7 @@ install_skills() {
     install_skill_paths obra/superpowers \
       skills/using-superpowers skills/systematic-debugging skills/writing-plans skills/test-driven-development
 
-    install_local_paper_reading
+    install_local_skills
   fi
 
   if [[ "$SKILL_GROUP" == "ai-research" || "$SKILL_GROUP" == "all" ]]; then

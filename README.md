@@ -12,7 +12,7 @@ Production-ready configuration for [Codex CLI](https://github.com/openai/codex) 
 ├── config.toml            # Codex settings (model, permissions, MCP, lessons injection)
 ├── agents/                # Multi-agent role configs
 ├── lessons.md             # Self-correction source log
-├── skills/                # Optional custom skills
+├── skills/                # Custom skills (paper-reading, adversarial-review)
 ├── VERSION                # Installer version
 └── install.sh             # One-command installer
 ```
@@ -97,8 +97,9 @@ This keeps common principles and language-specific practices aligned.
 | anthropic skills packs | [anthropics/skills](https://github.com/anthropics/skills) | document tools, frontend design, canvas/art, MCP builder |
 | AI research skills | [zechenzhangAGI/AI-research-SKILLs](https://github.com/zechenzhangAGI/AI-research-SKILLs) | fine-tuning, post-training, inference, distributed training, optimization |
 
-Bundled local skill in this repo:
-- `paper-reading` (`skills/paper-reading/SKILL.md`) from main branch, installed to `~/.codex/skills/paper-reading/`
+Bundled local skills in this repo:
+- `paper-reading` (`skills/paper-reading/SKILL.md`) — structured research paper summarization
+- `adversarial-review` (`skills/adversarial-review/SKILL.md`) — cross-model adversarial code review via opposite AI CLI (from [poteto/noodle](https://github.com/poteto/noodle/tree/main/.agents/skills/adversarial-review))
 
 ### Version Changelog Policy
 
@@ -123,6 +124,10 @@ Default MCP servers in `config.toml`:
    - `YOUR_GITHUB_PAT` (GitHub MCP)
 2. This config uses current Codex style (for example `web_search = "live"` at top-level).
 3. If `~/.codex/config.toml` already exists, installer skips overwriting it; merge manually if needed.
+
+### Adversarial Code Review
+
+AGENTS.md includes a **Code Review** rule: whenever a code review is needed, invoke the `adversarial-review` skill (from [poteto/noodle](https://github.com/poteto/noodle/tree/main/.agents/skills/adversarial-review)). This skill spawns reviewers on the **opposite AI model's CLI** (`claude -p` for Codex users, `codex exec` for Claude users), producing cross-model adversarial analysis with structured verdicts (PASS / CONTESTED / REJECT).
 
 ## Security Note
 
