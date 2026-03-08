@@ -23,6 +23,29 @@ ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
+# Retry wrapper: retry <max_attempts> <delay_seconds> <description> <command...>
+# Returns 0 on success, 1 if all attempts fail.
+retry() {
+    local max_attempts="$1"; shift
+    local delay="$1"; shift
+    local description="$1"; shift
+    local attempt=1
+
+    while (( attempt <= max_attempts )); do
+        if "$@" ; then
+            return 0
+        fi
+        if (( attempt < max_attempts )); then
+            warn "$description failed (attempt $attempt/$max_attempts), retrying in ${delay}s..."
+            sleep "$delay"
+        else
+            warn "$description failed after $max_attempts attempts, skipping."
+        fi
+        (( attempt++ ))
+    done
+    return 1
+}
+
 # --- Remote install detection -------------------------------------------
 
 detect_script_dir() {
@@ -48,12 +71,18 @@ detect_script_dir() {
         fi
 
         info "Remote mode: downloading $version..."
+        local download_cmd
         if command -v curl &>/dev/null; then
-            curl -fsSL "$tarball_url" | tar xz -C "$tmpdir" --strip-components=1
+            download_cmd="curl -fsSL $tarball_url"
         elif command -v wget &>/dev/null; then
-            wget -qO- "$tarball_url" | tar xz -C "$tmpdir" --strip-components=1
+            download_cmd="wget -qO- $tarball_url"
         else
             error "Neither curl nor wget found. Install one and retry."
+            exit 1
+        fi
+
+        if ! retry 5 3 "Download source tarball" bash -c "$download_cmd | tar xz -C '$tmpdir' --strip-components=1"; then
+            error "Failed to download source after retries. Cannot continue in remote mode."
             exit 1
         fi
 
@@ -82,10 +111,19 @@ get_installed_version() {
 
 get_remote_version() {
     local url="https://raw.githubusercontent.com/Mizoreww/awesome-claude-code-config/main/VERSION"
-    if command -v curl &>/dev/null; then
-        curl -fsSL "$url" 2>/dev/null | tr -d '[:space:]' || echo "unavailable"
-    elif command -v wget &>/dev/null; then
-        wget -qO- "$url" 2>/dev/null | tr -d '[:space:]' || echo "unavailable"
+    local result=""
+    _fetch_version() {
+        if command -v curl &>/dev/null; then
+            result="$(curl -fsSL "$url" 2>/dev/null | tr -d '[:space:]')"
+        elif command -v wget &>/dev/null; then
+            result="$(wget -qO- "$url" 2>/dev/null | tr -d '[:space:]')"
+        else
+            return 1
+        fi
+        [[ -n "$result" ]]
+    }
+    if retry 5 2 "Fetch remote version" _fetch_version; then
+        echo "$result"
     else
         echo "unavailable"
     fi
@@ -542,10 +580,12 @@ install_mcp() {
     if $DRY_RUN; then
         info "Would add MCP server: lark-mcp (stdio)"
     else
-        claude mcp add --scope user --transport stdio lark-mcp \
-            -- npx -y @larksuiteoapi/lark-mcp mcp -a YOUR_APP_ID -s YOUR_APP_SECRET 2>/dev/null && \
-            ok "MCP server added: lark-mcp" || \
-            warn "MCP server lark-mcp may already exist"
+        if retry 5 3 "Add MCP server lark-mcp" claude mcp add --scope user --transport stdio lark-mcp \
+            -- npx -y @larksuiteoapi/lark-mcp mcp -a YOUR_APP_ID -s YOUR_APP_SECRET 2>/dev/null; then
+            ok "MCP server added: lark-mcp"
+        else
+            warn "MCP server lark-mcp may already exist or could not be added, skipping"
+        fi
         warn "Replace YOUR_APP_ID and YOUR_APP_SECRET with your Feishu credentials"
     fi
 
@@ -598,9 +638,11 @@ install_plugins() {
         if $DRY_RUN; then
             info "Would add marketplace: $marketplace (github.com/$repo)"
         else
-            claude plugin marketplace add "https://github.com/$repo" 2>/dev/null && \
-                ok "Marketplace added: $marketplace" || \
-                warn "Marketplace $marketplace may already exist"
+            if retry 5 3 "Add marketplace $marketplace" claude plugin marketplace add "https://github.com/$repo" 2>/dev/null; then
+                ok "Marketplace added: $marketplace"
+            else
+                warn "Marketplace $marketplace may already exist or could not be added"
+            fi
         fi
     done
 
@@ -612,9 +654,11 @@ install_plugins() {
         if $DRY_RUN; then
             info "Would install plugin: $plugin_name from $marketplace"
         else
-            claude plugin install "${plugin_name}@${marketplace}" 2>/dev/null && \
-                ok "Plugin installed: $plugin_name" || \
-                warn "Plugin $plugin_name may already be installed"
+            if retry 5 3 "Install plugin $plugin_name" claude plugin install "${plugin_name}@${marketplace}" 2>/dev/null; then
+                ok "Plugin installed: $plugin_name"
+            else
+                warn "Plugin $plugin_name could not be installed, skipping"
+            fi
         fi
     done
 }
