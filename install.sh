@@ -622,11 +622,11 @@ install_plugins() {
         "thedotmack|thedotmack/claude-mem"
     )
 
-    # Build set of needed marketplaces
-    declare -A needed_marketplaces
+    # Build set of needed marketplaces (bash 3.2 compatible, no associative arrays)
+    local needed_marketplaces=""
     for entry in "${plugins[@]}"; do
         local marketplace="${entry##*@}"
-        needed_marketplaces["$marketplace"]=1
+        needed_marketplaces="$needed_marketplaces|$marketplace|"
     done
 
     # Step 1: Add required marketplaces
@@ -634,7 +634,7 @@ install_plugins() {
     for entry in "${marketplace_list[@]}"; do
         local marketplace="${entry%%|*}"
         local repo="${entry##*|}"
-        [[ -z "${needed_marketplaces[$marketplace]+x}" ]] && continue
+        [[ "$needed_marketplaces" != *"|$marketplace|"* ]] && continue
         if $DRY_RUN; then
             info "Would add marketplace: $marketplace (github.com/$repo)"
         else
