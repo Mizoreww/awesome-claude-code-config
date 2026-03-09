@@ -226,6 +226,7 @@ CLAUDE.md includes a **Version Changelog** rule: when making version-level chang
 |-------|-------------|
 | **paper-reading** | Structured research paper summarization with auto-screenshot of key figures. Uses ar5iv HTML for arXiv papers, Playwright for figure capture, outputs standardized markdown (problem, method, experiments, insights). |
 | **[adversarial-review](https://github.com/poteto/noodle/tree/main/.agents/skills/adversarial-review)** | Cross-model adversarial code review. Spawns reviewers on the opposite AI model (Claude ↔ Codex) with distinct critical lenses (Skeptic, Architect, Minimalist), then synthesizes a structured verdict (PASS/CONTESTED/REJECT). |
+| **[x-twitter-scraper](https://github.com/Xquik-dev/x-twitter-scraper)** | X/Twitter data MCP server — 76 REST API endpoints, 20 extraction tools, account monitoring, HMAC webhooks. |
 
 Place custom skills in `skills/<name>/SKILL.md`.
 
