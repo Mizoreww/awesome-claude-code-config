@@ -12,7 +12,7 @@ Production-ready configuration for [Codex CLI](https://github.com/openai/codex) 
 ├── config.toml            # Codex settings (model, permissions, MCP, lessons injection)
 ├── agents/                # Multi-agent role configs
 ├── lessons.md             # Self-correction source log
-├── skills/                # Custom skills (paper-reading, adversarial-review)
+├── skills/                # Custom skills (paper-reading, adversarial-review, humanizer)
 ├── VERSION                # Installer version
 └── install.sh             # One-command installer
 ```
@@ -100,6 +100,7 @@ This keeps common principles and language-specific practices aligned.
 Bundled local skills in this repo:
 - `paper-reading` (`skills/paper-reading/SKILL.md`) — structured research paper summarization
 - `adversarial-review` (`skills/adversarial-review/SKILL.md`) — cross-model adversarial code review via opposite AI CLI (from [poteto/noodle](https://github.com/poteto/noodle/tree/main/.agents/skills/adversarial-review))
+- `humanizer` (`skills/humanizer/SKILL.md`) — detect and remove AI writing patterns from text (from [blader/humanizer](https://github.com/blader/humanizer))
 
 ### Version Changelog Policy
 

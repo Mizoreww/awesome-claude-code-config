@@ -12,7 +12,7 @@
 ├── config.toml            # Codex 设置（模型、权限、MCP、lessons 注入）
 ├── agents/                # Multi-agent 角色配置
 ├── lessons.md             # 自我纠正源日志
-├── skills/                # 自定义技能（paper-reading、adversarial-review）
+├── skills/                # 自定义技能（paper-reading、adversarial-review、humanizer）
 ├── VERSION                # 安装器版本
 └── install.sh             # 一键安装脚本
 ```
@@ -100,6 +100,7 @@ skills/rules  → claude-rules、python-patterns、golang-patterns、frontend-pa
 本仓库内置本地技能：
 - `paper-reading`（`skills/paper-reading/SKILL.md`）— 结构化论文阅读与总结
 - `adversarial-review`（`skills/adversarial-review/SKILL.md`）— 跨模型对抗式代码审查，通过对立 AI CLI 执行（来自 [poteto/noodle](https://github.com/poteto/noodle/tree/main/.agents/skills/adversarial-review)）
+- `humanizer`（`skills/humanizer/SKILL.md`）— 检测并去除文本中的 AI 写作痕迹（来自 [blader/humanizer](https://github.com/blader/humanizer)）
 
 ### 版本变更日志策略
 

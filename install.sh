@@ -49,6 +49,7 @@ MANAGED_SKILLS=(
   vllm sglang tensorrt-llm llama-cpp
   paper-reading
   adversarial-review
+  humanizer
 )
 
 detect_script_dir() {
