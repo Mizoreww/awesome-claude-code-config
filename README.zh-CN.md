@@ -128,8 +128,10 @@ cd awesome-claude-code-config
 
 ### 自我改进循环
 
-1. 用户纠正 Claude → Claude 将纠正写入 `~/.claude/lessons.md`（由 CLAUDE.md 指令驱动）
-2. 下次 session → `SessionStart` hook 自动注入 lessons 到上下文
+双层记忆，按作用域路由：
+
+1. 用户纠正 Claude → Claude 判断作用域：**跨项目通用**的纠正写入 `~/.claude/lessons.md`；**仅当前项目**的偏好写入项目的 `MEMORY.md`
+2. 下次 session → `SessionStart` hook 自动注入全局 lessons；项目 `MEMORY.md` 由 Claude Code 自动加载
 3. 模式确认后 → 规则提升至 `CLAUDE.md`
 
 ### SessionStart Hook

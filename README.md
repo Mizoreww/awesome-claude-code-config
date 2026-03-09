@@ -128,8 +128,10 @@ cd awesome-claude-code-config
 
 ### Self-Improvement Loop
 
-1. User corrects Claude → Claude writes the correction to `~/.claude/lessons.md` (driven by CLAUDE.md instructions)
-2. Next session → `SessionStart` hook auto-injects lessons into context
+Two-tier memory with scope-based routing:
+
+1. User corrects Claude → Claude judges scope: **cross-project** corrections go to `~/.claude/lessons.md`; **project-specific** preferences go to the project's `MEMORY.md`
+2. Next session → `SessionStart` hook auto-injects global lessons; project `MEMORY.md` is auto-loaded by Claude Code
 3. Pattern confirmed → rule promoted to `CLAUDE.md`
 
 ### SessionStart Hook

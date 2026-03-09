@@ -5,15 +5,21 @@
 ### Architecture
 
 - `~/.claude/CLAUDE.md`: Global instructions, auto-loaded
-- `~/.claude/lessons.md`: Correction log, **auto-injected via SessionStart hook**
-- Project `MEMORY.md`: `~/.claude/projects/<path>/memory/MEMORY.md`, auto-loaded
+- `~/.claude/lessons.md`: **Global** corrections & lessons (cross-project), auto-injected via SessionStart hook
+- Project `MEMORY.md`: `~/.claude/projects/<path>/memory/MEMORY.md`, **Project-level** preferences & context (current project only), auto-loaded
+
+### Storage Decision
+
+When the user asks to "remember X", determine the scope first:
+- **Would this apply in a different project?** → Global, write to `~/.claude/lessons.md`
+- **Only relevant to the current project?** → Project-level, write to the project's `MEMORY.md`
 
 ### Self-Correction
 
 **Identifying corrections** (low threshold): user points out errors, says "remember/don't again...", shows frustration, same operation fails 2+ times. When in doubt, treat it as a correction.
 
 **Post-correction flow**:
-1. **Immediately** write to `~/.claude/lessons.md` (date, context, mistake, rule) — the only valid path; any path containing `projects/` is WRONG
+1. **Determine scope** (see Storage Decision above), write to the appropriate file
 2. Rules must be concrete instructions to prevent recurrence
 3. Only after writing, continue handling the user's request
 
