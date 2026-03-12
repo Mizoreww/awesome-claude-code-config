@@ -462,15 +462,17 @@ interactive_menu() {
     # Initialize selections from defaults
     local i
     for (( i=0; i<n; i++ )); do
-        selected[$i]="$(echo "${items[$i]}" | cut -d'|' -f3)"
+        local _f1 _f2 _def _f4
+        IFS='|' read -r _f1 _f2 _def _f4 <<< "${items[$i]}"
+        selected[$i]="$_def"
     done
 
-    # Group definitions: start|end|label
+    # Group definitions: start|end|label|hint
     local groups=(
-        "0|5|Core"
-        "6|8|Language Rules  ${DIM}(only install what your projects need)${NC}"
-        "9|11|Plugins"
-        "12|12|MCP Servers"
+        "0|5|Core|"
+        "6|8|Language Rules|only install what your projects need"
+        "9|11|Plugins|"
+        "12|12|MCP Servers|"
     )
 
     # Save terminal state (operate on fd 3 which points to the actual tty)
@@ -478,6 +480,7 @@ interactive_menu() {
     saved_stty=$(stty -g <&3 2>/dev/null) || saved_stty=""
 
     _menu_cleanup() {
+        printf '\033[?1049l' 2>/dev/null
         [[ -n "$saved_stty" ]] && stty "$saved_stty" <&3 2>/dev/null || stty echo <&3 2>/dev/null || true
         tput cnorm 2>/dev/null || printf '\033[?25h'
         exec 3<&- 2>/dev/null || true
@@ -513,60 +516,72 @@ interactive_menu() {
     }
 
     _draw_menu() {
-        printf '\033[H\033[J'
-
-        echo ""
-        echo -e "  ${BOLD}=========================================${NC}"
-        echo -e "  ${BOLD}  Awesome Claude Code Config Installer${NC}"
-        echo -e "  ${BOLD}  $(get_source_version)${NC}"
-        echo -e "  ${BOLD}=========================================${NC}"
-        echo ""
-        echo -e "  ${DIM}↑↓ move  Enter select  a=all n=none d=defaults q=quit${NC}"
-        echo ""
+        local buf=""
+        # Move cursor home (no clear - overwrite in place to prevent flicker)
+        buf+='\033[H'
+        # Header
+        buf+='\033[K\n'
+        buf+='  \033[1;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\033[K\n'
+        buf+="    \033[1;36mAwesome Claude Code Config Installer\033[0m  \033[2m${_cached_version}\033[0m\033[K\n"
+        buf+='  \033[1;37m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\033[0m\033[K\n'
+        buf+='\033[K\n'
+        buf+='  \033[2m↑/↓ Navigate   Space Toggle   Enter Submit\033[0m\033[K\n'
+        buf+='  \033[2ma All   n None   d Defaults   q Quit\033[0m\033[K\n'
+        buf+='\033[K\n'
 
         for group_def in "${groups[@]}"; do
-            local g_start g_end g_label
-            g_start="$(echo "$group_def" | cut -d'|' -f1)"
-            g_end="$(echo "$group_def" | cut -d'|' -f2)"
-            g_label="$(echo "$group_def" | cut -d'|' -f3-)"
+            local g_start g_end g_label g_hint
+            IFS='|' read -r g_start g_end g_label g_hint <<< "$group_def"
 
-            echo -e "  ${CYAN}${g_label}${NC}"
+            if [[ -n "$g_hint" ]]; then
+                buf+="  \033[1;36m${g_label}\033[0m  \033[2m(${g_hint})\033[0m\033[K\n"
+            else
+                buf+="  \033[1;36m${g_label}\033[0m\033[K\n"
+            fi
 
             local j
             for (( j=g_start; j<=g_end; j++ )); do
-                local label desc
-                label="$(echo "${items[$j]}" | cut -d'|' -f1)"
-                desc="$(echo "${items[$j]}" | cut -d'|' -f2)"
+                local label desc _def _id
+                IFS='|' read -r label desc _def _id <<< "${items[$j]}"
 
-                local indicator="  "
-                if [[ $j -eq $cursor ]]; then
-                    indicator="${GREEN}>${NC} "
-                fi
+                local padded
+                printf -v padded '%-24s' "$label"
 
                 local mark=" "
                 if [[ ${selected[$j]} -eq 1 ]]; then
-                    mark="${GREEN}x${NC}"
+                    mark='\033[32m*\033[0m'
                 fi
 
                 if [[ $j -eq $cursor ]]; then
-                    echo -e "  ${indicator}[${mark}] ${BOLD}$(printf '%-24s' "$label")${NC} ${DIM}${desc}${NC}"
+                    buf+="  \033[32m>\033[0m [${mark}] \033[1m${padded}\033[0m \033[2m${desc}\033[0m\033[K\n"
                 else
-                    echo -e "  ${indicator}[${mark}] $(printf '%-24s' "$label") ${DIM}${desc}${NC}"
+                    buf+="    [${mark}] ${padded} \033[2m${desc}\033[0m\033[K\n"
                 fi
             done
-            echo ""
+            buf+='\033[K\n'
         done
 
         # Submit button
         if [[ $cursor -eq $n ]]; then
-            echo -e "  ${GREEN}>${NC}  ${BOLD}${GREEN}[ Submit ]${NC}"
+            buf+='  \033[32m>\033[0m  \033[1;32m[ Submit ]\033[0m\033[K\n'
         else
-            echo -e "     ${DIM}[ Submit ]${NC}"
+            buf+='     \033[2m[ Submit ]\033[0m\033[K\n'
         fi
-        echo ""
+        buf+='\033[K\n'
+        # Clear any remaining lines from previous render
+        buf+='\033[J'
+        # Single atomic write eliminates flicker
+        printf '%b' "$buf"
     }
 
-    # Hide cursor, disable echo (operate on fd 3 = actual tty)
+    # Cache version to avoid file reads on every redraw
+    local _cached_version
+    _cached_version="$(get_source_version)"
+
+    # Title is plain bold white, borders are green
+
+    # Enter alternate screen, hide cursor, disable echo
+    printf '\033[?1049h' 2>/dev/null
     tput civis 2>/dev/null || printf '\033[?25l'
     stty -echo <&3 2>/dev/null || true
 
@@ -600,7 +615,9 @@ interactive_menu() {
                 ;;
             DEFAULT)
                 for (( i=0; i<n; i++ )); do
-                    selected[$i]="$(echo "${items[$i]}" | cut -d'|' -f3)"
+                    local _f1 _f2 _def _f4
+                    IFS='|' read -r _f1 _f2 _def _f4 <<< "${items[$i]}"
+                    selected[$i]="$_def"
                 done
                 ;;
             QUIT)
@@ -623,8 +640,8 @@ interactive_menu() {
     for (( i=0; i<n; i++ )); do
         [[ ${selected[$i]} -eq 0 ]] && continue
 
-        local item_id
-        item_id="$(echo "${items[$i]}" | cut -d'|' -f4)"
+        local item_id _f1 _f2 _f3
+        IFS='|' read -r _f1 _f2 _f3 item_id <<< "${items[$i]}"
 
         case "$item_id" in
             claude-md)           INSTALL_CLAUDE_MD=true ;;
