@@ -155,6 +155,7 @@ If you prefer safer defaults, adjust these in `~/.codex/config.toml`.
 - [**Claude Code Best Practice**](https://github.com/shanraisshan/claude-code-best-practice) by shanraisshan — Comprehensive best practices, workflows, and implementation patterns for Claude Code
 - [**Working for 10 Claude Codes**](https://mp.weixin.qq.com/s/9qPD3gXj3HLmrKC64Q6fbQ) by Hu Yuanming — practical experience running multiple coding agents in parallel
 - [**Harness Engineering**](https://openai.com/index/harness-engineering/) by OpenAI — engineers shift from writing code to designing systems with agents
+- [**Claude Code Best Practices**](https://code.claude.com/docs/en/best-practices) by Anthropic — Official best practices for Claude Code, covering verification, planning, context management, and scaling workflows
 - [**Codex Best Practices**](https://developers.openai.com/codex/learn/best-practices/) by OpenAI — Official guide for getting better results with Codex, covering prompting, planning, configuration, and automation
 - [**Claude Code in Action**](https://anthropic.skilljar.com/claude-code-in-action) by Anthropic Academy — official workflow training
 

@@ -155,6 +155,7 @@ AGENTS.md 包含 **Code Review** 规则：需要代码审查时，调用 `advers
 - [**Claude Code Best Practice**](https://github.com/shanraisshan/claude-code-best-practice) by shanraisshan — Claude Code 最佳实践、工作流与实现模式的全面知识库
 - [**我给 10 个 Claude Code 打工**](https://mp.weixin.qq.com/s/9qPD3gXj3HLmrKC64Q6fbQ) by 胡渊明 — 多个编码 Agent 并行协作的实践经验
 - [**Harness Engineering**](https://openai.com/zh-Hans-CN/index/harness-engineering/) by OpenAI — 从”写代码”转向”设计系统并驾驭 Agent”
+- [**Claude Code Best Practices**](https://code.claude.com/docs/en/best-practices) by Anthropic — Claude Code 官方最佳实践，涵盖验证、规划、上下文管理与工作流扩展
 - [**Codex Best Practices**](https://developers.openai.com/codex/learn/best-practices/) by OpenAI — Codex 官方最佳实践指南，涵盖提示词、规划、配置与自动化工作流
 - [**Claude Code in Action**](https://anthropic.skilljar.com/claude-code-in-action) by Anthropic Academy — 官方工作流课程
 
