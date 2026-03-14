@@ -102,6 +102,7 @@ Running `./install.sh` with no arguments launches an interactive menu where you 
     [x] Plugins (13)           superpowers, code-review, playwright, feature-dev...
     [ ] claude-mem             Cross-session memory (~3k tokens/session)
     [ ] AI Research plugins    fine-tuning, inference, optimization...
+    [ ] claude-health           Health check & wellness dashboard
 
   MCP Servers
     [ ] Lark                   Feishu/Lark integration
@@ -118,6 +119,7 @@ Use ↑↓ to navigate, Enter to toggle, navigate to Submit and press Enter to i
 | Essential (13) | everything-claude-code, superpowers, code-review, context7, commit-commands, document-skills, playwright, feature-dev, code-simplifier, ralph-loop, frontend-design, example-skills, github | On | Low |
 | claude-mem (1) | claude-mem | Off | **~3k tokens/session** (observation index + session summary) |
 | AI Research (6) | tokenization, fine-tuning, post-training, inference-serving, distributed-training, optimization | Off | Low |
+| claude-health (1) | health | Off | Low |
 
 ### CLI Flags
 
@@ -220,7 +222,7 @@ golang/       → gofmt, table-driven tests, gosec
 
 ### Plugin-First Approach
 
-20 plugins across 5 marketplaces, organized into two groups:
+21 plugins across 6 marketplaces, organized into groups:
 
 **Core plugins** (14) — installed by default:
 
@@ -251,6 +253,12 @@ golang/       → gofmt, table-driven tests, gosec
 | [**inference-serving**](https://github.com/Orchestra-Research/AI-Research-SKILLs) | ai-research-skills | vLLM, SGLang, TensorRT-LLM, llama.cpp |
 | [**distributed-training**](https://github.com/Orchestra-Research/AI-Research-SKILLs) | ai-research-skills | DeepSpeed, FSDP, Megatron-Core, Ray Train |
 | [**optimization**](https://github.com/Orchestra-Research/AI-Research-SKILLs) | ai-research-skills | AWQ, GPTQ, GGUF, Flash Attention, bitsandbytes |
+
+**Health plugin** (1) — select in the interactive menu or included with `--all`:
+
+| Plugin | Marketplace | What It Does |
+|--------|-------------|--------------|
+| [**health**](https://github.com/tw93/claude-health) | claude-health | Health check and wellness dashboard for Claude Code sessions |
 
 See [`plugins/README.md`](plugins/README.md) for installation details.
 

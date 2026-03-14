@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.9.0] - 2026-03-14
+
+### Features
+- **claude-health plugin**: Added [claude-health](https://github.com/tw93/claude-health) as a new standalone plugin group in the interactive installer — provides health check and wellness dashboard for Claude Code sessions
+- **Statusline bugfix**: Fixed `fmt_ctx()` integer comparison error when context size is empty — `local s=$1` → `local s=${1:-0}` prevents `[: : integer expression expected` warnings
+
+### Design Rationale
+- claude-health is a standalone group (like claude-mem) rather than part of Essential — it's optional and users may not want health monitoring overhead
+- The statusline fix uses shell parameter expansion default (`${1:-0}`) which is POSIX-compatible and handles both empty and unset variables
+
+### Notes & Caveats
+- claude-health marketplace source: `tw93/claude-health` (GitHub)
+- Total plugin count: 21 across 6 marketplaces (was 20 across 5)
+
 ## [1.8.2] - 2026-03-13
 
 ### Features

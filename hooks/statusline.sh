@@ -208,7 +208,7 @@ build_bar() {
 
 # Format context size
 fmt_ctx() {
-    local s=$1
+    local s=${1:-0}
     if [ "$s" -ge 1000000 ]; then
         echo "$(( s / 1000 / 1000 )).$(( s / 1000 % 1000 / 100 ))M"
     elif [ "$s" -ge 1000 ]; then

@@ -102,6 +102,7 @@ cd awesome-claude-code-config
     [x] Plugins (13)           superpowers, code-review, playwright, feature-dev...
     [ ] claude-mem             跨 session 记忆（~3k tokens/session）
     [ ] AI Research plugins    fine-tuning, inference, optimization...
+    [ ] claude-health           健康检查 & 状态面板
 
   MCP Servers
     [ ] Lark                   飞书/Lark 集成
@@ -118,6 +119,7 @@ cd awesome-claude-code-config
 | Essential（13 个） | everything-claude-code, superpowers, code-review, context7, commit-commands, document-skills, playwright, feature-dev, code-simplifier, ralph-loop, frontend-design, example-skills, github | 开启 | 低 |
 | claude-mem（1 个） | claude-mem | 关闭 | **~3k tokens/session**（观测索引 + session 摘要） |
 | AI Research（6 个） | tokenization, fine-tuning, post-training, inference-serving, distributed-training, optimization | 关闭 | 低 |
+| claude-health（1 个） | health | 关闭 | 低 |
 
 ### CLI 参数
 
@@ -220,7 +222,7 @@ golang/       → gofmt、表驱动测试、gosec
 
 ### 插件优先
 
-20 个插件，5 个市场，分为两组：
+21 个插件，6 个市场，分为多组：
 
 **核心插件**（14 个）— 默认安装：
 
@@ -251,6 +253,12 @@ golang/       → gofmt、表驱动测试、gosec
 | [**inference-serving**](https://github.com/Orchestra-Research/AI-Research-SKILLs) | ai-research-skills | vLLM、SGLang、TensorRT-LLM、llama.cpp |
 | [**distributed-training**](https://github.com/Orchestra-Research/AI-Research-SKILLs) | ai-research-skills | DeepSpeed、FSDP、Megatron-Core、Ray Train |
 | [**optimization**](https://github.com/Orchestra-Research/AI-Research-SKILLs) | ai-research-skills | AWQ、GPTQ、GGUF、Flash Attention、bitsandbytes |
+
+**健康插件**（1 个）— 在交互式菜单中选择，或通过 `--all` 安装：
+
+| 插件 | 市场 | 功能 |
+|------|------|------|
+| [**health**](https://github.com/tw93/claude-health) | claude-health | Claude Code 会话健康检查和状态面板 |
 
 详见 [`plugins/README.md`](plugins/README.md) 了解安装方式。
 

@@ -352,6 +352,10 @@ PLUGINS_AI_RESEARCH=(
     "optimization@ai-research-skills"
 )
 
+PLUGINS_HEALTH=(
+    "health@claude-health"
+)
+
 # --- Terminal detection (single source of truth) -----------------------
 
 # Can we interact with a human? Returns 0 if stdout is a tty AND we can
@@ -452,6 +456,7 @@ interactive_menu() {
         "Plugins (13)|superpowers, code-review, playwright, feature-dev...|1|plugins-essential"
         "claude-mem|Cross-session memory (~3k tokens/session)|0|plugins-claude-mem"
         "AI Research plugins|fine-tuning, inference, optimization...|0|plugins-ai-research"
+        "claude-health|Health check & wellness dashboard|0|plugins-health"
         "Lark MCP server|Feishu/Lark integration|0|mcp"
     )
 
@@ -656,6 +661,7 @@ interactive_menu() {
             plugins-essential)   INSTALL_PLUGINS=true; PLUGIN_GROUPS+=("essential") ;;
             plugins-claude-mem)  INSTALL_PLUGINS=true; PLUGIN_GROUPS+=("claude-mem") ;;
             plugins-ai-research) INSTALL_PLUGINS=true; PLUGIN_GROUPS+=("ai-research") ;;
+            plugins-health)      INSTALL_PLUGINS=true; PLUGIN_GROUPS+=("health") ;;
             mcp)                 INSTALL_MCP=true ;;
         esac
     done
@@ -991,8 +997,11 @@ install_plugins() {
             ai-research)
                 plugins+=("${PLUGINS_AI_RESEARCH[@]}")
                 ;;
+            health)
+                plugins+=("${PLUGINS_HEALTH[@]}")
+                ;;
             all)
-                plugins+=("${PLUGINS_ESSENTIAL[@]}" "${PLUGINS_CLAUDE_MEM[@]}" "${PLUGINS_AI_RESEARCH[@]}")
+                plugins+=("${PLUGINS_ESSENTIAL[@]}" "${PLUGINS_CLAUDE_MEM[@]}" "${PLUGINS_AI_RESEARCH[@]}" "${PLUGINS_HEALTH[@]}")
                 ;;
         esac
     done
@@ -1019,6 +1028,7 @@ install_plugins() {
         "ai-research-skills|zechenzhangAGI/AI-research-SKILLs"
         "claude-plugins-official|anthropics/claude-plugins-official"
         "thedotmack|thedotmack/claude-mem"
+        "claude-health|tw93/claude-health"
     )
 
     # Build set of needed marketplaces (bash 3.2 compatible, no associative arrays)
@@ -1133,7 +1143,7 @@ uninstall() {
     fi
 
     if command -v claude &>/dev/null; then
-        local all_plugins=("${PLUGINS_ESSENTIAL[@]}" "${PLUGINS_CLAUDE_MEM[@]}" "${PLUGINS_AI_RESEARCH[@]}")
+        local all_plugins=("${PLUGINS_ESSENTIAL[@]}" "${PLUGINS_CLAUDE_MEM[@]}" "${PLUGINS_AI_RESEARCH[@]}" "${PLUGINS_HEALTH[@]}")
         for entry in "${all_plugins[@]}"; do
             local plugin_name="${entry%%@*}"
             claude plugin uninstall "$entry" 2>/dev/null && \

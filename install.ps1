@@ -187,12 +187,17 @@ $PLUGINS_AI_RESEARCH = @(
     "optimization@ai-research-skills"
 )
 
+$PLUGINS_HEALTH = @(
+    "health@claude-health"
+)
+
 $MARKETPLACE_LIST = @(
     @{ Name = "anthropic-agent-skills"; Repo = "anthropics/skills" }
     @{ Name = "everything-claude-code"; Repo = "affaan-m/everything-claude-code" }
     @{ Name = "ai-research-skills"; Repo = "zechenzhangAGI/AI-research-SKILLs" }
     @{ Name = "claude-plugins-official"; Repo = "anthropics/claude-plugins-official" }
     @{ Name = "thedotmack"; Repo = "thedotmack/claude-mem" }
+    @{ Name = "claude-health"; Repo = "tw93/claude-health" }
 )
 
 # --- Interactive menu ------------------------------------------------------
@@ -212,14 +217,15 @@ function Show-InteractiveMenu {
         @{ Label = "Plugins (13)";         Desc = "superpowers, code-review, playwright, ...";      Default = $true;  Id = "plugins-essential" }
         @{ Label = "claude-mem";           Desc = "Cross-session memory (~3k tokens/session)";      Default = $false; Id = "plugins-claude-mem" }
         @{ Label = "AI Research plugins";  Desc = "fine-tuning, inference, optimization, ...";      Default = $false; Id = "plugins-ai-research" }
+        @{ Label = "claude-health";        Desc = "Health check & wellness dashboard";               Default = $false; Id = "plugins-health" }
         @{ Label = "Lark MCP server";      Desc = "Feishu/Lark integration";                        Default = $false; Id = "mcp" }
     )
 
     $groups = @(
         @{ Start = 0;  End = 5;  Label = "Core" }
         @{ Start = 6;  End = 8;  Label = "Language Rules  (only install what your projects need)" }
-        @{ Start = 9;  End = 11; Label = "Plugins" }
-        @{ Start = 12; End = 12; Label = "MCP Servers" }
+        @{ Start = 9;  End = 12; Label = "Plugins" }
+        @{ Start = 13; End = 13; Label = "MCP Servers" }
     )
 
     $n = $items.Count
@@ -387,6 +393,7 @@ function Show-InteractiveMenu {
             "plugins-essential"   { $result.Plugins = $true; $result.PluginGroups += "essential" }
             "plugins-claude-mem"  { $result.Plugins = $true; $result.PluginGroups += "claude-mem" }
             "plugins-ai-research" { $result.Plugins = $true; $result.PluginGroups += "ai-research" }
+            "plugins-health"      { $result.Plugins = $true; $result.PluginGroups += "health" }
             "mcp"              { $result.Mcp = $true }
         }
     }
@@ -778,7 +785,8 @@ function Install-Plugins {
             "essential" { $plugins += $PLUGINS_ESSENTIAL }
             "claude-mem" { $plugins += $PLUGINS_CLAUDE_MEM }
             "ai-research" { $plugins += $PLUGINS_AI_RESEARCH }
-            "all" { $plugins += $PLUGINS_ESSENTIAL + $PLUGINS_CLAUDE_MEM + $PLUGINS_AI_RESEARCH }
+            "health" { $plugins += $PLUGINS_HEALTH }
+            "all" { $plugins += $PLUGINS_ESSENTIAL + $PLUGINS_CLAUDE_MEM + $PLUGINS_AI_RESEARCH + $PLUGINS_HEALTH }
         }
     }
 
@@ -905,7 +913,7 @@ function Invoke-Uninstall {
 
     $claudeCmd = Get-Command claude -ErrorAction SilentlyContinue
     if ($claudeCmd) {
-        $allPlugins = $PLUGINS_ESSENTIAL + $PLUGINS_CLAUDE_MEM + $PLUGINS_AI_RESEARCH
+        $allPlugins = $PLUGINS_ESSENTIAL + $PLUGINS_CLAUDE_MEM + $PLUGINS_AI_RESEARCH + $PLUGINS_HEALTH
         foreach ($entry in $allPlugins) {
             $pluginName = ($entry -split '@')[0]
             & claude plugin uninstall $entry 2>$null
