@@ -60,7 +60,6 @@ When making version-level changes to a project (new features, major refactors, a
 ## Rule Set
 
 - Common + language-specific coding standards are provided via skills:
-  - `claude-rules`
   - `python-patterns`, `golang-patterns`, `frontend-patterns`
 
 ## Paper Reading

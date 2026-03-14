@@ -81,7 +81,7 @@ Role files live under `agents/*.toml` and are installed to `~/.codex/agents/`.
 ```
 core behavior   → AGENTS.md
   ↓ reinforced by
-skills/rules    → claude-rules, python-patterns, golang-patterns, frontend-patterns
+skills/rules    → python-patterns, golang-patterns, frontend-patterns
 ```
 
 This keeps common principles and language-specific practices aligned.

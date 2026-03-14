@@ -81,7 +81,7 @@ model_instructions_file = "~/.codex/lessons.md"
 ```
 核心行为       → AGENTS.md
   ↓ 由技能强化
-skills/rules  → claude-rules、python-patterns、golang-patterns、frontend-patterns
+skills/rules  → python-patterns、golang-patterns、frontend-patterns
 ```
 
 保证通用原则与语言特定实践一致。

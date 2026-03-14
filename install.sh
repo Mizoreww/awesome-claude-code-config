@@ -8,7 +8,8 @@ set -euo pipefail
 
 CODEX_DIR="$HOME/.codex"
 REPO_URL="https://github.com/Mizoreww/awesome-claude-code-config"
-VERSION_STAMP_FILE="$CODEX_DIR/.claude-code-config-version"
+VERSION_STAMP_FILE="$CODEX_DIR/.codex-config-version"
+LEGACY_VERSION_STAMP_FILE="$CODEX_DIR/.claude-code-config-version"
 INSTALLER="$CODEX_DIR/skills/.system/skill-installer/scripts/install-skill-from-github.py"
 SUPERPOWERS_REPO_URL="https://github.com/obra/superpowers.git"
 SUPERPOWERS_DIR="$CODEX_DIR/superpowers"
@@ -263,6 +264,8 @@ get_source_version() {
 get_installed_version() {
   if [[ -f "$VERSION_STAMP_FILE" ]]; then
     tr -d '[:space:]' < "$VERSION_STAMP_FILE"
+  elif [[ -f "$LEGACY_VERSION_STAMP_FILE" ]]; then
+    tr -d '[:space:]' < "$LEGACY_VERSION_STAMP_FILE"
   else
     echo "not installed"
   fi
