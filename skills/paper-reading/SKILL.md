@@ -97,12 +97,37 @@ After reading the title, abstract, and introduction, determine paper type:
 mkdir -p <output_dir>/images
 ```
 
-### 2. Discover All Figure Elements
+### 2. Choose Extraction Path
 
-Use `browser_run_code` to list all figures at once:
+Select the extraction method based on the content source used in Step 1:
+
+| Content Source | Extraction Method | When |
+|---|---|---|
+| HTML page (ar5iv, project page) | **Path A: Playwright element screenshot** | Paper loaded as HTML in browser |
+| Local/downloaded PDF | **Path B: pymupdf precise extraction** | Paper read as PDF via Read tool or pdftotext |
+
+**CRITICAL: Never render entire PDF pages as images.** Full-page renders flood figures with surrounding text. Always use precise clipping or direct image extraction.
+
+### 3. Screenshot Priority Guide
+
+| Priority | Figure Type | When to Capture |
+|----------|-------------|-----------------|
+| Must | System architecture / overall framework | Always |
+| Must | Main experiment results table/chart | Always |
+| Recommended | Core algorithm flowchart | If available |
+| Recommended | Ablation study charts | If available |
+| Optional | Visualization / qualitative results | If space allows |
+| Optional | Auxiliary illustrations | As needed |
+
+Capture **3-8** key figures per paper.
+
+---
+
+### Path A: HTML Source (Playwright)
+
+#### Discover figure elements
 
 ```javascript
-// browser_run_code example
 async (page) => {
   const figures = await page.locator('figure, .ltx_figure, .ltx_table').all();
   const results = [];
@@ -117,42 +142,23 @@ async (page) => {
 }
 ```
 
-### 3. Screenshot Important Figures
-
-**Priority guide:**
-
-| Priority | Figure Type | When to Capture |
-|----------|-------------|-----------------|
-| Must | System architecture / overall framework | Always |
-| Must | Main experiment results table/chart | Always |
-| Recommended | Core algorithm flowchart | If available |
-| Recommended | Ablation study charts | If available |
-| Optional | Visualization / qualitative results | If space allows |
-| Optional | Auxiliary illustrations | As needed |
-
-**Screenshot operation — use `browser_run_code` for precise capture:**
+#### Take element screenshots
 
 ```javascript
-// For each important figure
+// Method 1: element screenshot (preferred)
 async (page) => {
-  // Method 1: element screenshot (preferred)
   const fig = page.locator('figure, .ltx_figure').nth(INDEX);
   await fig.scrollIntoViewIfNeeded();
   await fig.screenshot({ path: '<output_dir>/images/figure_N_desc.png' });
   return 'success';
 }
-```
 
-**If element screenshot fails, use fallback:**
-
-```javascript
-// Fallback: clip-based screenshot
+// Method 2: clip-based fallback
 async (page) => {
   const fig = page.locator('figure, .ltx_figure').nth(INDEX);
   await fig.scrollIntoViewIfNeeded();
   const box = await fig.boundingBox();
   if (box) {
-    // Slightly expand capture area to ensure completeness
     await page.screenshot({
       path: '<output_dir>/images/figure_N_desc.png',
       clip: {
@@ -168,23 +174,88 @@ async (page) => {
 }
 ```
 
-### 4. Screenshot Verification
+---
 
-After each screenshot, use Read tool to verify the image file:
-- File exists
-- File size > 1KB (rules out blank screenshots)
+### Path B: PDF Source (pymupdf) — Preferred for PDF papers
 
-### 5. File Naming
+When the paper is read as a PDF (local file or downloaded), use pymupdf (fitz) for precise figure extraction. This produces much higher quality results than full-page rendering.
 
-Format: `figure_N_<brief_desc>.png`
+#### Step B1: Analyze embedded images and bounding boxes
+
+```python
+import fitz
+
+doc = fitz.open('<pdf_path>')
+
+# List all embedded images with their page positions
+for page_idx in range(len(doc)):
+    page = doc[page_idx]
+    images = page.get_images(full=True)
+    if images:
+        print(f"\nPage {page_idx+1}: {len(images)} images")
+        for img_idx, img in enumerate(images):
+            xref = img[0]
+            img_info = doc.extract_image(xref)
+            print(f"  xref={xref}: {img_info['width']}x{img_info['height']}, {img_info['ext']}")
+
+    # Also get bounding boxes for positioning
+    img_list = page.get_image_info(xrefs=True)
+    for info in img_list:
+        bbox = info['bbox']
+        print(f"  xref={info['xref']}, bbox=({bbox[0]:.1f}, {bbox[1]:.1f}, {bbox[2]:.1f}, {bbox[3]:.1f})")
+```
+
+#### Step B2: Extract using two methods
+
+**Method 1: Direct image extraction** — for standalone figures (teaser, photos, single diagrams):
+
+```python
+# Extract the original embedded image at full resolution
+img = doc.extract_image(xref)
+with open(f'{output_dir}/figure_N_desc.{img["ext"]}', 'wb') as f:
+    f.write(img['image'])
+```
+
+**Method 2: Clip-based region rendering** — for tables, composite figures, multi-panel diagrams:
+
+```python
+# Render only a precise rectangular region of the page
+page = doc[page_idx]
+scale = 3  # 3x resolution for clarity
+clip_rect = fitz.Rect(x0, y0, x1, y1)  # determined from bbox analysis
+mat = fitz.Matrix(scale, scale)
+pix = page.get_pixmap(matrix=mat, clip=clip_rect)
+pix.save(f'{output_dir}/figure_N_desc.png')
+```
+
+#### Step B3: Determine clip coordinates
+
+Use the bounding box data from Step B1 to identify figure/table regions:
+
+1. **For single large images:** Use `extract_image(xref)` directly — no clipping needed
+2. **For composite figures (multiple sub-images):** Find the outermost bbox that covers all sub-images, add 5-10pt margin
+3. **For tables:** Estimate the table region from the text layout on the page. Start with a generous clip, then verify and tighten boundaries iteratively
+4. **Always add margin (5-10pt)** around the clip rect to avoid cutting off content
+
+#### Step B4: Verify and iterate
+
+After each extraction:
+- Use the Read tool to visually verify the image
+- If content is cut off → extend the boundary in that direction
+- If extra text is included → tighten the boundary
+- Iterate until the capture is precise (figure/table content only, no surrounding text)
+
+---
+
+### File Naming
+
+Format: `figure_N_<brief_desc>.png` (or `.jpg` for directly extracted JPEGs)
 
 Examples:
 - `figure_1_overview.png` — system overview
 - `figure_2_architecture.png` — model architecture
-- `figure_3_results.png` — main experimental results
+- `table_3_comparison.png` — main results table
 - `figure_4_ablation.png` — ablation study
-
-Capture **3-8** key figures per paper.
 
 ## Step 4: Fill Template
 
@@ -540,10 +611,11 @@ All types share these sections:
 | Ignoring failure cases | Note where method underperforms and on which datasets |
 | Skipping mathematical notation | Include key LaTeX equations when available |
 | Not screenshotting paper figures | Must capture architecture and main result figures |
+| Rendering entire PDF pages as images | Never full-page render; use pymupdf clip or extract_image for precise figures |
 | Misplaced image insertion | Images should be adjacent to corresponding text |
 | Vague critiques | Must name specific limitations (scenario, data, assumptions) |
 | Wrong paper type classification | Read abstract and intro fully before classifying; default to Empirical |
-| Giving up after screenshot failure | Try element screenshot first, fall back to clip-based screenshot |
+| Giving up after screenshot failure | Try element screenshot first, fall back to clip-based screenshot or pymupdf |
 | Writing only "what" without "why" | Every design choice should explain the motivation and justification |
 | Mixing results and conclusions | Separate experimental facts (Results) from author interpretation (Analysis) |
 | Missing related work positioning | Must compare against 2-3 closest prior works |
