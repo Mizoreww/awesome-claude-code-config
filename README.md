@@ -14,6 +14,8 @@ Production-ready configuration for [Claude Code](https://claude.com/claude-code)
 
 **Paper Reading Skill in action** — Structured research paper analysis with the `paper-reading` skill. See the full summary: [Attention Is All You Need — Paper Summary](docs/Attention_Is_All_You_Need.md)
 
+**Adversarial Review Skill in action** — Cross-model adversarial code review. Claude spawns Codex reviewers with distinct critical lenses (Skeptic, Architect, Minimalist), then synthesizes a structured verdict (PASS / CONTESTED / REJECT). See the full showcase: [Adversarial Review Showcase](docs/adversarial-review-showcase.md)
+
 ## Directory Structure
 
 ```

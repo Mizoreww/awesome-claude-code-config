@@ -14,6 +14,8 @@
 
 **论文阅读技能实战** — 使用 `paper-reading` 技能进行结构化论文分析。查看完整总结：[Attention Is All You Need — 论文总结](docs/Attention_Is_All_You_Need.zh-CN.md)
 
+**对抗式代码审查实战** — 跨模型对抗式代码审查。Claude 通过 Codex CLI 生成多个审查者，分别使用不同批判视角（怀疑者、架构师、极简主义者），合成结构化裁决（PASS / CONTESTED / REJECT）。查看完整展示：[Adversarial Review 效果展示](docs/adversarial-review-showcase.md)
+
 ## 目录结构
 
 ```

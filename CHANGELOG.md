@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.9.1] - 2026-03-17
+
+### Features
+- **paper-reading pymupdf fixes**: Fixed 5 issues from adversarial code review — removed Step 1/Step 3 contradiction blocking PDF figure extraction, added vector figure detection guidance (`get_drawings()`/`get_text("dict")`), fixed output path consistency, clarified `extract_image` vs clip-based rendering usage, added pymupdf availability pre-check
+- **Adversarial Review showcase**: Added adversarial-review skill showcase with 4 screenshots demonstrating the cross-model review workflow (scope analysis → reviewer spawning → verdict synthesis → lead judgment)
+
+### Design Rationale
+- The Step 1 "Cannot screenshot figures" message contradicted the new Path B pymupdf workflow — agents following the acquisition flow would stop before reaching figure extraction
+- Vector figure detection is essential because many research papers encode plots, diagrams, and tables as vector/text objects rather than raster images
+- `extract_image(xref)` returns raw embedded images without page-level annotations — clip-based rendering is safer as the default for most figure types
+
+### Notes & Caveats
+- pymupdf (`pip install pymupdf`) is required for Path B PDF figure extraction
+- Adversarial review showcase screenshots are from a real review session
+
 ## [1.9.0] - 2026-03-14
 
 ### Features

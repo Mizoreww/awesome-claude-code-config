@@ -63,7 +63,7 @@ Automatically select the best acquisition path based on paper source:
 5. On failure:
    a. WebFetch the ar5iv URL for plain text
    b. Still failing: Read PDF (arxiv.org/pdf/XXXX.XXXXX)
-   c. In PDF mode, inform user "Cannot screenshot figures, text content only"
+   c. In PDF mode, use Path B (pymupdf) for figure extraction (see Step 3)
 ```
 
 ### Non-arXiv Paper Acquisition Flow
@@ -180,19 +180,23 @@ async (page) => {
 
 When the paper is read as a PDF (local file or downloaded), use pymupdf (fitz) for precise figure extraction. This produces much higher quality results than full-page rendering.
 
-#### Step B1: Analyze embedded images and bounding boxes
+**Prerequisites:** Ensure pymupdf is installed (`pip install pymupdf`) and the local PDF file path is known before entering this path. If `import fitz` fails, fall back to Path A with a browser-rendered PDF or inform the user.
+
+#### Step B1: Analyze embedded images and page structure
+
+**Note:** `get_images()` only discovers **raster-embedded** images. Many research paper figures (plots, diagrams, tables) are **vector-only** or text-based — these will not appear in the image list. Use `get_text("dict")` to find text blocks and `get_drawings()` to detect vector graphics for comprehensive figure region detection.
 
 ```python
 import fitz
 
 doc = fitz.open('<pdf_path>')
 
-# List all embedded images with their page positions
+# List all embedded raster images with their page positions
 for page_idx in range(len(doc)):
     page = doc[page_idx]
     images = page.get_images(full=True)
     if images:
-        print(f"\nPage {page_idx+1}: {len(images)} images")
+        print(f"\nPage {page_idx+1}: {len(images)} raster images")
         for img_idx, img in enumerate(images):
             xref = img[0]
             img_info = doc.extract_image(xref)
@@ -203,20 +207,26 @@ for page_idx in range(len(doc)):
     for info in img_list:
         bbox = info['bbox']
         print(f"  xref={info['xref']}, bbox=({bbox[0]:.1f}, {bbox[1]:.1f}, {bbox[2]:.1f}, {bbox[3]:.1f})")
+
+    # Check for vector drawings (plots, diagrams, flowcharts)
+    drawings = page.get_drawings()
+    if drawings:
+        print(f"  + {len(drawings)} vector drawings detected")
 ```
 
 #### Step B2: Extract using two methods
 
-**Method 1: Direct image extraction** — for standalone figures (teaser, photos, single diagrams):
+**Method 1: Direct image extraction** — **only** for standalone raster images without annotations (teaser photos, embedded logos). This extracts the raw embedded image, which may be missing page-level crops, vector labels, axes, masks, and annotations:
 
 ```python
-# Extract the original embedded image at full resolution
+# Extract the original embedded raster image at full resolution
+# WARNING: Only use for standalone photos/teasers without overlaid text or vector annotations
 img = doc.extract_image(xref)
-with open(f'{output_dir}/figure_N_desc.{img["ext"]}', 'wb') as f:
+with open(f'{output_dir}/images/figure_N_desc.{img["ext"]}', 'wb') as f:
     f.write(img['image'])
 ```
 
-**Method 2: Clip-based region rendering** — for tables, composite figures, multi-panel diagrams:
+**Method 2: Clip-based region rendering** (preferred) — for annotated figures, tables, composite figures, multi-panel diagrams, and any figure with vector/text overlays:
 
 ```python
 # Render only a precise rectangular region of the page
@@ -225,16 +235,18 @@ scale = 3  # 3x resolution for clarity
 clip_rect = fitz.Rect(x0, y0, x1, y1)  # determined from bbox analysis
 mat = fitz.Matrix(scale, scale)
 pix = page.get_pixmap(matrix=mat, clip=clip_rect)
-pix.save(f'{output_dir}/figure_N_desc.png')
+pix.save(f'{output_dir}/images/figure_N_desc.png')
 ```
 
 #### Step B3: Determine clip coordinates
 
 Use the bounding box data from Step B1 to identify figure/table regions:
 
-1. **For single large images:** Use `extract_image(xref)` directly — no clipping needed
-2. **For composite figures (multiple sub-images):** Find the outermost bbox that covers all sub-images, add 5-10pt margin
-3. **For tables:** Estimate the table region from the text layout on the page. Start with a generous clip, then verify and tighten boundaries iteratively
+1. **For standalone raster photos/teasers (no annotations):** Use `extract_image(xref)` directly — no clipping needed
+2. **For annotated figures or figures with vector overlays:** Always use clip-based rendering (Method 2) to capture the complete composed figure including labels and axes
+3. **For composite figures (multiple sub-images):** Find the outermost bbox that covers all sub-images, add 5-10pt margin
+4. **For vector-only figures (no raster images found):** Use `get_text("dict")` to locate caption text (e.g., "Figure 1"), then estimate the figure region above/below the caption. Use clip-based rendering with a generous initial area, then iterate
+5. **For tables:** Use `get_text("dict")` to find table header/footer text positions and define the clip region. Start with a generous clip, then verify and tighten boundaries iteratively
 4. **Always add margin (5-10pt)** around the clip rect to avoid cutting off content
 
 #### Step B4: Verify and iterate
