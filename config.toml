@@ -5,7 +5,7 @@ model_reasoning_effort = "high"
 approval_policy = "never"
 sandbox_mode = "danger-full-access"
 web_search = "live"
-model_instructions_file = "~/.codex/lessons.md"
+model_instructions_file = "lessons.md"
 
 [shell_environment_policy]
 inherit = "all"

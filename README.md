@@ -61,7 +61,7 @@ Then restart Codex.
 `config.toml` uses:
 
 ```toml
-model_instructions_file = "~/.codex/lessons.md"
+model_instructions_file = "lessons.md"
 ```
 
 This keeps correction rules active at session start.

@@ -61,7 +61,7 @@ bash install.sh
 `config.toml` 使用：
 
 ```toml
-model_instructions_file = "~/.codex/lessons.md"
+model_instructions_file = "lessons.md"
 ```
 
 这样在会话开始时就会加载纠错规则。

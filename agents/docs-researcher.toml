@@ -2,7 +2,6 @@ model = "gpt-5.4"
 model_reasoning_effort = "medium"
 max_turns = 8
 sandbox_mode = "read-only"
-disable_tools = ["shell", "apply_patch"]
 developer_instructions = """
 Use OpenAI docs MCP/context7 to verify APIs and behavior.
 Return concise answers with source links or exact references.
