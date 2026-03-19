@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.9.2] - 2026-03-19
+## [1.9.2] - 2026-03-20
 
 ### Features
 - **Bundled MesloLGS NF font**: Replaced online JetBrainsMono Nerd Font download (~30MB zip from GitHub) with 4 bundled MesloLGS NF .ttf files (~10MB total) — font installation is now instant with no network dependency
