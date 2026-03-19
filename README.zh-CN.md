@@ -85,31 +85,36 @@ cd awesome-claude-code-config
 直接运行 `./install.sh`（不带参数）会启动交互式菜单，自由选择要安装的组件。语言规则和重型插件**默认关闭**，减少上下文占用：
 
 ```
-  ↑↓ move  Enter select  a=all n=none d=defaults q=quit
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    Awesome Claude Code Config Installer  1.9.2
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ↑/↓ Navigate   Space Toggle   Enter Submit
+  a All   n None   d Defaults   q Quit
 
   Core
-  > [x] CLAUDE.md              全局指令模板
-    [x] settings.json          智能合并 Claude Code 设置
-    [x] Common rules           编码规范、git、安全、测试
-    [x] Hooks                  StatusLine 状态栏
-    [x] Lessons template       跨 session 学习框架
-    [x] Custom skills          adversarial-review, paper-reading, humanizer, update_config
+  > [*] CLAUDE.md                全局指令模板
+    [*] settings.json            智能合并 Claude Code 设置
+    [*] Common rules             编码规范、git、安全、测试
+    [*] Hooks                    StatusLine 状态栏
+    [*] Lessons template         跨 session 学习框架
+    [*] Custom skills            adversarial-review, paper-reading, humanizer, update_config
 
   Language Rules（按需选择）
-    [ ] Python                 PEP 8, pytest, type hints, bandit
-    [ ] TypeScript             Zod, Playwright, immutability
-    [ ] Go                     gofmt, 表驱动测试, gosec
+    [ ] Python                   PEP 8, pytest, type hints, bandit
+    [ ] TypeScript               Zod, Playwright, immutability
+    [ ] Go                       gofmt, 表驱动测试, gosec
 
   Plugins
-    [x] Plugins (13)           superpowers, code-review, playwright, feature-dev...
-    [ ] claude-mem             跨 session 记忆（~3k tokens/session）
-    [ ] AI Research plugins    fine-tuning, inference, optimization...
-    [ ] claude-health           健康检查 & 状态面板
+    [*] Plugins (13)             superpowers, code-review, playwright, feature-dev...
+    [ ] claude-mem               跨 session 记忆（~3k tokens/session）
+    [ ] AI Research plugins      fine-tuning, inference, optimization...
+    [ ] claude-health            健康检查 & 状态面板
 
   MCP Servers
-    [ ] Lark                   飞书/Lark 集成
+    [ ] Lark                     飞书/Lark 集成
 
-     [ Submit ]
+  >  [ Submit ]
 ```
 
 使用 ↑↓ 导航，Enter 切换选项，移到 Submit 按 Enter 开始安装。

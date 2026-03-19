@@ -85,31 +85,36 @@ cd awesome-claude-code-config
 Running `./install.sh` with no arguments launches an interactive menu where you choose exactly what to install. Language rules and heavy plugins are **off by default** to keep context lean:
 
 ```
-  ↑↓ move  Enter select  a=all n=none d=defaults q=quit
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    Awesome Claude Code Config Installer  1.9.2
+  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ↑/↓ Navigate   Space Toggle   Enter Submit
+  a All   n None   d Defaults   q Quit
 
   Core
-  > [x] CLAUDE.md              Global instructions template
-    [x] settings.json          Smart-merged Claude Code settings
-    [x] Common rules           Coding style, git, security, testing
-    [x] Hooks                  StatusLine display hook
-    [x] Lessons template       Cross-session learning framework
-    [x] Custom skills          adversarial-review, paper-reading, humanizer, update_config
+  > [*] CLAUDE.md                Global instructions template
+    [*] settings.json            Smart-merged Claude Code settings
+    [*] Common rules             Coding style, git, security, testing
+    [*] Hooks                    StatusLine display hook
+    [*] Lessons template         Cross-session learning framework
+    [*] Custom skills            adversarial-review, paper-reading, humanizer, update_config
 
   Language Rules  (only install what your projects need)
-    [ ] Python                 PEP 8, pytest, type hints, bandit
-    [ ] TypeScript             Zod, Playwright, immutability
-    [ ] Go                     gofmt, table-driven tests, gosec
+    [ ] Python                   PEP 8, pytest, type hints, bandit
+    [ ] TypeScript               Zod, Playwright, immutability
+    [ ] Go                       gofmt, table-driven tests, gosec
 
   Plugins
-    [x] Plugins (13)           superpowers, code-review, playwright, feature-dev...
-    [ ] claude-mem             Cross-session memory (~3k tokens/session)
-    [ ] AI Research plugins    fine-tuning, inference, optimization...
-    [ ] claude-health           Health check & wellness dashboard
+    [*] Plugins (13)             superpowers, code-review, playwright, feature-dev...
+    [ ] claude-mem               Cross-session memory (~3k tokens/session)
+    [ ] AI Research plugins      fine-tuning, inference, optimization...
+    [ ] claude-health            Health check & wellness dashboard
 
   MCP Servers
-    [ ] Lark                   Feishu/Lark integration
+    [ ] Lark                     Feishu/Lark integration
 
-     [ Submit ]
+  >  [ Submit ]
 ```
 
 Use ↑↓ to navigate, Enter to toggle, navigate to Submit and press Enter to install.
