@@ -63,7 +63,8 @@ $ErrorActionPreference = "Stop"
 # ============================================================
 $CODEX_DIR            = Join-Path $HOME ".codex"
 $REPO_URL             = "https://github.com/Mizoreww/awesome-claude-code-config"
-$VERSION_STAMP_FILE   = Join-Path $CODEX_DIR ".claude-code-config-version"
+$VERSION_STAMP_FILE   = Join-Path $CODEX_DIR ".codex-config-version"
+$LEGACY_VERSION_STAMP_FILE = Join-Path $CODEX_DIR ".claude-code-config-version"
 $INSTALLER            = Join-Path $CODEX_DIR "skills/.system/skill-installer/scripts/install-skill-from-github.py"
 $SUPERPOWERS_REPO_URL = "https://github.com/obra/superpowers.git"
 $SUPERPOWERS_DIR      = Join-Path $CODEX_DIR "superpowers"
@@ -83,7 +84,8 @@ $MANAGED_SKILLS = @(
     "vllm", "sglang", "tensorrt-llm", "llama-cpp",
     "paper-reading",
     "adversarial-review",
-    "humanizer"
+    "humanizer",
+    "update"
 )
 
 $LEGACY_SUPERPOWERS_SKILLS = @(
@@ -212,6 +214,9 @@ function Get-InstalledVersion {
     if (Test-Path $VERSION_STAMP_FILE) {
         return (Get-Content $VERSION_STAMP_FILE -Raw).Trim()
     }
+    if (Test-Path $LEGACY_VERSION_STAMP_FILE) {
+        return (Get-Content $LEGACY_VERSION_STAMP_FILE -Raw).Trim()
+    }
     return "not installed"
 }
 
@@ -243,6 +248,7 @@ function Set-VersionStamp {
     $ver = Get-SourceVersion
     if ($ver -ne "unknown" -and -not $DryRun) {
         Set-Content -Path $VERSION_STAMP_FILE -Value $ver -NoNewline
+        Remove-Item -Force $LEGACY_VERSION_STAMP_FILE -ErrorAction SilentlyContinue
     }
 }
 
@@ -506,6 +512,9 @@ function Invoke-Uninstall {
     if (Test-Path $VERSION_STAMP_FILE) {
         Write-Host "  - $VERSION_STAMP_FILE"
     }
+    if (Test-Path $LEGACY_VERSION_STAMP_FILE) {
+        Write-Host "  - $LEGACY_VERSION_STAMP_FILE"
+    }
     Write-Host ""
 
     if ($DryRun) {
@@ -559,6 +568,7 @@ function Invoke-Uninstall {
     }
 
     Remove-Item -Force $VERSION_STAMP_FILE -ErrorAction SilentlyContinue
+    Remove-Item -Force $LEGACY_VERSION_STAMP_FILE -ErrorAction SilentlyContinue
     Write-Ok "Uninstall complete"
 }
 

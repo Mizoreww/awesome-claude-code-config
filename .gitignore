@@ -8,6 +8,9 @@ Thumbs.db
 *~
 .vscode/
 .idea/
+.superpowers/
+__pycache__/
+*.pyc
 
 # Sensitive
 *.env

@@ -55,6 +55,7 @@ MANAGED_SKILLS=(
   paper-reading
   adversarial-review
   humanizer
+  update
 )
 
 LEGACY_SUPERPOWERS_SKILLS=(
@@ -303,6 +304,7 @@ stamp_version() {
   ver="$(get_source_version)"
   if [[ "$ver" != "unknown" && ! $DRY_RUN ]]; then
     echo "$ver" > "$VERSION_STAMP_FILE"
+    rm -f "$LEGACY_VERSION_STAMP_FILE"
   fi
 }
 
@@ -524,6 +526,9 @@ uninstall() {
   if [[ -f "$VERSION_STAMP_FILE" ]]; then
     echo "  - $VERSION_STAMP_FILE"
   fi
+  if [[ -f "$LEGACY_VERSION_STAMP_FILE" ]]; then
+    echo "  - $LEGACY_VERSION_STAMP_FILE"
+  fi
   echo ""
 
   if $DRY_RUN; then
@@ -567,6 +572,7 @@ uninstall() {
   done
 
   rm -f "$VERSION_STAMP_FILE"
+  rm -f "$LEGACY_VERSION_STAMP_FILE"
   ok "Uninstall complete"
 }
 

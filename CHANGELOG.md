@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0] - 2026-03-20
+
+### Features
+- Added a bundled `update_config` skill for refreshing the installed Codex configuration from the `codex` branch
+- Added a `docs/claude-main-to-codex-migration.md` reference mapping Claude Code main-branch concepts to Codex equivalents
+- Normalized version-stamp handling so the PowerShell installer now writes the Codex-native stamp path while still reading the legacy fallback
+
+### Design Rationale
+- A dedicated migration document is clearer than restoring Claude-era top-level plugin/rules structures that no longer match the Codex branch architecture
+- The update skill needs consistent version-stamp behavior across platforms to report installed vs remote versions correctly
+
+### Notes & Caveats
+- Existing Windows installs using the old `.claude-code-config-version` file continue to work because the installer and update skill now read both paths during transition
+
 ## [1.3.0] - 2026-03-11
 
 ### Features

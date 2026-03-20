@@ -11,8 +11,9 @@ Production-ready configuration for [Codex CLI](https://github.com/openai/codex) 
 ├── AGENTS.md              # Global instructions
 ├── config.toml            # Codex settings (model, permissions, MCP, lessons injection)
 ├── agents/                # Multi-agent role configs
+├── docs/                  # Migration notes and support docs
 ├── lessons.md             # Self-correction source log
-├── skills/                # Bundled local skills (paper-reading, adversarial-review, humanizer)
+├── skills/                # Bundled local skills (paper-reading, adversarial-review, humanizer, update_config)
 ├── VERSION                # Installer version
 └── install.sh             # One-command installer
 ```
@@ -106,6 +107,7 @@ Bundled local skills in this repo:
 - `paper-reading` (`skills/paper-reading/SKILL.md`) — structured research paper summarization
 - `adversarial-review` (`skills/adversarial-review/SKILL.md`) — cross-model adversarial code review via opposite AI CLI (from [poteto/noodle](https://github.com/poteto/noodle/tree/main/.agents/skills/adversarial-review))
 - `humanizer` (`skills/humanizer/SKILL.md`) — detect and remove AI writing patterns from text (from [blader/humanizer](https://github.com/blader/humanizer))
+- `update_config` (`skills/update/SKILL.md`) — update the installed Codex config to the latest `codex` branch version
 
 ### Version Changelog Policy
 
@@ -134,6 +136,15 @@ Default MCP servers in `config.toml`:
 ### Adversarial Code Review
 
 AGENTS.md includes a **Code Review** rule: whenever a code review is needed, invoke the `adversarial-review` skill (from [poteto/noodle](https://github.com/poteto/noodle/tree/main/.agents/skills/adversarial-review)). This skill spawns reviewers on the **opposite AI model's CLI** (`claude -p` for Codex users, `codex exec` for Claude users), producing cross-model adversarial analysis with structured verdicts (PASS / CONTESTED / REJECT).
+
+## Migrating from the Claude Code main branch
+
+See [`docs/claude-main-to-codex-migration.md`](./docs/claude-main-to-codex-migration.md) for a concrete mapping of:
+
+- `CLAUDE.md` → `AGENTS.md`
+- `settings.json` → `config.toml`
+- Claude plugins → Codex skills / MCP / built-ins
+- `mcp/mcp-servers.json` → `[mcp_servers.*]` in `config.toml`
 
 ## Security Note
 
