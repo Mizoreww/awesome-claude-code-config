@@ -45,10 +45,15 @@ if [ -z "${USERPROFILE:-}" ]; then
     esac
 else
     # Windows: only enable emoji for terminals known to support Unicode
-    # WT_SESSION = Windows Terminal, TERM_PROGRAM = VS Code / mintty
-    if [ -n "${WT_SESSION:-}" ] || [ -n "${TERM_PROGRAM:-}" ]; then
+    # WT_SESSION  = Windows Terminal
+    # MSYSTEM     = Git Bash / mintty (MINGW64, MINGW32, MSYS, etc.)
+    # TERM_PROGRAM whitelist: vscode (VS Code integrated terminal)
+    if [ -n "${WT_SESSION:-}" ] || [ -n "${MSYSTEM:-}" ]; then
         _use_emoji=true
     fi
+    case "${TERM_PROGRAM:-}" in
+        vscode) _use_emoji=true ;;
+    esac
 fi
 # Always disable for known dumb terminals
 case "${TERM:-dumb}" in
