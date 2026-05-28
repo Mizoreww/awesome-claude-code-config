@@ -1279,7 +1279,10 @@ install_rules() {
     fi
     # If RULE_LANGS_EXPLICIT=true and RULE_LANGS is empty, skip language rules
 
-    for lang in "${langs[@]}"; do
+    # Use `"${arr[@]+"${arr[@]}"}"` for langs: macOS ships bash 3.2 where the
+    # plain form aborts under `set -u` when the array is empty (selective install
+    # picking rules-common with no language rules).
+    for lang in "${langs[@]+"${langs[@]}"}"; do
         if [[ -d "$SCRIPT_DIR/rules/$lang" ]]; then
             if $DRY_RUN; then
                 info "Would copy: rules/$lang/ -> $CLAUDE_DIR/rules/$lang/"
@@ -1299,7 +1302,7 @@ install_rules() {
         local known_langs=("python" "typescript" "golang")
         for known in "${known_langs[@]}"; do
             local keep=false
-            for lang in "${langs[@]}"; do
+            for lang in "${langs[@]+"${langs[@]}"}"; do
                 if [[ "$lang" == "$known" ]]; then
                     keep=true
                     break
