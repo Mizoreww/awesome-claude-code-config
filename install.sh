@@ -7,7 +7,7 @@ set -euo pipefail
 # ============================================================
 
 CODEX_DIR="$HOME/.codex"
-REPO_OWNER="${REPO_OWNER:-Mizoreww}"
+REPO_OWNER="${REPO_OWNER:-Yastruhank}"
 REPO_NAME="${REPO_NAME:-awesome-claude-code-config}"
 REPO_BRANCH="${REPO_BRANCH:-codex}"
 REPO_OWNER="${REPO_OWNER_OVERRIDE:-$REPO_OWNER}"
