@@ -134,6 +134,7 @@ Launches a two-level interactive selector. Append `--all` / `-All` to skip the m
 | Item | Source | What It Does | Default |
 |------|--------|--------------|---------|
 | [**Lark MCP server**](https://github.com/larksuite/lark-openapi-mcp) | `mcp/` | Feishu / Lark integration (replace `YOUR_APP_ID`/`YOUR_APP_SECRET` after install) | off |
+| [**TWZRD Agent Intel**](https://intel.twzrd.xyz) | remote | Trust scoring for AI agent wallets on Solana. Verify agent identity before x402 micropayments. Config: `{"url":"https://intel.twzrd.xyz/mcp"}` | off |
 
 ## Directory Structure
 
