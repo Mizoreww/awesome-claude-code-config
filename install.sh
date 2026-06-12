@@ -7,7 +7,23 @@ set -euo pipefail
 # ============================================================
 
 CODEX_DIR="$HOME/.codex"
-REPO_URL="https://github.com/Mizoreww/awesome-claude-code-config"
+REPO_OWNER="${REPO_OWNER:-Mizoreww}"
+REPO_NAME="${REPO_NAME:-awesome-claude-code-config}"
+REPO_BRANCH="${REPO_BRANCH:-codex}"
+# These values are interpolated into download URLs used in remote mode.
+# Validate against a safe charset so a hostile/garbled environment cannot
+# smuggle unexpected content into the URLs. (error() is not defined yet at
+# this point in the script, so emit to stderr directly.)
+if [[ ! "$REPO_OWNER" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "Invalid REPO_OWNER: $REPO_OWNER" >&2; exit 1
+fi
+if [[ ! "$REPO_NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
+  echo "Invalid REPO_NAME: $REPO_NAME" >&2; exit 1
+fi
+if [[ ! "$REPO_BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+  echo "Invalid REPO_BRANCH: $REPO_BRANCH" >&2; exit 1
+fi
+REPO_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}"
 VERSION_STAMP_FILE="$CODEX_DIR/.codex-config-version"
 LEGACY_VERSION_STAMP_FILE="$CODEX_DIR/.claude-code-config-version"
 INSTALLER="$CODEX_DIR/skills/.system/skill-installer/scripts/install-skill-from-github.py"
@@ -44,6 +60,9 @@ SHOW_VERSION=false
 INTERACTIVE_MODE=false
 SKILL_GROUP="all"
 UNINSTALL_COMPONENTS=()
+SKIPPED_COMPONENTS=()
+MCP_FAILED_SERVERS=()
+LESSONS_SEEDED=false
 
 SELECT_CORE_AGENTS_MD=false
 SELECT_CORE_CONFIG=false
@@ -57,6 +76,8 @@ SELECT_SKILL_EXAMPLES=false
 SELECT_SKILL_CODING_FOUNDATIONS=false
 SELECT_SKILL_PAPER_READING=false
 SELECT_SKILL_HUMANIZER=false
+SELECT_SKILL_HUMANIZER_ZH=false
+SELECT_SKILL_HANDOFF=false
 SELECT_SKILL_ADVERSARIAL_REVIEW=false
 SELECT_SKILL_UPDATE=false
 SELECT_AI_TOKENIZATION=false
@@ -85,7 +106,9 @@ MANAGED_SKILLS=(
   vllm sglang tensorrt-llm llama-cpp
   paper-reading
   adversarial-review
+  handoff
   humanizer
+  humanizer-zh
   update
   deepxiv-cli
   deepxiv-baseline-table
@@ -99,7 +122,7 @@ LEGACY_SUPERPOWERS_SKILLS=(
   test-driven-development
 )
 
-cleanup_runtime() {
+cleanup_menu() {
   if $MENU_ACTIVE; then
     MENU_ACTIVE=false
     printf '\033[?1049l' 2>/dev/null || true
@@ -112,6 +135,10 @@ cleanup_runtime() {
     exec 3<&- 2>/dev/null || true
     MENU_SAVED_STTY=""
   fi
+}
+
+cleanup_runtime() {
+  cleanup_menu
 
   if [[ -n "$REMOTE_TMPDIR" ]]; then
     rm -rf "$REMOTE_TMPDIR"
@@ -123,6 +150,34 @@ cleanup_and_exit() {
   local code="${1:-0}"
   cleanup_runtime
   exit "$code"
+}
+
+download_archive() {
+  local url="$1"
+  local target="$2"
+  local attempt
+
+  for attempt in 1 2 3 4 5; do
+    if command -v curl >/dev/null 2>&1; then
+      if curl -fsSL "$url" -o "$target"; then
+        return 0
+      fi
+    elif command -v wget >/dev/null 2>&1; then
+      if wget -qO "$target" "$url"; then
+        return 0
+      fi
+    else
+      error "Neither curl nor wget found. Install one and retry."
+      return 1
+    fi
+
+    if [[ "$attempt" -lt 5 ]]; then
+      warn "Download source archive failed (attempt $attempt/5), retrying in 3s..."
+      sleep 3
+    fi
+  done
+
+  return 1
 }
 
 detect_script_dir() {
@@ -139,21 +194,23 @@ detect_script_dir() {
   REMOTE_TMPDIR="$(mktemp -d)"
   trap cleanup_runtime EXIT
 
-  local version="${VERSION:-codex}"
+  local version="${VERSION:-$REPO_BRANCH}"
   local tarball_url="$REPO_URL/archive/refs/heads/${version}.tar.gz"
   if [[ "$version" =~ ^v[0-9] ]]; then
     tarball_url="$REPO_URL/archive/refs/tags/${version}.tar.gz"
   fi
 
   info "Remote mode: downloading $version..."
-  if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$tarball_url" | tar xz -C "$REMOTE_TMPDIR" --strip-components=1
-  elif command -v wget >/dev/null 2>&1; then
-    wget -qO- "$tarball_url" | tar xz -C "$REMOTE_TMPDIR" --strip-components=1
-  else
-    error "Neither curl nor wget found. Install one and retry."
+  local archive="$REMOTE_TMPDIR/source.tar.gz"
+  if ! download_archive "$tarball_url" "$archive"; then
+    error "Failed to download source archive: $tarball_url"
     exit 1
   fi
+  if ! tar xzf "$archive" -C "$REMOTE_TMPDIR" --strip-components=1; then
+    error "Failed to extract source archive: $archive"
+    exit 1
+  fi
+  rm -f "$archive"
 
   SCRIPT_DIR="$REMOTE_TMPDIR"
   ok "Source downloaded to temporary directory"
@@ -184,7 +241,7 @@ Examples:
   $(basename "$0") --skills core
   $(basename "$0") --skills ai-research
   $(basename "$0") --uninstall --skills
-  VERSION=v1.0.0 bash <(curl -fsSL $REPO_URL/raw/codex/install.sh)
+  VERSION=v1.0.0 bash <(curl -fsSL $REPO_URL/raw/$REPO_BRANCH/install.sh)
 EOF2
 }
 
@@ -365,7 +422,7 @@ get_installed_version() {
 }
 
 get_remote_version() {
-  local url="$REPO_URL/raw/codex/VERSION"
+  local url="https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${REPO_BRANCH}/VERSION"
   if command -v curl >/dev/null 2>&1; then
     curl -fsSL "$url" 2>/dev/null | tr -d '[:space:]' || echo "unavailable"
   elif command -v wget >/dev/null 2>&1; then
@@ -394,7 +451,10 @@ show_version() {
 stamp_version() {
   local ver
   ver="$(get_source_version)"
-  if [[ "$ver" != "unknown" && ! $DRY_RUN ]]; then
+  if [[ "$ver" != "unknown" ]] && ! $DRY_RUN; then
+    # Component-only installs (--mcp, --skills) may run before ~/.codex exists;
+    # a failed redirect would kill the script under set -e before the summary.
+    mkdir -p "$CODEX_DIR"
     echo "$ver" > "$VERSION_STAMP_FILE"
     rm -f "$LEGACY_VERSION_STAMP_FILE"
   fi
@@ -419,6 +479,29 @@ copy_file_if_selected() {
   else
     cp "$source" "$target"
     ok "$label installed"
+  fi
+}
+
+# lessons.md is the user's accumulated correction memory (see AGENTS.md), and
+# config.toml points model_instructions_file at it. Never overwrite an existing
+# copy; only seed the template when the file is absent.
+seed_lessons_if_missing() {
+  if $LESSONS_SEEDED; then
+    return 0
+  fi
+  LESSONS_SEEDED=true
+
+  if [[ -f "$CODEX_DIR/lessons.md" ]]; then
+    info "Preserving existing lessons.md (template not copied)"
+    return 0
+  fi
+
+  if $DRY_RUN; then
+    info "Would copy: lessons.md -> $CODEX_DIR/lessons.md"
+  else
+    mkdir -p "$CODEX_DIR"
+    cp "$SCRIPT_DIR/lessons.md" "$CODEX_DIR/lessons.md"
+    ok "lessons.md installed"
   fi
 }
 
@@ -450,7 +533,9 @@ install_core() {
     fi
 
     copy_file_if_selected $SELECT_CORE_AGENTS_MD "$SCRIPT_DIR/AGENTS.md" "$CODEX_DIR/AGENTS.md" "AGENTS.md"
-    copy_file_if_selected $SELECT_CORE_LESSONS "$SCRIPT_DIR/lessons.md" "$CODEX_DIR/lessons.md" "lessons.md"
+    if $SELECT_CORE_LESSONS; then
+      seed_lessons_if_missing
+    fi
 
     if $SELECT_CORE_CONFIG; then
       if [[ -f "$CODEX_DIR/config.toml" ]]; then
@@ -461,6 +546,12 @@ install_core() {
         cp "$SCRIPT_DIR/config.toml" "$CODEX_DIR/config.toml"
         ok "config.toml installed"
       fi
+      # config.toml references lessons.md via model_instructions_file; make
+      # sure the file exists even when the Lessons item was deselected.
+      if ! $SELECT_CORE_LESSONS && [[ ! -f "$CODEX_DIR/lessons.md" ]]; then
+        warn "config.toml requires lessons.md (model_instructions_file); seeding it although Lessons was deselected"
+      fi
+      seed_lessons_if_missing
     fi
 
     install_selected_agents
@@ -473,22 +564,21 @@ install_core() {
   fi
 
   backup_if_exists "$CODEX_DIR/AGENTS.md"
-  backup_if_exists "$CODEX_DIR/lessons.md"
   backup_if_exists "$CODEX_DIR/agents"
 
   if $DRY_RUN; then
     info "Would copy: AGENTS.md -> $CODEX_DIR/AGENTS.md"
-    info "Would copy: lessons.md -> $CODEX_DIR/lessons.md"
     info "Would copy: agents/*.toml -> $CODEX_DIR/agents/"
   else
     cp "$SCRIPT_DIR/AGENTS.md" "$CODEX_DIR/AGENTS.md"
-    cp "$SCRIPT_DIR/lessons.md" "$CODEX_DIR/lessons.md"
     if [[ -d "$SCRIPT_DIR/agents" ]]; then
       mkdir -p "$CODEX_DIR/agents"
       cp "$SCRIPT_DIR"/agents/*.toml "$CODEX_DIR/agents/"
     fi
-    ok "AGENTS.md, lessons.md, and agents installed"
+    ok "AGENTS.md and agents installed"
   fi
+
+  seed_lessons_if_missing
 
   if [[ -f "$CODEX_DIR/config.toml" ]]; then
     warn "$CODEX_DIR/config.toml exists -- skipping (merge manually if needed)"
@@ -502,50 +592,57 @@ install_core() {
   fi
 }
 
+add_mcp_server() {
+  local name="$1"
+  shift
+
+  if $DRY_RUN; then
+    info "Would add MCP server: $name"
+    return 0
+  fi
+
+  if codex mcp add "$name" "$@"; then
+    ok "MCP server configured: $name"
+  else
+    warn "Failed to configure MCP server: $name"
+    MCP_FAILED_SERVERS+=("$name")
+  fi
+}
+
+report_mcp_result() {
+  if [[ ${#MCP_FAILED_SERVERS[@]} -eq 0 ]]; then
+    ok "MCP setup complete (existing entries are ignored)"
+  else
+    warn "MCP setup finished with failures: ${MCP_FAILED_SERVERS[*]}"
+    SKIPPED_COMPONENTS+=("MCP servers: ${MCP_FAILED_SERVERS[*]}")
+  fi
+}
+
 install_mcp() {
   if $INTERACTIVE_MODE; then
     info "Installing selected MCP servers..."
     if ! command -v codex >/dev/null 2>&1; then
       warn "codex CLI not found. Skip MCP setup."
+      SKIPPED_COMPONENTS+=("MCP servers (codex CLI not found)")
       return 0
     fi
 
     if $SELECT_MCP_CONTEXT7; then
-      if $DRY_RUN; then
-        info "Would add MCP server: context7"
-      else
-        codex mcp add context7 -- npx -y @upstash/context7-mcp || true
-      fi
+      add_mcp_server context7 -- npx -y @upstash/context7-mcp
     fi
     if $SELECT_MCP_GITHUB; then
-      if $DRY_RUN; then
-        info "Would add MCP server: github"
-      else
-        codex mcp add github --env GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB_PAT -- npx -y @modelcontextprotocol/server-github || true
-      fi
+      add_mcp_server github --env GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB_PAT -- npx -y @modelcontextprotocol/server-github
     fi
     if $SELECT_MCP_PLAYWRIGHT; then
-      if $DRY_RUN; then
-        info "Would add MCP server: playwright"
-      else
-        codex mcp add playwright -- npx -y @playwright/mcp@latest || true
-      fi
+      add_mcp_server playwright -- npx -y @playwright/mcp@latest
     fi
     if $SELECT_MCP_OPENAI_DOCS; then
-      if $DRY_RUN; then
-        info "Would add MCP server: openaiDeveloperDocs"
-      else
-        codex mcp add openaiDeveloperDocs --url https://developers.openai.com/mcp || true
-      fi
+      add_mcp_server openaiDeveloperDocs --url https://developers.openai.com/mcp
     fi
     if $SELECT_MCP_LARK; then
-      if $DRY_RUN; then
-        info "Would add MCP server: lark-mcp"
-      else
-        codex mcp add lark-mcp -- npx -y @larksuiteoapi/lark-mcp mcp -a YOUR_APP_ID -s YOUR_APP_SECRET || true
-      fi
+      add_mcp_server lark-mcp -- npx -y @larksuiteoapi/lark-mcp mcp -a YOUR_APP_ID -s YOUR_APP_SECRET
     fi
-    ok "Selected MCP setup complete (existing entries are ignored)"
+    report_mcp_result
     return 0
   fi
 
@@ -553,24 +650,19 @@ install_mcp() {
 
   if ! command -v codex >/dev/null 2>&1; then
     warn "codex CLI not found. Skip MCP setup."
+    SKIPPED_COMPONENTS+=("MCP servers (codex CLI not found)")
     return 0
   fi
 
-  if $DRY_RUN; then
-    info "Would add MCP server: lark-mcp"
-    info "Would add MCP server: context7"
-    info "Would add MCP server: github"
-    info "Would add MCP server: playwright"
-    info "Would add MCP server: openaiDeveloperDocs"
-    return 0
-  fi
-
-  codex mcp add lark-mcp -- npx -y @larksuiteoapi/lark-mcp mcp -a YOUR_APP_ID -s YOUR_APP_SECRET || true
-  codex mcp add context7 -- npx -y @upstash/context7-mcp || true
-  codex mcp add github --env GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB_PAT -- npx -y @modelcontextprotocol/server-github || true
-  codex mcp add playwright -- npx -y @playwright/mcp@latest || true
-  codex mcp add openaiDeveloperDocs --url https://developers.openai.com/mcp || true
-  ok "MCP setup complete (existing entries are ignored)"
+  # lark-mcp and github need real credentials; configuring them with the
+  # template placeholders would create active-but-broken servers. They stay
+  # opt-in via the interactive menu or a manual `codex mcp add`.
+  info "Skipping lark-mcp and github MCP servers: they require real credentials."
+  info "Enable them via the interactive installer or 'codex mcp add' after filling credentials."
+  add_mcp_server context7 -- npx -y @upstash/context7-mcp
+  add_mcp_server playwright -- npx -y @playwright/mcp@latest
+  add_mcp_server openaiDeveloperDocs --url https://developers.openai.com/mcp
+  report_mcp_result
 }
 
 install_skill_paths() {
@@ -582,7 +674,10 @@ install_skill_paths() {
     return 0
   fi
 
-  python3 "$INSTALLER" --repo "$repo" --path "$@" || warn "Skill install from $repo returned non-zero (possibly already installed)"
+  if ! python3 "$INSTALLER" --repo "$repo" --path "$@"; then
+    warn "Skill install from $repo returned non-zero (possibly already installed)"
+    SKIPPED_COMPONENTS+=("skill pack from $repo (installer returned non-zero)")
+  fi
 }
 
 reinstall_skill_paths() {
@@ -603,16 +698,133 @@ reinstall_skill_paths() {
     fi
   done
 
-  python3 "$INSTALLER" --repo "$repo" --path "$@" || warn "Skill reinstall from $repo returned non-zero"
+  if ! python3 "$INSTALLER" --repo "$repo" --path "$@"; then
+    warn "Skill reinstall from $repo returned non-zero"
+    SKIPPED_COMPONENTS+=("skill pack from $repo (installer returned non-zero)")
+  fi
+}
+
+remove_legacy_superpowers_skills() {
+  local removed=false
+  local skill
+  for skill in "${LEGACY_SUPERPOWERS_SKILLS[@]}"; do
+    if [[ -e "$CODEX_DIR/skills/$skill" ]]; then
+      rm -rf "$CODEX_DIR/skills/$skill"
+      removed=true
+      ok "Removed legacy superpowers skill copy: $skill"
+    fi
+  done
+  if ! $removed; then
+    info "No legacy superpowers skill copies found under $CODEX_DIR/skills"
+  fi
+}
+
+install_superpowers() {
+  info "Installing full superpowers skill set..."
+
+  if $DRY_RUN; then
+    info "Would clone or update: $SUPERPOWERS_REPO_URL -> $SUPERPOWERS_DIR"
+    info "Would create symlink: $SUPERPOWERS_LINK -> $SUPERPOWERS_DIR/skills"
+    info "Would remove legacy copied superpowers skills from $CODEX_DIR/skills"
+    return 0
+  fi
+
+  if ! command -v git >/dev/null 2>&1; then
+    warn "git not found. Skip full superpowers install."
+    SKIPPED_COMPONENTS+=("superpowers skill set (git not found)")
+    return 0
+  fi
+
+  if [[ -d "$SUPERPOWERS_DIR/.git" ]]; then
+    if ! git -C "$SUPERPOWERS_DIR" pull --ff-only; then
+      warn "Failed to update existing superpowers repo at $SUPERPOWERS_DIR"
+    fi
+  elif [[ -e "$SUPERPOWERS_DIR" ]]; then
+    warn "$SUPERPOWERS_DIR exists but is not a git repo -- skipping full superpowers install"
+    SKIPPED_COMPONENTS+=("superpowers skill set ($SUPERPOWERS_DIR is not a git repo)")
+    return 0
+  else
+    if ! git clone "$SUPERPOWERS_REPO_URL" "$SUPERPOWERS_DIR"; then
+      warn "Failed to clone superpowers repo"
+      SKIPPED_COMPONENTS+=("superpowers skill set (clone failed)")
+      return 0
+    fi
+    ok "Cloned superpowers repo to $SUPERPOWERS_DIR"
+  fi
+
+  mkdir -p "$AGENTS_SKILLS_DIR"
+  local superpowers_skills_dir="$SUPERPOWERS_DIR/skills"
+  if [[ -L "$SUPERPOWERS_LINK" || -e "$SUPERPOWERS_LINK" ]]; then
+    if [[ ! -L "$SUPERPOWERS_LINK" ]]; then
+      warn "$SUPERPOWERS_LINK exists and is not a symlink -- skipping link creation"
+      SKIPPED_COMPONENTS+=("superpowers skills link ($SUPERPOWERS_LINK is not a symlink)")
+      return 0
+    fi
+    rm -f "$SUPERPOWERS_LINK"
+  fi
+  ln -s "$superpowers_skills_dir" "$SUPERPOWERS_LINK"
+  ok "Linked superpowers skills into $SUPERPOWERS_LINK"
+
+  remove_legacy_superpowers_skills
+}
+
+copy_local_skill() {
+  local selected="$1"
+  local skill="$2"
+  if ! $selected; then
+    return 0
+  fi
+
+  local source="$SCRIPT_DIR/skills/$skill"
+  local target="$CODEX_DIR/skills/$skill"
+  if [[ ! -d "$source" ]]; then
+    warn "Local skill not found: skills/$skill"
+    return 0
+  fi
+
+  if $DRY_RUN; then
+    info "Would copy: skills/$skill/ -> $target/"
+  else
+    mkdir -p "$CODEX_DIR/skills"
+    rm -rf "$target"
+    cp -r "$source" "$target"
+    ok "Installed local skill: $skill"
+  fi
+}
+
+install_local_skills() {
+  if $INTERACTIVE_MODE; then
+    copy_local_skill "$SELECT_SKILL_PAPER_READING" "paper-reading"
+    copy_local_skill "$SELECT_SKILL_HUMANIZER" "humanizer"
+    copy_local_skill "$SELECT_SKILL_HUMANIZER_ZH" "humanizer-zh"
+    copy_local_skill "$SELECT_SKILL_HANDOFF" "handoff"
+    copy_local_skill "$SELECT_SKILL_ADVERSARIAL_REVIEW" "adversarial-review"
+    copy_local_skill "$SELECT_SKILL_UPDATE" "update"
+    return 0
+  fi
+
+  local skill
+  for skill in "$SCRIPT_DIR"/skills/*; do
+    [[ -d "$skill" && -f "$skill/SKILL.md" ]] || continue
+    copy_local_skill true "$(basename "$skill")"
+  done
 }
 
 
 install_selected_recommended_skills() {
+  local needs_remote=false
+  if $SELECT_SKILL_DOCUMENTS || $SELECT_SKILL_EXAMPLES || $SELECT_SKILL_CODING_FOUNDATIONS; then
+    needs_remote=true
+  fi
+
   local remote_installer_available=true
   if [[ ! -f "$INSTALLER" ]]; then
     remote_installer_available=false
-    warn "skill-installer not found at $INSTALLER"
-    warn "Remote skill packs that depend on it will be skipped."
+    if $needs_remote; then
+      warn "skill-installer not found at $INSTALLER"
+      warn "Remote skill packs that depend on it will be skipped."
+      SKIPPED_COMPONENTS+=("recommended remote skill packs (skill-installer not found)")
+    fi
   fi
 
   if $SELECT_SKILL_SUPERPOWERS; then
@@ -643,14 +855,20 @@ install_selected_recommended_skills() {
 }
 
 install_selected_ai_skills() {
-  local remote_installer_available=true
-  if [[ ! -f "$INSTALLER" ]]; then
-    remote_installer_available=false
-    warn "skill-installer not found at $INSTALLER"
-    warn "AI research skill packs that depend on it will be skipped."
+  local needs_remote=false
+  if $SELECT_AI_TOKENIZATION || $SELECT_AI_FINE_TUNING || $SELECT_AI_POST_TRAINING || \
+     $SELECT_AI_DISTRIBUTED_TRAINING || $SELECT_AI_INFERENCE_SERVING || \
+     $SELECT_AI_OPTIMIZATION || $SELECT_AI_DEEPXIV; then
+    needs_remote=true
+  fi
+  if ! $needs_remote; then
+    return 0
   fi
 
-  if ! $remote_installer_available; then
+  if [[ ! -f "$INSTALLER" ]]; then
+    warn "skill-installer not found at $INSTALLER"
+    warn "AI research skill packs that depend on it will be skipped."
+    SKIPPED_COMPONENTS+=("AI research skill packs (skill-installer not found)")
     return 0
   fi
 
@@ -691,6 +909,7 @@ install_skills() {
     install_selected_ai_skills
     install_local_skills
     if $SELECT_SKILL_PAPER_READING || $SELECT_SKILL_HUMANIZER || \
+       $SELECT_SKILL_HUMANIZER_ZH || $SELECT_SKILL_HANDOFF || \
        $SELECT_SKILL_ADVERSARIAL_REVIEW || $SELECT_SKILL_UPDATE || \
        $SELECT_SKILL_SUPERPOWERS || $SELECT_SKILL_DOCUMENTS || \
        $SELECT_SKILL_EXAMPLES || $SELECT_SKILL_CODING_FOUNDATIONS || \
@@ -726,10 +945,8 @@ install_skills() {
         skills/python-patterns skills/python-testing skills/golang-patterns skills/golang-testing \
         skills/frontend-patterns skills/security-review skills/tdd-workflow skills/verification-loop \
         skills/api-design skills/database-migrations
-
-      reinstall_skill_paths DeepXiv/deepxiv_sdk \
-        skills/deepxiv-cli skills/deepxiv-baseline-table skills/deepxiv-trending-digest
-
+    else
+      SKIPPED_COMPONENTS+=("core remote skill packs (skill-installer not found)")
     fi
 
     install_local_skills
@@ -738,6 +955,7 @@ install_skills() {
   if [[ "$SKILL_GROUP" == "ai-research" || "$SKILL_GROUP" == "all" ]]; then
     if ! $remote_installer_available; then
       warn "Skipping AI research skills because skill-installer is unavailable"
+      SKIPPED_COMPONENTS+=("AI research skill packs (skill-installer not found)")
       return 0
     fi
 
@@ -748,6 +966,11 @@ install_skills() {
       08-distributed-training/deepspeed 08-distributed-training/pytorch-fsdp2 08-distributed-training/megatron-core 08-distributed-training/ray-train \
       10-optimization/awq 10-optimization/gptq 10-optimization/gguf 10-optimization/flash-attention 10-optimization/bitsandbytes \
       12-inference-serving/vllm 12-inference-serving/sglang 12-inference-serving/tensorrt-llm 12-inference-serving/llama-cpp
+
+    # DeepXiv is grouped under "Skills — AI Research" in the README and the
+    # interactive menu; keep the non-interactive groups consistent with that.
+    reinstall_skill_paths DeepXiv/deepxiv_sdk \
+      skills/deepxiv-cli skills/deepxiv-baseline-table skills/deepxiv-trending-digest
   fi
 }
 
@@ -795,6 +1018,8 @@ example-skills|Frontend/art/MCP builder pack|1|skill-examples
 coding-foundations|Patterns, testing, security (upstream everything-claude-code)|1|skill-coding-foundations
 paper-reading|Research paper summarization|1|skill-paper-reading
 humanizer|Remove AI writing patterns|1|skill-humanizer
+humanizer-zh|Remove Chinese AI writing patterns|0|skill-humanizer-zh
+handoff|Compact context into a handoff doc|1|skill-handoff
 adversarial-review|Cross-model adversarial review|1|skill-adversarial-review
 update|Update Codex config branch install|1|skill-update")
 
@@ -811,10 +1036,10 @@ deepxiv|DeepXiv research workflow skills|0|ai-deepxiv")
   GROUP_LABELS+=("MCP Servers")
   GROUP_HINTS+=("")
   GROUP_ITEMS+=("context7|Up-to-date library docs|1|mcp-context7
-github|GitHub workflows|1|mcp-github
+github|GitHub workflows (needs a real PAT)|0|mcp-github
 playwright|Browser automation|1|mcp-playwright
 openaiDeveloperDocs|Official OpenAI docs MCP|1|mcp-openai-docs
-lark-mcp|Feishu/Lark integration|0|mcp-lark")
+lark-mcp|Feishu/Lark integration (needs credentials)|0|mcp-lark")
 
   local num_groups=${#GROUP_LABELS[@]}
 
@@ -1088,7 +1313,7 @@ lark-mcp|Feishu/Lark integration|0|mcp-lark")
     esac
   done
 
-  cleanup_runtime
+  cleanup_menu
   trap - INT TERM
 
   local item_id is_selected
@@ -1113,6 +1338,8 @@ lark-mcp|Feishu/Lark integration|0|mcp-lark")
       skill-coding-foundations)        SELECT_SKILL_CODING_FOUNDATIONS=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-paper-reading)     SELECT_SKILL_PAPER_READING=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-humanizer)         SELECT_SKILL_HUMANIZER=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      skill-humanizer-zh)      SELECT_SKILL_HUMANIZER_ZH=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      skill-handoff)           SELECT_SKILL_HANDOFF=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-adversarial-review) SELECT_SKILL_ADVERSARIAL_REVIEW=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-update)            SELECT_SKILL_UPDATE=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       ai-tokenization)         SELECT_AI_TOKENIZATION=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
@@ -1130,12 +1357,20 @@ lark-mcp|Feishu/Lark integration|0|mcp-lark")
     esac
   done
 
+  if ! $core_selected && ! $skills_selected && ! $mcp_selected; then
+    # Match the PowerShell behavior: an empty submission is a no-op and must
+    # not fall through to the version stamp ("installed" with nothing done).
+    info "No items selected. Nothing to do."
+    cleanup_and_exit 0
+  fi
+
   INSTALL_CORE=$core_selected
   INSTALL_SKILLS=$skills_selected
   INSTALL_MCP=$mcp_selected
   if $skills_selected; then
     if $SELECT_SKILL_SUPERPOWERS || $SELECT_SKILL_DOCUMENTS || $SELECT_SKILL_EXAMPLES || \
        $SELECT_SKILL_CODING_FOUNDATIONS || $SELECT_SKILL_PAPER_READING || $SELECT_SKILL_HUMANIZER || \
+       $SELECT_SKILL_HUMANIZER_ZH || $SELECT_SKILL_HANDOFF || \
        $SELECT_SKILL_ADVERSARIAL_REVIEW || $SELECT_SKILL_UPDATE; then
       if $SELECT_AI_TOKENIZATION || $SELECT_AI_FINE_TUNING || $SELECT_AI_POST_TRAINING || \
          $SELECT_AI_DISTRIBUTED_TRAINING || $SELECT_AI_INFERENCE_SERVING || \
@@ -1153,7 +1388,12 @@ lark-mcp|Feishu/Lark integration|0|mcp-lark")
 }
 
 uninstall() {
-  local components=("${UNINSTALL_COMPONENTS[@]}")
+  # bash 3.2 + set -u: expanding an empty array with [@] raises "unbound
+  # variable", so guard with a length check before copying.
+  local components=()
+  if [[ ${#UNINSTALL_COMPONENTS[@]} -gt 0 ]]; then
+    components=("${UNINSTALL_COMPONENTS[@]}")
+  fi
   if [[ ${#components[@]} -eq 0 ]]; then
     components=(core mcp skills)
   fi
@@ -1164,7 +1404,7 @@ uninstall() {
     case "$comp" in
       core)
         echo "  - $CODEX_DIR/AGENTS.md"
-        echo "  - $CODEX_DIR/lessons.md"
+        echo "  - $CODEX_DIR/lessons.md (backed up first -- it holds your accumulated corrections)"
         echo "  - $CODEX_DIR/config.toml"
         echo "  - $CODEX_DIR/agents/*"
         ;;
@@ -1199,6 +1439,9 @@ uninstall() {
   for comp in "${components[@]}"; do
     case "$comp" in
       core)
+        # lessons.md holds the user's accumulated corrections; keep a backup
+        # next to it so an uninstall is never silent data loss.
+        backup_if_exists "$CODEX_DIR/lessons.md"
         rm -f "$CODEX_DIR/AGENTS.md" "$CODEX_DIR/lessons.md" "$CODEX_DIR/config.toml"
         rm -rf "$CODEX_DIR/agents"
         ok "Removed core files"
@@ -1232,16 +1475,20 @@ uninstall() {
 }
 
 main() {
-  detect_script_dir
   parse_args "$@"
 
-  if $SHOW_VERSION; then
-    show_version
+  # Uninstall only touches local state; --help/argument errors exit inside
+  # parse_args. None of these need the source archive, so only enter remote
+  # download mode (detect_script_dir) after handling them.
+  if $UNINSTALL; then
+    uninstall
     exit 0
   fi
 
-  if $UNINSTALL; then
-    uninstall
+  detect_script_dir
+
+  if $SHOW_VERSION; then
+    show_version
     exit 0
   fi
 
@@ -1274,6 +1521,17 @@ main() {
   fi
 
   stamp_version
+
+  if [[ ${#SKIPPED_COMPONENTS[@]} -gt 0 ]]; then
+    echo ""
+    warn "Install finished, but some components were skipped:"
+    local comp
+    for comp in "${SKIPPED_COMPONENTS[@]}"; do
+      warn "  - $comp"
+    done
+    warn "Resolve the issues above and re-run the installer to complete them."
+  fi
+
   ok "Done. Restart Codex to load new skills/config if needed."
 }
 

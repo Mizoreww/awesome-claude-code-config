@@ -2,7 +2,7 @@
 
 # Codex 配置
 
-[Codex CLI](https://github.com/openai/codex) 的生产级配置——带交互式安装器，并支持一键完整安装全局指令、多 Agent 角色、通过技能实现分层编码规范、MCP 集成、自定义状态栏，以及基于 lessons 的自我改进循环。该分支以 Codex 为默认目标，同时为从 [Claude Code 主配置](https://github.com/Mizoreww/awesome-claude-code-config/tree/main) 迁移的用户保留最小兼容层。
+[Codex CLI](https://github.com/openai/codex) 的生产级配置——带交互式安装器，并支持一键完整安装全局指令、多 Agent 角色、通过技能实现分层编码规范、MCP 集成，以及基于 lessons 的自我改进循环。该分支以 Codex 为默认目标，同时为从 [Claude Code 主配置](https://github.com/Mizoreww/awesome-claude-code-config/tree/main) 迁移的用户保留最小兼容层。
 
 ## 目录结构
 
@@ -13,9 +13,9 @@
 ├── agents/                # Multi-agent 角色配置
 ├── docs/                  # 迁移说明与支持文档
 ├── lessons.md             # 自我纠正源日志
-├── skills/                # 仓库自带本地技能（paper-reading、adversarial-review、humanizer、update_config）
+├── skills/                # 仓库自带本地技能（paper-reading、adversarial-review、handoff、humanizer、update）
 ├── VERSION                # 安装器版本
-└── install.sh             # 一键安装脚本
+└── install.sh / install.ps1
 ```
 
 ## 快速开始
@@ -62,7 +62,7 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 - PowerShell 的纯无参运行在可用控制台 I/O 下会进入交互模式；如果无法使用控制台，就会警告并回退到非交互式全量安装。
 - Bash 的 `--dry-run` 会以非交互式方式预览完整安装。
 - PowerShell 的 `-DryRun` 单独使用时，会以非交互式方式预览完整安装。
-- PowerShell 会把空的交互提交明确视为无操作（no-op）。
+- 两个安装器都会把空的交互提交视为无操作（no-op）——不安装任何内容，也不写版本戳。
 
 ### Codex 菜单分组与默认值
 
@@ -70,9 +70,9 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 |------|------|--------|
 | Core | `AGENTS.md`、`config.toml`、`lessons.md` | 开启 |
 | Agents | `explorer`、`reviewer`、`docs-researcher` | 开启 |
-| Skills — Recommended | `superpowers`、`document-skills`、`example-skills`、`coding-foundations`、`paper-reading`、`humanizer`、`adversarial-review`、`update` | 开启 |
+| Skills — Recommended | `superpowers`、`document-skills`、`example-skills`、`coding-foundations`、`paper-reading`、`humanizer`、`humanizer-zh`、`handoff`、`adversarial-review`、`update` | 除 `humanizer-zh` 外开启 |
 | Skills — AI Research | `tokenization`、`fine-tuning`、`post-training`、`distributed-training`、`inference-serving`、`optimization`、`deepxiv` | 关闭 |
-| MCP Servers | `context7`、`github`、`playwright`、`openaiDeveloperDocs`、`lark-mcp` | 除 `lark-mcp` 外均开启 |
+| MCP Servers | `context7`、`github`、`playwright`、`openaiDeveloperDocs`、`lark-mcp` | 除 `github` 与 `lark-mcp`（需凭据）外均开启 |
 
 ## 安装器参数
 
@@ -146,8 +146,10 @@ Superpowers 采用仓库当前的原生发现安装方式：
 本仓库内置本地技能：
 - `paper-reading`（`skills/paper-reading/SKILL.md`）— 结构化论文阅读与总结
 - `adversarial-review`（`skills/adversarial-review/SKILL.md`）— 跨模型对抗式代码审查，通过对立 AI CLI 执行（来自 [poteto/noodle](https://github.com/poteto/noodle/tree/main/.agents/skills/adversarial-review)）
+- `handoff`（`skills/handoff/SKILL.md`）— 将当前对话压缩成交接文档
 - `humanizer`（`skills/humanizer/SKILL.md`）— 检测并去除文本中的 AI 写作痕迹（来自 [blader/humanizer](https://github.com/blader/humanizer)）
-- `update_config`（`skills/update/SKILL.md`）— 将已安装的 Codex 配置更新到最新 `codex` 分支版本
+- `humanizer-zh`（`skills/humanizer-zh/SKILL.md`）— 移除中文文本中的 AI 写作痕迹
+- `update`（`skills/update/SKILL.md`）— 将已安装的 Codex 配置更新到最新 `codex` 分支版本
 
 DeepXiv 技能会在每次执行 `install.sh` 时像 superpowers 一样从上游刷新安装：
 - `deepxiv-cli`
@@ -166,15 +168,15 @@ AGENTS.md 包含 **版本变更日志** 规则：在做版本级改动（新功�
 
 | 服务 | 用途 |
 |------|------|
-| Lark MCP | 飞书文档、表格、群聊、Base 等（[repo](https://github.com/larksuite/lark-openapi-mcp)） |
+| Lark MCP | 飞书文档、表格、群聊、Base 等——默认注释关闭，需填入凭据（[repo](https://github.com/larksuite/lark-openapi-mcp)） |
 | Context7 | 最新库文档检索（[repo](https://github.com/upstash/context7)） |
-| GitHub | Issue / PR / 仓库工作流（[repo](https://github.com/github/github-mcp-server)） |
+| GitHub | Issue / PR / 仓库工作流——默认注释关闭，需要 PAT（[repo](https://github.com/github/github-mcp-server)） |
 | Playwright | 浏览器自动化与 E2E 测试（[repo](https://github.com/microsoft/playwright-mcp)） |
 | OpenAI Developer Docs | OpenAI 官方文档 MCP 端点（`https://developers.openai.com/mcp`） |
 
 ## 安装说明
 
-1. 请填入你自己的凭据：
+1. Lark 与 GitHub MCP 条目在 `config.toml` 中默认被注释关闭。启用前请填入你自己的凭据并取消注释：
    - `YOUR_APP_ID` / `YOUR_APP_SECRET`（Lark）
    - `YOUR_GITHUB_PAT`（GitHub MCP）
 2. 该配置使用当前 Codex 配置风格（例如顶层 `web_search = "live"`）。
@@ -195,11 +197,11 @@ AGENTS.md 包含 **Code Review** 规则：需要代码审查时，调用 `advers
 
 ## 安全提示
 
-模板默认偏向高级用户：
-- `approval_policy = "never"`
-- `sandbox_mode = "danger-full-access"`
+模板默认采用保守配置：
+- `approval_policy = "on-request"`
+- `sandbox_mode = "workspace-write"`
 
-如果你希望更安全的默认值，请在 `~/.codex/config.toml` 中自行调整。
+如果你希望完全自主运行，可在 `~/.codex/config.toml` 中改为 `approval_policy = "never"` 和 `sandbox_mode = "danger-full-access"`。
 
 ## 自定义
 

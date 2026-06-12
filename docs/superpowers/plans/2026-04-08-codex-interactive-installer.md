@@ -1,5 +1,7 @@
 # Codex Interactive Installer Implementation Plan
 
+> **Historical planning snapshot.** Parts of this document describe behavior that has since been changed or removed (e.g., statusline hooks, lessons.md overwrites, `|| true` MCP setup). Do not implement from this document; treat the current installers and README as the source of truth.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a main-style interactive installer UI to the Codex branch for both Bash and PowerShell, with Codex-native selectable groups for core files, agents, skill packs, AI research skills, and MCP servers.
@@ -773,4 +775,3 @@ Expected: one final integration commit if there are remaining staged changes aft
 - Bash selection names use `SELECT_*` consistently.
 - PowerShell selection names use `$Selection.*` consistently.
 - Menu IDs map consistently to `core-*`, `agent-*`, `skill-*`, `ai-*`, and `mcp-*` namespaces.
-

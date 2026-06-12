@@ -2,7 +2,7 @@
 
 # Codex Configuration
 
-Production-ready configuration for [Codex CLI](https://github.com/openai/codex) — an interactive installer plus one-command full install of global instructions, multi-agent roles, layered coding standards through skills, MCP integration, custom status bar, and a lessons-driven self-improvement loop. This branch is Codex-first and keeps a small compatibility bridge for users migrating from the [Claude Code main config](https://github.com/Mizoreww/awesome-claude-code-config/tree/main).
+Production-ready configuration for [Codex CLI](https://github.com/openai/codex) — an interactive installer plus one-command full install of global instructions, multi-agent roles, layered coding standards through skills, MCP integration, and a lessons-driven self-improvement loop. This branch is Codex-first and keeps a small compatibility bridge for users migrating from the [Claude Code main config](https://github.com/Mizoreww/awesome-claude-code-config/tree/main).
 
 ## Directory Structure
 
@@ -13,9 +13,9 @@ Production-ready configuration for [Codex CLI](https://github.com/openai/codex) 
 ├── agents/                # Multi-agent role configs
 ├── docs/                  # Migration notes and support docs
 ├── lessons.md             # Self-correction source log
-├── skills/                # Bundled local skills (paper-reading, adversarial-review, humanizer, update_config)
+├── skills/                # Bundled local skills (paper-reading, adversarial-review, handoff, humanizer, update)
 ├── VERSION                # Installer version
-└── install.sh             # One-command installer
+└── install.sh / install.ps1
 ```
 
 ## Quick Start
@@ -62,7 +62,7 @@ Behavior notes:
 - PowerShell plain no-arg runs are interactive when console I/O is available; if it cannot use the console, it warns and falls back to a non-interactive full install.
 - In Bash, `--dry-run` previews the full install non-interactively.
 - In PowerShell, `-DryRun` alone previews the full install non-interactively.
-- PowerShell treats an empty interactive submission as a no-op.
+- Both shells treat an empty interactive submission as a no-op (nothing is installed and no version stamp is written).
 
 ### Codex menu groups and defaults
 
@@ -70,9 +70,9 @@ Behavior notes:
 |-------|-------|---------|
 | Core | `AGENTS.md`, `config.toml`, `lessons.md` | On |
 | Agents | `explorer`, `reviewer`, `docs-researcher` | On |
-| Skills — Recommended | `superpowers`, `document-skills`, `example-skills`, `coding-foundations`, `paper-reading`, `humanizer`, `adversarial-review`, `update` | On |
+| Skills — Recommended | `superpowers`, `document-skills`, `example-skills`, `coding-foundations`, `paper-reading`, `humanizer`, `humanizer-zh`, `handoff`, `adversarial-review`, `update` | On except `humanizer-zh` |
 | Skills — AI Research | `tokenization`, `fine-tuning`, `post-training`, `distributed-training`, `inference-serving`, `optimization`, `deepxiv` | Off |
-| MCP Servers | `context7`, `github`, `playwright`, `openaiDeveloperDocs`, `lark-mcp` | On except `lark-mcp` |
+| MCP Servers | `context7`, `github`, `playwright`, `openaiDeveloperDocs`, `lark-mcp` | On except `github` and `lark-mcp` (need credentials) |
 
 ## Installer Options
 
@@ -146,8 +146,10 @@ Superpowers are installed using the repo's current native-discovery flow:
 Bundled local skills in this repo:
 - `paper-reading` (`skills/paper-reading/SKILL.md`) — structured research paper summarization
 - `adversarial-review` (`skills/adversarial-review/SKILL.md`) — cross-model adversarial code review via opposite AI CLI (from [poteto/noodle](https://github.com/poteto/noodle/tree/main/.agents/skills/adversarial-review))
+- `handoff` (`skills/handoff/SKILL.md`) — compact the current conversation into a handoff document
 - `humanizer` (`skills/humanizer/SKILL.md`) — detect and remove AI writing patterns from text (from [blader/humanizer](https://github.com/blader/humanizer))
-- `update_config` (`skills/update/SKILL.md`) — update the installed Codex config to the latest `codex` branch version
+- `humanizer-zh` (`skills/humanizer-zh/SKILL.md`) — remove AI writing patterns from Chinese text
+- `update` (`skills/update/SKILL.md`) — update the installed Codex config to the latest `codex` branch version
 
 DeepXiv skills are refreshed from upstream on every `install.sh` run, similar to superpowers:
 - `deepxiv-cli`
@@ -166,15 +168,15 @@ Default MCP servers in `config.toml`:
 
 | Server | Purpose |
 |--------|---------|
-| Lark MCP | Feishu/Lark docs, sheets, chats, base ([repo](https://github.com/larksuite/lark-openapi-mcp)) |
+| Lark MCP | Feishu/Lark docs, sheets, chats, base — commented out by default, needs credentials ([repo](https://github.com/larksuite/lark-openapi-mcp)) |
 | Context7 | up-to-date library documentation lookup ([repo](https://github.com/upstash/context7)) |
-| GitHub | issue/PR/repo workflows ([repo](https://github.com/github/github-mcp-server)) |
+| GitHub | issue/PR/repo workflows — commented out by default, needs a PAT ([repo](https://github.com/github/github-mcp-server)) |
 | Playwright | browser automation and E2E testing ([repo](https://github.com/microsoft/playwright-mcp)) |
 | OpenAI Developer Docs | official OpenAI docs MCP endpoint (`https://developers.openai.com/mcp`) |
 
 ## Installation Notes
 
-1. Fill your own credentials:
+1. The Lark and GitHub MCP entries ship commented out in `config.toml`. To enable them, fill your own credentials and uncomment the blocks:
    - `YOUR_APP_ID` / `YOUR_APP_SECRET` (Lark)
    - `YOUR_GITHUB_PAT` (GitHub MCP)
 2. This config uses current Codex style (for example `web_search = "live"` at top-level).
@@ -195,11 +197,11 @@ See [`docs/claude-main-to-codex-migration.md`](./docs/claude-main-to-codex-migra
 
 ## Security Note
 
-Template defaults are power-user oriented:
-- `approval_policy = "never"`
-- `sandbox_mode = "danger-full-access"`
+Template defaults are conservative:
+- `approval_policy = "on-request"`
+- `sandbox_mode = "workspace-write"`
 
-If you prefer safer defaults, adjust these in `~/.codex/config.toml`.
+If you prefer full autonomy, switch these to `approval_policy = "never"` and `sandbox_mode = "danger-full-access"` in `~/.codex/config.toml`.
 
 ## Customization
 

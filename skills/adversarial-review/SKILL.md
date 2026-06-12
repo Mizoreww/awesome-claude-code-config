@@ -22,8 +22,9 @@ reviewers — those run on *your own* model, which defeats the purpose.
 
 ## Step 1 — Load Principles
 
-Read `brain/principles.md`. Follow every `[[wikilink]]` and read each linked principle file.
-These govern reviewer judgments.
+Read `references/reviewer-lenses.md`. The three lenses (Skeptic, Architect, Minimalist) and
+their mapped principles govern reviewer judgments. If a `brain/principles.md` file exists,
+also read it and follow any `[[wikilink]]` references for additional principles.
 
 ## Step 2 — Determine Scope and Intent
 

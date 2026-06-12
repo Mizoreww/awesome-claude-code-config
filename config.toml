@@ -2,31 +2,39 @@
 
 model = "gpt-5.4"
 model_reasoning_effort = "high"
-approval_policy = "never"
-sandbox_mode = "danger-full-access"
+# Conservative defaults: Codex asks before privileged actions and file writes
+# stay inside the workspace sandbox. If you prefer full autonomy, switch to:
+#   approval_policy = "never"
+#   sandbox_mode = "danger-full-access"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
 web_search = "live"
 model_instructions_file = "lessons.md"
 
 [shell_environment_policy]
 inherit = "all"
 
-[mcp_servers.lark-mcp]
-command = "npx"
-args = ["-y", "@larksuiteoapi/lark-mcp", "mcp", "-a", "YOUR_APP_ID", "-s", "YOUR_APP_SECRET"]
-startup_timeout_sec = 30
+# lark-mcp needs real credentials. Replace YOUR_APP_ID / YOUR_APP_SECRET with
+# your own values, then uncomment to enable.
+# [mcp_servers.lark-mcp]
+# command = "npx"
+# args = ["-y", "@larksuiteoapi/lark-mcp", "mcp", "-a", "YOUR_APP_ID", "-s", "YOUR_APP_SECRET"]
+# startup_timeout_sec = 30
 
 [mcp_servers.context7]
 command = "npx"
 args = ["-y", "@upstash/context7-mcp"]
 startup_timeout_sec = 30
 
-[mcp_servers.github]
-command = "npx"
-args = ["-y", "@modelcontextprotocol/server-github"]
-startup_timeout_sec = 30
-
-[mcp_servers.github.env]
-GITHUB_PERSONAL_ACCESS_TOKEN = "YOUR_GITHUB_PAT"
+# The GitHub MCP server needs a personal access token. Replace YOUR_GITHUB_PAT
+# with your own token, then uncomment to enable.
+# [mcp_servers.github]
+# command = "npx"
+# args = ["-y", "@modelcontextprotocol/server-github"]
+# startup_timeout_sec = 30
+#
+# [mcp_servers.github.env]
+# GITHUB_PERSONAL_ACCESS_TOKEN = "YOUR_GITHUB_PAT"
 
 [mcp_servers.playwright]
 command = "npx"

@@ -62,6 +62,10 @@ When making version-level changes to a project (new features, major refactors, a
 - Common + language-specific coding standards are provided via skills:
   - `python-patterns`, `golang-patterns`, `frontend-patterns`
 
+## Code Review
+
+Whenever a code review is needed — whether explicitly requested by the user or triggered by a workflow — invoke the `adversarial-review` skill to perform it. In Codex sessions the skill spawns reviewers on the opposite model's CLI (`claude -p`). Never substitute the actual review call with a text-only description.
+
 ## Paper Reading
 
 - Use `paper-reading` skill for research paper tasks
