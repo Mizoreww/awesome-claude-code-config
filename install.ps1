@@ -221,6 +221,60 @@ function Remove-TempDir {
 # ============================================================
 # Utilities
 # ============================================================
+function Test-PythonCommand {
+    param([string[]]$Command)
+
+    if (-not $Command -or $Command.Count -eq 0) {
+        return $false
+    }
+
+    $exe = $Command[0]
+    $baseArgs = @()
+    if ($Command.Count -gt 1) {
+        $baseArgs = $Command[1..($Command.Count - 1)]
+    }
+
+    try {
+        $probeArgs = @()
+        $probeArgs += $baseArgs
+        $probeArgs += @("-c", "import sys; raise SystemExit(0 if sys.version_info[0] >= 3 else 1)")
+        & $exe @probeArgs *> $null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    }
+}
+
+function Resolve-PythonCommand {
+    $candidates = @()
+
+    if ($env:PYTHON) {
+        $candidates += ,@($env:PYTHON)
+    }
+
+    foreach ($pyLauncher in @(Get-Command "py" -CommandType Application -ErrorAction SilentlyContinue)) {
+        if ($pyLauncher) {
+            $candidates += ,@($pyLauncher.Source, "-3")
+        }
+    }
+
+    foreach ($name in @("python3", "python")) {
+        foreach ($cmd in @(Get-Command $name -CommandType Application -ErrorAction SilentlyContinue)) {
+            if ($cmd) {
+                $candidates += ,@($cmd.Source)
+            }
+        }
+    }
+
+    foreach ($candidate in $candidates) {
+        if (Test-PythonCommand $candidate) {
+            return ,$candidate
+        }
+    }
+
+    return $null
+}
+
 function Show-Usage {
     @"
 Usage: .\install.ps1 [OPTIONS]
@@ -1105,8 +1159,19 @@ function Install-SkillPaths {
         return
     }
 
-    $py = if (Get-Command "python3" -ErrorAction SilentlyContinue) { "python3" } else { "python" }
-    & $py $INSTALLER --repo $Repo --path @Paths
+    $py = Resolve-PythonCommand
+    if (-not $py) {
+        Write-Warn "No usable Python 3 found. Install Python 3 or set PYTHON to a working interpreter."
+        $script:SKIPPED_COMPONENTS += "skill pack from $Repo (Python 3 not found)"
+        return
+    }
+
+    $exe = $py[0]
+    $pyArgs = @()
+    if ($py.Count -gt 1) {
+        $pyArgs = $py[1..($py.Count - 1)]
+    }
+    & $exe @pyArgs $INSTALLER --repo $Repo --path @Paths
     if ($LASTEXITCODE -ne 0) {
         Write-Warn "Skill install from $Repo returned non-zero (possibly already installed)"
         $script:SKIPPED_COMPONENTS += "skill pack from $Repo (installer returned non-zero)"
@@ -1130,8 +1195,19 @@ function Reinstall-SkillPaths {
         }
     }
 
-    $py = if (Get-Command "python3" -ErrorAction SilentlyContinue) { "python3" } else { "python" }
-    & $py $INSTALLER --repo $Repo --path @Paths
+    $py = Resolve-PythonCommand
+    if (-not $py) {
+        Write-Warn "No usable Python 3 found. Install Python 3 or set PYTHON to a working interpreter."
+        $script:SKIPPED_COMPONENTS += "skill pack from $Repo (Python 3 not found)"
+        return
+    }
+
+    $exe = $py[0]
+    $pyArgs = @()
+    if ($py.Count -gt 1) {
+        $pyArgs = $py[1..($py.Count - 1)]
+    }
+    & $exe @pyArgs $INSTALLER --repo $Repo --path @Paths
     if ($LASTEXITCODE -ne 0) {
         Write-Warn "Skill reinstall from $Repo returned non-zero"
         $script:SKIPPED_COMPONENTS += "skill pack from $Repo (installer returned non-zero)"
