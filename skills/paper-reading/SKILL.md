@@ -68,7 +68,7 @@ curl -L -o <output_dir>/paper.pdf "<url>"
 
 ### Read Content
 
-Use the **Read tool** to read the PDF file. Claude natively supports reading PDF files and extracting text content. For large PDFs (>10 pages), read in page ranges (e.g., `pages: "1-10"`, then `pages: "11-20"`).
+Use the **Read tool** to read the PDF file — it natively supports reading PDF files and extracting text content. For large PDFs (>10 pages), read in page ranges (e.g., `pages: "1-10"`, then `pages: "11-20"`).
 
 ## Step 2: Paper Type Identification
 

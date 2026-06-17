@@ -1,13 +1,20 @@
 #!/usr/bin/env bash
-# Claude Code status line — gradient progress bars
-# Shows: model, dir, git branch, context window, 5h usage (from API)
+# Cursor CLI status line — gradient progress bars
+# Shows: model, dir, conda/venv, git branch, context window
+#
+# Reads the StatusLinePayload JSON on stdin. Cursor's payload is aligned with
+# Claude Code's (same model.display_name, cwd, context_window.used_percentage,
+# context_window.context_window_size), so these segments work unchanged.
 
 # Cross-platform home directory (Windows $HOME may be wrong)
 _HOME="${USERPROFILE:-$HOME}"
+# Where this script lives, so a custom install dir (--prefix / CURSOR_HOME) still
+# finds its bundled jq. Falls back to ~/.cursor for the default install.
+_SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "$_HOME/.cursor")"
 
-# Ensure jq is available (check ~/.claude/bin/ for Windows installs)
+# Ensure jq is available (prefer the copy bundled next to this script, then ~/.cursor/bin)
 if ! command -v jq &>/dev/null; then
-    for _p in "$_HOME/.claude/bin/jq.exe" "$_HOME/.claude/bin/jq"; do
+    for _p in "$_SELF_DIR/bin/jq" "$_SELF_DIR/bin/jq.exe" "$_HOME/.cursor/bin/jq" "$_HOME/.cursor/bin/jq.exe"; do
         if [ -x "$_p" ]; then
             export PATH="$(dirname "$_p"):$PATH"
             break
@@ -15,14 +22,14 @@ if ! command -v jq &>/dev/null; then
     done
 fi
 if ! command -v jq &>/dev/null; then
-    printf "Claude (jq not found - run installer or install jq)"
+    printf "Cursor (jq not found - run installer or install jq)"
     exit 0
 fi
 
 input=$(cat)
 
 # --- Extract fields ---
-model=$(echo "$input" | jq -r '.model.display_name // "Claude"')
+model=$(echo "$input" | jq -r '.model.display_name // "Cursor"')
 cwd=$(echo "$input" | jq -r '.cwd // ""')
 dir_name=$(basename "$cwd")
 
@@ -72,118 +79,8 @@ else
     ICON_GIT="br:"
 fi
 
-# --- 5-hour usage from API (non-blocking, async refresh) ---
-# Strategy: statusline ONLY reads from cache (never blocks on network).
-# If cache is stale, a background process refreshes it for next render.
-_TMPDIR="${TMPDIR:-${TMP:-/tmp}}"
-USAGE_CACHE="$_TMPDIR/claude-usage-cache.json"
-USAGE_LOCK="$_TMPDIR/claude-usage-fetch.lock"
-CACHE_TTL=60
-CACHE_MAX_AGE=600  # 10min — don't display data older than this
-usage_5h=""
-usage_resets=""
-
-# Background fetch: updates cache file, never blocks the statusline
-bg_fetch_usage() {
-    # Prevent concurrent fetches
-    if [ -f "$USAGE_LOCK" ]; then
-        local lock_age lock_mtime
-        lock_mtime=$(stat -c %Y "$USAGE_LOCK" 2>/dev/null || stat -f %m "$USAGE_LOCK" 2>/dev/null || echo 0)
-        lock_age=$(( $(date +%s) - lock_mtime ))
-        # Stale lock (>30s) — remove and continue
-        [ "$lock_age" -lt 30 ] && return
-    fi
-    echo $$ > "$USAGE_LOCK"
-
-    local token kc_json
-    # 1) macOS Keychain
-    kc_json=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null)
-    # 2) Linux libsecret (GNOME Keyring / KWallet)
-    [ -z "$kc_json" ] && kc_json=$(secret-tool lookup service "Claude Code-credentials" 2>/dev/null)
-    # 3) Windows Credential Manager (Git Bash / MSYS2)
-    if [ -z "$kc_json" ] && command -v powershell.exe &>/dev/null; then
-        kc_json=$(powershell.exe -NoProfile -NoLogo -Command '
-            try {
-                $cred = Get-StoredCredential -Target "Claude Code-credentials" -ErrorAction Stop
-                if ($cred) { [System.Net.NetworkCredential]::new("", $cred.Password).Password }
-            } catch {
-                try {
-                    Add-Type -AssemblyName System.Security
-                    $path = Join-Path $env:LOCALAPPDATA "claude-code\credentials.json"
-                    if (Test-Path $path) { Get-Content $path -Raw }
-                } catch {}
-            }
-        ' 2>/dev/null)
-    fi
-    if [ -n "$kc_json" ]; then
-        token=$(echo "$kc_json" | jq -r '.claudeAiOauth.accessToken // empty' 2>/dev/null)
-    fi
-    # 3) Fall back to credentials file
-    if [ -z "$token" ]; then
-        local creds="$_HOME/.claude/.credentials.json"
-        [ -f "$creds" ] || { rm -f "$USAGE_LOCK"; return; }
-        token=$(jq -r '.claudeAiOauth.accessToken // empty' "$creds" 2>/dev/null)
-    fi
-    if [ -z "$token" ]; then
-        rm -f "$USAGE_LOCK"
-        return
-    fi
-
-    local api_result http_code
-    # Inherit proxy from environment (all_proxy, https_proxy, etc.)
-    http_code=$(curl -s -o "$USAGE_CACHE.tmp" -w '%{http_code}' \
-        --connect-timeout 2 --max-time 5 \
-        -H "Authorization: Bearer $token" \
-        -H "Content-Type: application/json" \
-        -H "User-Agent: claude-code/2.1.71" \
-        -H "anthropic-beta: oauth-2025-04-20" \
-        "https://api.anthropic.com/api/oauth/usage" 2>/dev/null)
-
-    if [ "$http_code" = "200" ] && [ -s "$USAGE_CACHE.tmp" ] \
-        && jq -e '.five_hour' "$USAGE_CACHE.tmp" &>/dev/null; then
-        mv -f "$USAGE_CACHE.tmp" "$USAGE_CACHE" 2>/dev/null
-        rm -f "$USAGE_CACHE.err"
-    else
-        rm -f "$USAGE_CACHE.tmp"
-        # Negative cache: record failure timestamp to avoid hammering API
-        echo "$http_code" > "$USAGE_CACHE.err" 2>/dev/null
-    fi
-    rm -f "$USAGE_LOCK"
-}
-
-# Read from cache (instant, no network)
-now=$(date +%s)
-cache_is_fresh=false
-if [ -f "$USAGE_CACHE" ]; then
-    cache_mtime=$(stat -c %Y "$USAGE_CACHE" 2>/dev/null || stat -f %m "$USAGE_CACHE" 2>/dev/null || echo 0)
-    cache_age=$(( now - cache_mtime ))
-    if [ "$cache_age" -lt "$CACHE_TTL" ]; then
-        cache_is_fresh=true
-    fi
-    # Display from cache only if not too old
-    if [ "$cache_age" -lt "$CACHE_MAX_AGE" ]; then
-        usage_5h=$(jq -r '.five_hour.utilization // empty' "$USAGE_CACHE" 2>/dev/null)
-        usage_resets=$(jq -r '.five_hour.resets_at // empty' "$USAGE_CACHE" 2>/dev/null)
-    fi
-fi
-
-# If cache is stale or missing, trigger async background refresh
-# But respect negative cache: skip if last failure was < 5 min ago
-if ! $cache_is_fresh; then
-    _should_fetch=true
-    if [ -f "$USAGE_CACHE.err" ]; then
-        _err_mtime=$(stat -c %Y "$USAGE_CACHE.err" 2>/dev/null || stat -f %m "$USAGE_CACHE.err" 2>/dev/null || echo 0)
-        _err_age=$(( now - _err_mtime ))
-        [ "$_err_age" -lt 300 ] && _should_fetch=false
-    fi
-    if $_should_fetch; then
-        bg_fetch_usage &>/dev/null &
-        disown 2>/dev/null
-    fi
-fi
-
 # --- Terminal width ---
-# Claude Code runs statusline in a pipe (no tty on stdin), so $COLUMNS
+# Cursor runs statusline in a pipe (no tty on stdin), so $COLUMNS
 # and `tput cols` are unreliable. Probe the real terminal via /dev/pts/*.
 _get_term_width() {
     # 1) $COLUMNS if set and positive
@@ -278,28 +175,6 @@ fmt_ctx() {
     fi
 }
 
-# Format reset time as relative
-fmt_resets() {
-    local resets_at="$1"
-    [ -z "$resets_at" ] && return
-    # Strip microseconds and timezone offset, treat as UTC
-    # "2026-03-05T13:00:00.293168+00:00" -> "2026-03-05T13:00:00"
-    local clean
-    clean=$(echo "$resets_at" | sed 's/\.[0-9]*//; s/[+-][0-9][0-9]:[0-9][0-9]$//; s/Z$//')
-    local reset_epoch
-    # macOS: TZ=UTC date -j -f, Linux: date -d (handles ISO natively)
-    reset_epoch=$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$clean" +%s 2>/dev/null \
-        || date -d "$resets_at" +%s 2>/dev/null) || return
-    local diff=$(( reset_epoch - now ))
-    [ "$diff" -le 0 ] && { echo "now"; return; }
-    local h=$(( diff / 3600 )) m=$(( diff % 3600 / 60 ))
-    if [ "$h" -gt 0 ]; then
-        echo "${h}h${m}m"
-    else
-        echo "${m}m"
-    fi
-}
-
 # --- Assemble segments ---
 segments=()
 sep_visible_w=3  # " │ " is 3 visible characters
@@ -355,34 +230,6 @@ _ctx_seg="${C_LABEL}context${C_R} ${ctx_bar} ${C_LABEL}${ctx_fmt}${C_R}"
 segments+=("$_ctx_seg")
 _ctx_w=$(visible_len "$_ctx_seg"); _ctx_w=${_ctx_w:-0}
 _seg_widths+=("$_ctx_w")
-
-# Segment 6: 5-hour usage bar (adaptive width)
-if [ -n "$usage_5h" ]; then
-    usage_pct=$(printf "%.0f" "$usage_5h" 2>/dev/null || echo "$usage_5h")
-    resets_fmt=$(fmt_resets "$usage_resets")
-    # Overhead: "5h " (3) + " " (1) + pct "XX%" (3-4) + " " (1) + resets (~5) ≈ 14
-    usage_label_overhead=14
-    usage_bar_w=$BAR_W
-
-    # Re-compute cumulative width including segment 5 (use cached widths + new segment)
-    _pre_w=0
-    for _w in "${_seg_widths[@]}"; do
-        [ "$_pre_w" -gt 0 ] && _pre_w=$(( _pre_w + sep_visible_w ))
-        _pre_w=$(( _pre_w + _w ))
-    done
-
-    usage_remaining=$(( COLUMNS - _pre_w - sep_visible_w - usage_label_overhead ))
-    if [ "$usage_remaining" -lt "$BAR_W" ]; then
-        usage_bar_w=$(( usage_remaining >= 8 ? usage_remaining : BAR_W ))
-    fi
-
-    usage_bar=$(build_bar "$usage_pct" "$usage_bar_w")
-    usage_seg="${C_LABEL}5h${C_R} ${usage_bar}"
-    [ -n "$resets_fmt" ] && usage_seg+=" ${C_LABEL}${resets_fmt}${C_R}"
-    segments+=("$usage_seg")
-    _usage_w=$(visible_len "$usage_seg"); _usage_w=${_usage_w:-0}
-    _seg_widths+=("$_usage_w")
-fi
 
 # --- Wrap algorithm ---
 sep_str="${C_SEP} \xe2\x94\x82 ${C_R}"

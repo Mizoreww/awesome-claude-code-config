@@ -1,0 +1,35 @@
+---
+description: "Hooks system overview: hook types, cautious auto-accept permissions, and TodoWrite best practices."
+alwaysApply: true
+---
+
+# Hooks System
+
+## Hook Types
+
+- **preToolUse**: Before tool execution (validation, parameter modification)
+- **afterFileEdit**: After a file edit (auto-format, checks)
+- **stop**: When the agent finishes (final verification)
+
+## Auto-Accept Permissions
+
+Use with caution:
+- Enable for trusted, well-defined plans
+- Disable for exploratory work
+- Never disable permission checks entirely
+- Configure an allowlist of trusted tools in Cursor's settings instead
+
+## TodoWrite Best Practices
+
+Use TodoWrite tool to:
+- Track progress on multi-step tasks
+- Verify understanding of instructions
+- Enable real-time steering
+- Show granular implementation steps
+
+Todo list reveals:
+- Out of order steps
+- Missing items
+- Extra unnecessary items
+- Wrong granularity
+- Misinterpreted requirements

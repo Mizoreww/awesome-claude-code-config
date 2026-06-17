@@ -1,0 +1,20 @@
+---
+description: "Python hooks: auto-format and type-check .py files on edit, and warn about print() statements."
+globs: "**/*.py"
+alwaysApply: false
+---
+
+# Python Hooks
+
+> Extends the common hooks rule with Python-specific content.
+
+## afterFileEdit Hooks
+
+Configure in `~/.cursor/hooks.json`:
+
+- **black/ruff**: Auto-format `.py` files after edit
+- **mypy/pyright**: Run type checking after editing `.py` files
+
+## Warnings
+
+- Warn about `print()` statements in edited files (use `logging` module instead)

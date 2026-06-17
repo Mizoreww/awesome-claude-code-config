@@ -1,12 +1,52 @@
 <!-- This is the source of truth. README.zh-CN.md is the Chinese translation. Keep both in sync. -->
 
-**English** | [中文](./README.zh-CN.md) | [Codex Branch](https://github.com/Mizoreww/awesome-claude-code-config/tree/codex) | [Changelog](./CHANGELOG.md)
+[Source English](https://github.com/Mizoreww/awesome-claude-code-config/blob/main/README.md) | [Source 中文](https://github.com/Mizoreww/awesome-claude-code-config/blob/main/README.zh-CN.md) | **Cursor English** | [Cursor 中文](./README.zh-CN.md) | [Changelog](./CHANGELOG.md)
 
 # Awesome Claude Code Configuration
 
 ![Statusline](assets/statusline.png)
 
 Production-ready configuration for [Claude Code](https://claude.com/claude-code). One-command install of global instructions, multi-language coding rules (Python / TypeScript / Go), 24 curated plugins across 9 marketplaces, seven bundled skills, a gradient status bar, and a self-improvement loop that remembers corrections across sessions.
+
+## Using with Cursor
+
+This is the **`cursor` branch** — a [Cursor](https://cursor.com)-targeted variant of this config. It expresses the same instructions, coding rules, skills, MCP servers, hooks, and status bar through Cursor's native mechanisms and installs them into `~/.cursor/`.
+
+**macOS / Linux**:
+
+```bash
+./install-cursor.sh
+```
+
+**Windows (PowerShell)**:
+
+```powershell
+.\install-cursor.ps1
+```
+
+Add `--dry-run` to preview, or `--prefix <dir>` (also honored via `CURSOR_HOME`) to install elsewhere. The installer is idempotent and non-destructive — it backs up files before overwriting, merges `mcp.json` / `cli-config.json` instead of replacing them, and never clobbers your `lessons.md`.
+
+**To undo** — restore the pre-install state:
+
+```bash
+./install-cursor.sh --uninstall        # macOS / Linux
+.\install-cursor.ps1 -Uninstall        # Windows (PowerShell)
+```
+
+Uninstall restores the originals it snapshotted on first install (and removes files it created), then surgically un-merges only its own `mcp.json` / `hooks.json` / `cli-config.json` entries. Your `lessons.md` is kept by default (add `--purge-lessons` / `-PurgeLessons` to drop one the installer seeded). Pair with `--dry-run` to preview. Configs installed by an older build that predates the manifest fall back to a conservative best-effort removal that only deletes files identical to what the repo ships.
+
+**What's included:**
+
+| Source | Installed to | Contents |
+|--------|--------------|----------|
+| `AGENTS.md` | `~/.cursor/AGENTS.md` | Global instructions (was `CLAUDE.md`) |
+| `.cursor/rules/*.mdc` | `~/.cursor/rules/` | Common + Python / TypeScript / Go coding standards |
+| `skills/<name>/` | `~/.cursor/skills/` | Bundled skills (review, paper-reading, humanizer, handoff, teach, update…) |
+| `mcp.json` | `~/.cursor/mcp.json` | MCP servers — context7, playwright (github / lark documented in [`mcp.README.md`](./mcp.README.md)) |
+| `hooks.json` + `hooks/` | `~/.cursor/` | `sessionStart` hook that reloads lessons |
+| `statusline.sh` + `cli-config.json` | `~/.cursor/` | Gradient context-window status bar |
+
+See the [**Claude → Cursor migration map**](./docs/claude-main-to-cursor-migration.md) for the full concept mapping and what does not migrate 1:1.
 
 ## Showcase
 
@@ -15,7 +55,9 @@ Production-ready configuration for [Claude Code](https://claude.com/claude-code)
 - [paper-reading skill — *Attention Is All You Need*](docs/Attention_Is_All_You_Need.md)
 - [adversarial-review skill — worked example](docs/adversarial-review-showcase.md)
 
-## Quick Start
+## Quick Start (Claude Code)
+
+> **Using Cursor?** Use the [Using with Cursor](#using-with-cursor) section above (`./install-cursor.sh`) instead — the commands below install the **Claude Code** config into `~/.claude/`.
 
 **macOS / Linux**:
 

@@ -1,0 +1,58 @@
+---
+description: "Agent orchestration: Cursor's built-in subagents, when to delegate, Plan mode, and parallel multi-agent execution."
+alwaysApply: true
+---
+
+# Agent Orchestration
+
+## Available Subagents
+
+Cursor exposes built-in subagents through the Task tool. Delegate to these instead
+of expecting custom-named specialist agents:
+
+| Subagent | Purpose | When to Use |
+|----------|---------|-------------|
+| generalPurpose | Multi-step research & execution | Complex, open-ended tasks |
+| explore | Fast read-only codebase search | Finding files, tracing behavior |
+| shell | Command execution | Builds, git, scripts |
+| browser-use | Browser automation / E2E | Critical user flows, UI checks |
+| bugbot | Code review of local changes | After writing a change |
+| security-review | Security analysis of local changes | Before commits touching sensitive code |
+| ci-investigator | Diagnose a failing CI check | A PR check is red |
+
+For cross-model code review you can also use the `adversarial-review` skill.
+Planning and architecture are handled by **Plan mode**, not a separate agent.
+
+## When to Delegate (no prompt needed)
+
+1. Broad codebase exploration → **explore** subagent
+2. Code just written/modified → **bugbot** subagent or the `adversarial-review` skill
+3. Security-sensitive change → **security-review** subagent
+4. Complex feature or refactor → enter **Plan mode** first, then implement
+
+For a needle lookup (a known symbol or file) search directly instead of spawning a
+subagent.
+
+## Parallel Task Execution
+
+Use parallel subagents for independent operations:
+
+```markdown
+# GOOD: parallel
+Launch 3 subagents at once:
+1. explore: map the auth module
+2. explore: map the cache layer
+3. security-review: audit input validation
+
+# BAD: sequential when independent
+First subagent 1, then 2, then 3
+```
+
+## Multi-Perspective Analysis
+
+For complex problems, split roles across subagents or critique rounds:
+- Factual reviewer
+- Senior engineer
+- Security expert
+- Consistency reviewer
+- Redundancy checker
