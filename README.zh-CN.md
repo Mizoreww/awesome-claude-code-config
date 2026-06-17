@@ -1,6 +1,6 @@
 <!-- 本文件与 README.md 同步维护。README.md 为主，本文件为翻译。 -->
 
-[English](./README.md) | **中文** | [Codex 分支](https://github.com/Mizoreww/awesome-claude-code-config/tree/codex) | [更新日志](./CHANGELOG.zh-CN.md)
+[English](./README.md) | **中文** | [Codex 分支](https://github.com/Mizoreww/awesome-claude-code-config/tree/codex) | [Cursor 分支](https://github.com/Mizoreww/awesome-claude-code-config/tree/cursor) | [更新日志](./CHANGELOG.zh-CN.md)
 
 # Awesome Claude Code Configuration
 
