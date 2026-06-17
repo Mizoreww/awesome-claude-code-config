@@ -1,0 +1,58 @@
+---
+description: "Performance and resource strategy: model selection, context window management, planning, and build troubleshooting."
+alwaysApply: true
+---
+
+# Performance Optimization
+
+## Model Selection Strategy
+
+**Fast, low-cost models** (most of the capability at a fraction of the cost):
+- Lightweight agents with frequent invocation
+- Pair programming and code generation
+- Worker agents in multi-agent systems
+
+**Capable coding models** (best for most coding work):
+- Main development work
+- Orchestrating multi-agent workflows
+- Complex coding tasks
+
+**Maximum-reasoning models** (deepest reasoning):
+- Complex architectural decisions
+- Maximum reasoning requirements
+- Research and analysis tasks
+
+## Context Window Management
+
+Avoid last 20% of context window for:
+- Large-scale refactoring
+- Feature implementation spanning multiple files
+- Debugging complex interactions
+
+Lower context sensitivity tasks:
+- Single-file edits
+- Independent utility creation
+- Documentation updates
+- Simple bug fixes
+
+## Extended Thinking + Plan Mode
+
+Extended thinking lets the model reserve extra tokens for internal reasoning before it answers.
+
+Control extended thinking via:
+- **Model choice**: Select a model variant that has extended thinking enabled
+- **Reasoning effort**: Use a higher thinking effort for complex tasks and a lower one for simple edits
+
+For complex tasks requiring deep reasoning:
+1. Use a model with extended thinking enabled
+2. Enable **Plan Mode** for structured approach
+3. Use multiple critique rounds for thorough analysis
+4. Use split role sub-agents for diverse perspectives
+
+## Build Troubleshooting
+
+If build fails:
+1. Read the full error output (run the build via the **shell** subagent if it is long-running)
+2. Analyze error messages
+3. Fix incrementally
+4. Verify after each fix

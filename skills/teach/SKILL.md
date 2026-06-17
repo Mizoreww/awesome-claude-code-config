@@ -1,6 +1,6 @@
 ---
 name: teach
-description: Teach the user a new skill or concept, within this workspace.
+description: Teach the user a new skill or concept within this workspace, building lessons and reference materials over multiple sessions. Use when the user types /teach or asks you to teach, tutor, or help them learn a topic.
 disable-model-invocation: true
 argument-hint: "What would you like to learn about?"
 ---

@@ -1,12 +1,52 @@
 <!-- 本文件与 README.md 同步维护。README.md 为主，本文件为翻译。 -->
 
-[English](./README.md) | **中文** | [Codex 分支](https://github.com/Mizoreww/awesome-claude-code-config/tree/codex) | [更新日志](./CHANGELOG.zh-CN.md)
+[Source English](https://github.com/Mizoreww/awesome-claude-code-config/blob/main/README.md) | [Source 中文](https://github.com/Mizoreww/awesome-claude-code-config/blob/main/README.zh-CN.md) | [Cursor English](./README.md) | **Cursor 中文** | [更新日志](./CHANGELOG.zh-CN.md)
 
 # Awesome Claude Code Configuration
 
 ![Statusline](assets/statusline.png)
 
 [Claude Code](https://claude.com/claude-code) 的生产级配置。一条命令安装：全局指令、多语言编码规则（Python / TypeScript / Go）、9 个 marketplace 下的 24 个精选插件、7 个内置 skill、渐变状态栏，以及能跨会话记住纠正的自我改进回路。
+
+## 在 Cursor 中使用
+
+这是 **`cursor` 分支** —— 面向 [Cursor](https://cursor.com) 的配置变体。它把同一套全局指令、编码规则、skill、MCP 服务、hook 与状态栏，通过 Cursor 的原生机制表达，并安装到 `~/.cursor/`。
+
+**macOS / Linux**:
+
+```bash
+./install-cursor.sh
+```
+
+**Windows (PowerShell)**:
+
+```powershell
+.\install-cursor.ps1
+```
+
+追加 `--dry-run` 可预览；用 `--prefix <dir>`（也支持通过 `CURSOR_HOME` 环境变量）安装到其他目录。安装器幂等且非破坏性 —— 覆盖前会先备份文件，对 `mcp.json` / `cli-config.json` 采用合并而非替换，且永不覆盖你的 `lessons.md`。
+
+**卸载** —— 恢复到安装前的状态：
+
+```bash
+./install-cursor.sh --uninstall        # macOS / Linux
+.\install-cursor.ps1 -Uninstall        # Windows (PowerShell)
+```
+
+卸载会还原首次安装时快照的原始文件（并删除自己创建的文件），再从 `mcp.json` / `hooks.json` / `cli-config.json` 中**只**移除自己写入的条目。默认保留你的 `lessons.md`（如需删除安装器自动生成的那份，可加 `--purge-lessons` / `-PurgeLessons`）。可配合 `--dry-run` 预览。若是早于清单（manifest）机制的旧版本安装的配置，会退化为保守的尽力清理：仅删除与仓库内容完全一致的文件。
+
+**包含内容：**
+
+| 来源 | 安装到 | 内容 |
+|------|--------|------|
+| `AGENTS.md` | `~/.cursor/AGENTS.md` | 全局指令（原 `CLAUDE.md`） |
+| `.cursor/rules/*.mdc` | `~/.cursor/rules/` | 通用 + Python / TypeScript / Go 编码规范 |
+| `skills/<name>/` | `~/.cursor/skills/` | 内置 skill（review、paper-reading、humanizer、handoff、teach、update…） |
+| `mcp.json` | `~/.cursor/mcp.json` | MCP 服务 —— context7、playwright（github / lark 见 [`mcp.README.md`](./mcp.README.md)） |
+| `hooks.json` + `hooks/` | `~/.cursor/` | 会话启动（`sessionStart`）时重新加载 lessons 的 hook |
+| `statusline.sh` + `cli-config.json` | `~/.cursor/` | 渐变上下文窗口状态栏 |
+
+完整的概念映射以及「哪些无法 1:1 迁移」，参见 [**Claude → Cursor 迁移对照**](./docs/claude-main-to-cursor-migration.md)。
 
 ## 示例
 
@@ -15,7 +55,9 @@
 - [paper-reading skill 实战 — *Attention Is All You Need*](docs/Attention_Is_All_You_Need.md)
 - [adversarial-review skill 实战](docs/adversarial-review-showcase.md)
 
-## 快速开始
+## 快速开始（Claude Code）
+
+> **使用 Cursor？** 请改用上面的[在 Cursor 中使用](#在-cursor-中使用)一节（`./install-cursor.sh`）—— 下面的命令安装的是 **Claude Code** 配置，会写入 `~/.claude/`。
 
 **macOS / Linux**:
 

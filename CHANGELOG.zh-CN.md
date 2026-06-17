@@ -1,5 +1,30 @@
 # 更新日志
 
+## [2.8.0] - 2026-06-17
+
+### 新功能
+- **Cursor 支持（`cursor` 分支）。** 本分支是面向 [Cursor](https://cursor.com) 的配置变体，与 `codex` 分支面向 OpenAI Codex 的做法一致。同一套全局指令、编码规则、skill、MCP 服务、hook 与状态栏，通过 Cursor 的原生机制重新表达，并安装到 `~/.cursor/`：
+  - `CLAUDE.md` → **`AGENTS.md`**（`~/.cursor/AGENTS.md`）；路径与记忆系统改写为 `~/.cursor/`。
+  - `rules/**/*.md` → **`.cursor/rules/*.mdc`**，带 Cursor frontmatter（`common-*` 设 `alwaysApply: true`；`python-*` / `typescript-*` / `golang-*` 按 glob 生效）。Agent 编排相关的规则改为指向 Cursor 真实存在的 subagent（`explore`、`bugbot`、`security-review`、`browser-use` 等）与 Plan 模式，而非 Cursor 并不提供的 Claude 专有命名 agent（`planner`、`tdd-guide`、`code-reviewer` 等）。
+  - `skills/*/SKILL.md` 移植为 Cursor skill（命令式 skill 设 `disable-model-invocation: true`），并新增 `skills/update` 作为 Cursor 自更新器。
+  - `mcp/mcp-servers.json` → **`mcp.json`**（`{"mcpServers": {…}}`）；零配置的 `context7` + `playwright` 默认启用，需密钥的 `github` / `lark` 记录在 `mcp.README.md`。
+  - SessionStart 加载 lessons → `hooks.json` 中的 **`sessionStart` hook**，运行 `hooks/load-lessons.sh`。
+  - **`statusline.sh`**（已去 Claude 化 —— 移除 Anthropic 的 5 小时用量段）通过 `cli-config.json` 的 `statusLine` 项接入。
+- **新增安装器 `install-cursor.sh` / `install-cursor.ps1`。** 一个聚焦、幂等、非破坏性的安装器：把 skill、rule、`AGENTS.md`、hook 与状态栏复制到 `~/.cursor/`，并对 `mcp.json` / `cli-config.json` 采用**合并**而非覆盖。支持 `--dry-run`，以及通过 `--prefix <dir>` / `CURSOR_HOME` 指定自定义目标。既可从本地 clone 运行，也支持**远程运行**（`bash <(curl … cursor/install-cursor.sh)`）—— 无 clone 时会把分支 tarball 下载到临时目录再安装；并会**写入版本戳**到 `~/.cursor/.awesome-claude-code-config-version`，供 `update` skill 检测升级。Bash 版会把静态 `jq` 引导安装到 `~/.cursor/bin/` 用于 JSON 合并（状态栏也会在该目录查找 jq）；PowerShell 版原生合并 JSON。
+- **卸载（`--uninstall` / `-Uninstall`），可回到安装前的状态。** 首次安装时会记录两样东西：把将被覆盖的每个配置文件做一份**逐字快照**（`~/.cursor/.awesome-claude-code-config.backup/`），以及一份记录所有安装内容的**清单**（`~/.cursor/.awesome-claude-code-config.manifest`）。卸载会还原快照中的原始文件、删除安装器创建的文件（rule、skill、hook、状态栏、版本戳、快照、清单），并从 `mcp.json` / `hooks.json` / `cli-config.json` 中**只外科式移除自己写入的条目**（仅当其中不再有你的内容时才删除该文件）。默认保留 `lessons.md`（`--purge-lessons` / `-PurgeLessons` 可删除安装器自动生成的那份）；`--force` / `-Force` 跳过确认，`--dry-run` 可预览。对于早于清单机制的旧版本安装，会退化为保守模式：仅删除与仓库当前内容逐字节一致的文件。
+- **新增文档 `docs/claude-main-to-cursor-migration.md`** —— 面向用户的 Claude→Cursor 概念映射指南（装到哪里、如何安装、哪些无法 1:1 迁移）。内部工作规范（`docs/cursor-migration-spec.md`）已并入其中并删除。README / README.zh-CN 新增顶部「在 Cursor 中使用」一节，并将原有的远程一行命令标注为「快速开始（Claude Code）」，避免 Cursor 用户被引导到 `~/.claude` 安装器。
+
+### 设计取舍
+- **增量、绝不破坏。** Cursor 入口与既有的 Claude 安装器及文件（`install.sh`、`CLAUDE.md`、`settings.json`、`mcp/`）**并存**而非替换，因此该分支是一个超集。安装器会备份它覆盖的每个配置文件（`*.bak.<timestamp>`），对 `mcp.json` / `cli-config.json` / `hooks.json` 采用合并（让用户自配置的服务与 hook 在重装后仍保留），并把状态栏命令与 `statusline.sh` / `load-lessons.sh` 脚本解析到所选安装目录（因此 `--prefix` / `CURSOR_HOME` 在运行时也能用，而不只是文件布局），只触碰它自带的 rule/skill 文件（保留用户自加的），并且仅在 `lessons.md` 缺失时才写入。
+- **密钥不进入启用态的 `mcp.json`。** 严格 JSON 无注释，且 Cursor 每次会话都会拉起所列出的全部服务，因此需要凭据的服务记录在 `mcp.README.md`，而不是带着占位 token 直接 ship —— 避免用伪造凭据拉起坏掉的服务。
+- **可用的核心优先于脆弱的功能对齐。** 安装器以小而可读的函数聚焦核心环节，而非照搬 Claude 安装器的整套交互菜单。
+
+### 注意事项
+- **JSON 合并（及状态栏）依赖 `jq`。** Bash 安装器会自动下载静态二进制到 `~/.cursor/bin/`；若失败则打印手动安装说明，状态栏降级为一行提示而非崩溃。当 `jq` 不可用**且**目标 JSON 已存在时，会跳过合并（保留现有文件）而非覆盖它。
+- **`sessionStart` 可能不注入上下文。** Cursor 的 `sessionStart` hook 文档定位为会话初始化/审计，可能不会像 Claude Code 的 `SessionStart` 那样把 stdout 注入到 agent 上下文。lessons 仍可通过 `~/.cursor/AGENTS.md`（其中引用了 `lessons.md`）可靠送达 agent；hook 依然 ship，因为它前向兼容。
+- **存在两个 update 类 skill**（`update-config` 与新增的 `update`）；`update` 是规范的 Cursor 自更新器。二者现在都调用 `install-cursor.sh` / `install-cursor.ps1`（Cursor 安装器）——而非 Claude 的 `install.sh`——并依赖上述版本戳。`install-cursor.ps1` 无法在 Linux 开发机上执行（无 PowerShell）—— 它基于可用的 `codex` PowerShell 安装器建模，属尽力而为；其远程模式、版本戳与卸载逻辑均与已验证的 Bash 路径保持一致。
+- **卸载不会撤销安装后的改动。** 它只回滚安装器做过的事，而非你之后的修改：你就地改过的 rule/skill 文件仍会被删除（它仍归安装器所有），而对**已合并** JSON 的改动会被保留，因为反合并是按 key 精确进行的。Bash 卸载路径有一套 38 项断言的测试矩阵覆盖（干净安装→卸载、预存文件还原、dry-run、`--purge-lessons` 与退化模式）；PowerShell 等价实现未在本机验证。
+
 ## [2.7.1] - 2026-06-09
 
 ### 新功能
