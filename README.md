@@ -193,6 +193,7 @@ Smart merge on re-install preserves your overrides for `env`, `permissions.allow
 - [Anthropic Engineering](https://www.anthropic.com/engineering) / [OpenAI Engineering](https://openai.com/news/engineering/)
 - [Claude Code Best Practice](https://github.com/shanraisshan/claude-code-best-practice) by shanraisshan
 - [Claude How To](https://github.com/luongnv89/claude-howto) by luongnv89
+- **[Context Kit](https://github.com/JDDavenport/context-kit)** — Personal Context Artifacts: 4 Markdown templates + 5 Claude Code skills for giving AI agents deep personal context. MIT, one-command install.
 
 ## License
 
