@@ -197,3 +197,5 @@ Smart merge on re-install preserves your overrides for `env`, `permissions.allow
 ## License
 
 MIT
+
+- [Context Kit](https://github.com/JDDavenport/context-kit) — 4 PCA templates (wiki, mental-models, voice, protocols) + 5 skills. Complete personal context configuration. MIT.
