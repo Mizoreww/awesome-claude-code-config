@@ -9,6 +9,7 @@
 - Updated both installers to ensure statusline settings inside `[tui]`, removing misplaced top-level or project-scoped `status_line` entries during the merge.
 - Removed Codex installer entries that have no practical Codex install target, including Claude-only command workflow plugins, `ppt-master`, `claude-mem`, and `claude-health`.
 - Enabled the GitHub MCP menu item by default; installation uses `GITHUB_PERSONAL_ACCESS_TOKEN` when present and skips GitHub MCP without writing a placeholder token when absent.
+- Hardened installer edge cases found in review: removed orphaned managed skill names, restored npx-first AI/DeepXiv paths, and made statusline merging handle missing or multi-line config safely.
 
 ### Design Rationale
 - Codex does not have Claude Code's plugin runtime, so the migration preserves user-facing categories while mapping installable capabilities to Codex skills, MCP servers, or explicit skipped items.

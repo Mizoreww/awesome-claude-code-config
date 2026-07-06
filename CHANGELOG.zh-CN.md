@@ -9,6 +9,7 @@
 - 两个安装器都会把 statusline 写入 `[tui]`，并在合并现有配置时清理误写到顶层或 project 表里的 `status_line`。
 - 移除没有实际 Codex 安装目标的安装器选项，包括 Claude-only command workflow 插件、`ppt-master`、`claude-mem` 和 `claude-health`。
 - GitHub MCP 菜单项默认开启；安装时如果存在 `GITHUB_PERSONAL_ACCESS_TOKEN` 就使用它配置 GitHub MCP，如果没有则跳过且不写入占位 token。
+- 根据 review 结果加固安装器边界：移除 orphaned managed skill 名称、恢复 AI/DeepXiv 的 npx-first 路径，并让 statusline 合并安全处理缺失配置与多行 TOML。
 
 ### 设计理由
 - Codex 没有 Claude Code 的同款 plugin runtime，所以迁移目标是保留用户可识别的分类，同时把能力映射到 Codex skills、MCP server 或明确跳过的项目。

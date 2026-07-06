@@ -156,16 +156,12 @@ $MANAGED_SKILLS = @(
     "karpathy-guidelines",
     "brainstorming", "dispatching-parallel-agents", "executing-plans", "finishing-a-development-branch",
     "receiving-code-review", "requesting-code-review", "subagent-driven-development", "using-git-worktrees",
-    "using-superpowers", "verification-before-completion", "writing-plans", "writing-skills",
+    "verification-before-completion", "writing-skills",
     "frontend-slides",
     "ask-matt", "diagnosing-bugs", "grill-with-docs", "triage",
     "implement", "improve-codebase-architecture", "setup-matt-pocock-skills", "tdd",
     "to-issues", "to-prd", "prototype", "domain-modeling", "codebase-design",
     "grill-me", "grilling", "research", "teach", "writing-great-skills",
-    "babysit", "design-is", "do", "how-it-works", "knowledge-agent", "learn-codebase", "make-plan",
-    "mem-search", "oh-my-issues", "pathfinder", "smart-explore", "standup", "timeline-report",
-    "claude-code-plugin-release", "weekly-digests", "what-the", "wowerpoint",
-    "health", "check", "hunt", "learn", "read", "think", "ui", "write",
     "pua", "pua-en", "pua-ja"
 )
 
@@ -565,20 +561,28 @@ function Ensure-StatusLineSetting {
 
     New-Item -ItemType Directory -Path $CODEX_DIR -Force | Out-Null
     if (-not (Test-Path $target)) {
-        Set-Content -Path $target -Value @(
-            "[tui]",
-            $script:CODEX_STATUS_LINE,
-            $script:CODEX_STATUS_LINE_USE_COLORS
-        ) -Encoding UTF8
-        Write-Ok "[tui].status_line installed in config.toml"
+        Copy-Item (Join-Path $script:SCRIPT_DIR "config.toml") $target -Force
+        if (-not (Test-Path (Join-Path $CODEX_DIR "lessons.md"))) {
+            Write-Warn "config.toml requires lessons.md (model_instructions_file); seeding it while installing StatusLine"
+        }
+        Install-LessonsIfMissing
+        Write-Ok "config.toml installed with [tui].status_line"
         return
     }
 
     $lines = Get-Content $target
     $sawTui = $false
+    $skipStatusArray = $false
     $updated = New-Object System.Collections.Generic.List[string]
 
     foreach ($line in $lines) {
+        if ($skipStatusArray) {
+            if ($line -match '\]') {
+                $skipStatusArray = $false
+            }
+            continue
+        }
+
         if ($line -match '^\[tui\]\s*$') {
             $updated.Add($line)
             $updated.Add($script:CODEX_STATUS_LINE)
@@ -589,6 +593,9 @@ function Ensure-StatusLineSetting {
 
         if ($line -match '^\s*status_line\s*=' -or
             $line -match '^\s*status_line_use_colors\s*=') {
+            if ($line -match '^\s*status_line\s*=' -and $line -match '\[' -and $line -notmatch '\]') {
+                $skipStatusArray = $true
+            }
             continue
         }
 
@@ -1422,11 +1429,16 @@ function Reinstall-SkillPaths {
     }
 
     if ($DryRun) {
-        Write-Info "Would reinstall via Python skill-installer: ${Repo} -> $($Paths -join ', ')"
+        $names = @()
+        foreach ($path in $Paths) {
+            $names += Get-SkillNameFromPath $path
+        }
+        Write-Info "Would reinstall via npx skills: ${Repo} -> $($names -join ', ')"
+        Write-Info "Fallback if npx fails: install-skill-from-github.py ${Repo} -> $($Paths -join ', ')"
         return
     }
 
-    Install-SkillPathsFallback $Repo $Paths
+    Install-SkillPaths $Repo $Paths
 }
 
 function Remove-LegacySuperPowersSkills {

@@ -123,16 +123,12 @@ MANAGED_SKILLS=(
   karpathy-guidelines
   brainstorming dispatching-parallel-agents executing-plans finishing-a-development-branch
   receiving-code-review requesting-code-review subagent-driven-development using-git-worktrees
-  using-superpowers verification-before-completion writing-plans writing-skills
+  verification-before-completion writing-skills
   frontend-slides
   ask-matt diagnosing-bugs grill-with-docs triage
   implement improve-codebase-architecture setup-matt-pocock-skills tdd
   to-issues to-prd prototype domain-modeling codebase-design
   grill-me grilling research teach writing-great-skills
-  babysit design-is do how-it-works knowledge-agent learn-codebase make-plan
-  mem-search oh-my-issues pathfinder smart-explore standup timeline-report
-  claude-code-plugin-release weekly-digests what-the wowerpoint
-  health check hunt learn read think ui write
   pua pua-en pua-ja
 )
 
@@ -566,8 +562,12 @@ ensure_status_line_setting() {
 
   mkdir -p "$CODEX_DIR"
   if [[ ! -f "$target" ]]; then
-    printf '[tui]\n%s\n%s\n' "$CODEX_STATUS_LINE" "$CODEX_STATUS_LINE_USE_COLORS" > "$target"
-    ok "[tui].status_line installed in config.toml"
+    cp "$SCRIPT_DIR/config.toml" "$target"
+    if [[ ! -f "$CODEX_DIR/lessons.md" ]]; then
+      warn "config.toml requires lessons.md (model_instructions_file); seeding it while installing StatusLine"
+    fi
+    seed_lessons_if_missing
+    ok "config.toml installed with [tui].status_line"
     return 0
   fi
 
@@ -578,6 +578,13 @@ ensure_status_line_setting() {
     function is_status_setting(line) {
       return line ~ /^[[:space:]]*status_line[[:space:]]*=/ || \
              line ~ /^[[:space:]]*status_line_use_colors[[:space:]]*=/
+    }
+
+    skip_status_array {
+      if ($0 ~ /\]/) {
+        skip_status_array = 0
+      }
+      next
     }
 
     /^\[tui\][[:space:]]*$/ {
@@ -594,6 +601,9 @@ ensure_status_line_setting() {
     }
 
     is_status_setting($0) {
+      if ($0 ~ /^[[:space:]]*status_line[[:space:]]*=/ && $0 ~ /\[/ && $0 !~ /\]/) {
+        skip_status_array = 1
+      }
       next
     }
 
@@ -865,11 +875,23 @@ reinstall_skill_paths() {
     fi
   done
 
+  local -a names=()
+  for path in "$@"; do
+    names+=("$(skill_name_from_path "$path")")
+  done
+
   if $DRY_RUN; then
-    info "Would reinstall via Python skill-installer: $repo -> $*"
+    info "Would reinstall via npx skills: $repo -> ${names[*]}"
+    info "Fallback if npx fails: install-skill-from-github.py $repo -> $*"
     return 0
   fi
 
+  if install_npx_skill_names "$repo" "${names[@]}"; then
+    ok "Reinstalled skills via npx: ${names[*]} ($repo)"
+    return 0
+  fi
+
+  warn "npx skills reinstall failed or npx is unavailable; trying Python fallback for $repo"
   install_skill_paths_fallback "$repo" "$@"
 }
 
@@ -1051,13 +1073,6 @@ install_selected_ai_skills() {
     needs_remote=true
   fi
   if ! $needs_remote; then
-    return 0
-  fi
-
-  if [[ ! -f "$INSTALLER" ]]; then
-    warn "skill-installer not found at $INSTALLER"
-    warn "AI research skill packs that depend on it will be skipped."
-    SKIPPED_COMPONENTS+=("AI research skill packs (skill-installer not found)")
     return 0
   fi
 

@@ -138,6 +138,70 @@ for removed in \
   assert_file_not_contains "README.zh-CN.md" "$removed"
 done
 
+python3 - "$ROOT/install.sh" "$ROOT/install.ps1" <<'PY'
+import re
+import sys
+
+removed = {
+    "babysit",
+    "design-is",
+    "do",
+    "how-it-works",
+    "knowledge-agent",
+    "learn-codebase",
+    "make-plan",
+    "mem-search",
+    "oh-my-issues",
+    "pathfinder",
+    "smart-explore",
+    "standup",
+    "timeline-report",
+    "claude-code-plugin-release",
+    "weekly-digests",
+    "what-the",
+    "wowerpoint",
+    "health",
+    "check",
+    "hunt",
+    "learn",
+    "read",
+    "think",
+    "ui",
+    "write",
+}
+
+bash = open(sys.argv[1], encoding="utf-8").read()
+ps = open(sys.argv[2], encoding="utf-8").read()
+
+bash_match = re.search(r"MANAGED_SKILLS=\(\n(?P<body>.*?)\n\)", bash, re.S)
+if not bash_match:
+    raise SystemExit("could not locate Bash MANAGED_SKILLS")
+bash_skills = set(bash_match.group("body").split())
+
+ps_match = re.search(r"\$MANAGED_SKILLS = @\(\n(?P<body>.*?)\n\)", ps, re.S)
+if not ps_match:
+    raise SystemExit("could not locate PowerShell MANAGED_SKILLS")
+ps_skills = set(re.findall(r'"([^"]+)"', ps_match.group("body")))
+
+for label, skills in (("install.sh", bash_skills), ("install.ps1", ps_skills)):
+    leaked = sorted(removed & skills)
+    if leaked:
+        raise SystemExit(f"{label} MANAGED_SKILLS still contains removed claude-mem/claude-health skills: {', '.join(leaked)}")
+
+bash_ordered = bash_match.group("body").split()
+ps_ordered = re.findall(r'"([^"]+)"', ps_match.group("body"))
+for label, ordered in (("install.sh", bash_ordered), ("install.ps1", ps_ordered)):
+    duplicates = sorted({skill for skill in ordered if ordered.count(skill) > 1})
+    if duplicates:
+        raise SystemExit(f"{label} MANAGED_SKILLS contains duplicates: {', '.join(duplicates)}")
+PY
+
+assert_file_not_contains "install.sh" "AI research skill packs (skill-installer not found)"
+assert_file_contains "install.sh" "Would reinstall via npx skills"
+assert_file_contains "install.ps1" "Would reinstall via npx skills"
+assert_file_not_contains "install.sh" "Would reinstall via Python skill-installer"
+assert_file_not_contains "install.ps1" "Would reinstall via Python skill-installer"
+
 tmp_home="$(mktemp -d)"
 trap 'rm -rf "$tmp_home"' EXIT
 mkdir -p "$tmp_home/.codex"
@@ -177,6 +241,57 @@ if data.get("tui", {}).get("status_line_use_colors") is not True:
 project = data.get("projects", {}).get("/tmp/demo", {})
 if "status_line" in project:
     raise SystemExit("status_line leaked into the last [projects.*] table")
+PY
+
+statusline_home="$(mktemp -d)"
+mkdir -p "$statusline_home/.codex"
+HOME="$statusline_home" bash "$ROOT/install.sh" --core >/dev/null
+python3 - "$statusline_home/.codex/config.toml" <<'PY'
+import sys
+import tomllib
+
+with open(sys.argv[1], "rb") as fh:
+    data = tomllib.load(fh)
+
+for required in ("model", "model_reasoning_effort", "approval_policy", "sandbox_mode"):
+    if required not in data:
+        raise SystemExit(f"missing required template field after statusline ensure: {required}")
+PY
+
+multiline_home="$(mktemp -d)"
+mkdir -p "$multiline_home/.codex"
+cat > "$multiline_home/.codex/config.toml" <<'TOML'
+model = "gpt-5.5"
+
+[tui]
+status_line = [
+  "model",
+  "git-branch",
+]
+status_line_use_colors = false
+
+[projects."/tmp/demo"]
+trust_level = "trusted"
+TOML
+
+HOME="$multiline_home" bash "$ROOT/install.sh" --core >/dev/null
+python3 - "$multiline_home/.codex/config.toml" <<'PY'
+import sys
+import tomllib
+
+with open(sys.argv[1], "rb") as fh:
+    data = tomllib.load(fh)
+
+if data.get("tui", {}).get("status_line") != [
+    "model",
+    "reasoning",
+    "project-name",
+    "git-branch",
+    "context-used",
+    "context-window-size",
+    "used-tokens",
+]:
+    raise SystemExit("multi-line [tui].status_line was not replaced cleanly")
 PY
 
 echo "Codex migration checks passed"
