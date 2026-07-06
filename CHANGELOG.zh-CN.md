@@ -5,7 +5,7 @@
 ### 新功能
 - 将 Claude main 的最新安装分类迁移到 Codex 分支，并用 Codex-native 分组呈现：Review、Workflow、Development Tools、Design & Content、Memory & Lifestyle、Academic Research、Slides、MCP Servers。
 - 对兼容的上游 skill 包优先使用 `npx skills@latest add ... --agent codex --copy --yes --full-depth` 安装；按路径安装的包仍保留 Python `skill-installer` 作为 fallback。
-- Codex 模板默认设置为 `model_reasoning_effort = "xhigh"`、`approval_policy = "never"`、`sandbox_mode = "danger-full-access"`，并统一 `[tui].status_line` 底边栏字段。
+- Codex 模板默认设置为 `model = "gpt-5.5"`、`model_reasoning_effort = "xhigh"`、`approval_policy = "never"`、`sandbox_mode = "danger-full-access"`，并统一 `[tui].status_line` 底边栏字段。
 - 两个安装器都会把 statusline 写入 `[tui]`，并在合并现有配置时清理误写到顶层或 project 表里的 `status_line`。
 - 移除没有实际 Codex 安装目标的安装器选项，包括 Claude-only command workflow 插件和 `ppt-master`。
 

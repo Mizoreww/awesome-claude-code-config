@@ -208,6 +208,7 @@ See [`docs/claude-main-to-codex-migration.md`](./docs/claude-main-to-codex-migra
 ## Security Note
 
 Template defaults are intentionally autonomous for this Codex branch:
+- `model = "gpt-5.5"`
 - `model_reasoning_effort = "xhigh"`
 - `approval_policy = "never"`
 - `sandbox_mode = "danger-full-access"`

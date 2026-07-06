@@ -23,7 +23,7 @@ This document explains how concepts from the repository's `main` branch map to t
 - Open-source skill bootstrapping from `mattpocock/skills`, superpowers, anthropic skills, DeepXiv, and AI research skill packs
 - Codex `[tui].status_line` configured to show model, reasoning, project name, git branch, context used, context window size, and used tokens in one consistent footer
 - The installer writes statusline settings under `[tui]` and removes misplaced top-level or project-scoped `status_line` entries when ensuring the footer
-- Codex defaults set to `model_reasoning_effort = "xhigh"`, `approval_policy = "never"`, and `sandbox_mode = "danger-full-access"` for trusted-repo autonomous runs
+- Codex defaults set to `model = "gpt-5.5"`, `model_reasoning_effort = "xhigh"`, `approval_policy = "never"`, and `sandbox_mode = "danger-full-access"` for trusted-repo autonomous runs
 
 ## What does **not** migrate 1:1
 

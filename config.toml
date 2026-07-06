@@ -1,6 +1,6 @@
 # Codex configuration template
 
-model = "gpt-5.4"
+model = "gpt-5.5"
 model_reasoning_effort = "xhigh"
 # Default to YOLO mode for this config branch. Codex runs without approval
 # prompts and without the workspace sandbox, so use it only in trusted repos.

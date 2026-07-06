@@ -208,6 +208,7 @@ AGENTS.md 包含 **Code Review** 规则：需要代码审查时，调用 `advers
 ## 安全提示
 
 这个 Codex 分支的模板默认值有意偏自主：
+- `model = "gpt-5.5"`
 - `model_reasoning_effort = "xhigh"`
 - `approval_policy = "never"`
 - `sandbox_mode = "danger-full-access"`

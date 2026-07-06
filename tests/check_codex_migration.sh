@@ -22,6 +22,7 @@ assert_file_not_contains() {
   fi
 }
 
+assert_file_contains "config.toml" 'model = "gpt-5.5"'
 assert_file_contains "config.toml" 'model_reasoning_effort = "xhigh"'
 assert_file_contains "config.toml" 'approval_policy = "never"'
 assert_file_contains "config.toml" 'sandbox_mode = "danger-full-access"'
