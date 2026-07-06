@@ -21,7 +21,8 @@ This document explains how concepts from the repository's `main` branch map to t
 - Bundled local skills (`paper-reading`, `adversarial-review`, `humanizer`, `update_config`)
 - Install-time upstream skills from DeepXiv (`deepxiv-cli`, `deepxiv-baseline-table`, `deepxiv-trending-digest`)
 - Open-source skill bootstrapping from `mattpocock/skills`, superpowers, anthropic skills, DeepXiv, and AI research skill packs
-- Codex `status_line` configured to show model/reasoning, current directory, git branch, and remaining context in one consistent footer
+- Codex `[tui].status_line` configured to show model, reasoning, project name, git branch, context used, context window size, and used tokens in one consistent footer
+- The installer writes statusline settings under `[tui]` and removes misplaced top-level or project-scoped `status_line` entries when ensuring the footer
 - Codex defaults set to `model_reasoning_effort = "xhigh"`, `approval_policy = "never"`, and `sandbox_mode = "danger-full-access"` for trusted-repo autonomous runs
 
 ## What does **not** migrate 1:1
@@ -34,7 +35,7 @@ Codex does not expose the same plugin model as Claude Code. The Codex branch the
 - GitHub workflows → GitHub MCP
 - browser automation → Playwright MCP
 - coding patterns / testing / security → installed skills
-- Claude-only command workflow plugins (`feature-dev`, `ralph-loop`, `commit-commands`, `code-simplifier`) → shown in the Codex installer for category parity, then skipped with an explicit warning
+- Claude-only command workflow plugins (`feature-dev`, `ralph-loop`, `commit-commands`, `code-simplifier`) → not shown in the Codex installer because they have no practical Codex install target
 - plugin-hosted skill packs with valid `SKILL.md` entries → installed with `npx -y skills@latest add <repo> --global --agent codex --copy --yes --full-depth --skill <name>` where possible
 
 ## Practical recommendation for users coming from `main`

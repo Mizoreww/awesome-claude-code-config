@@ -69,13 +69,13 @@ Behavior notes:
 | Group | Items | Default |
 |-------|-------|---------|
 | Core | `AGENTS.md`, `config.toml`, `StatusLine`, `lessons.md`, `explorer`, `reviewer`, `docs-researcher` | On |
-| Review | `code-review`, `adversarial-review`, `Codex CLI bridge` | On except `Codex CLI bridge` |
-| Workflow | `andrej-karpathy-skills`, `superpowers`, `mattpocock/skills`, `feature-dev`, `ralph-loop`, `commit-commands`, `code-simplifier`, `update-config` | On for `andrej-karpathy-skills`, `mattpocock/skills`, and `update-config`; `superpowers` and Claude-only workflow entries are off by default |
+| Review | `code-review`, `adversarial-review` | On |
+| Workflow | `andrej-karpathy-skills`, `superpowers`, `mattpocock/skills`, `update-config` | On for `andrej-karpathy-skills`, `mattpocock/skills`, and `update-config`; `superpowers` off by default |
 | Development Tools | `context7`, `github`, `playwright`, `openaiDeveloperDocs` | On except `github` (needs credentials) |
 | Design & Content | `document-skills`, `example-skills`, `frontend-design`, `humanizer`, `humanizer-zh` | On except `humanizer-zh` |
 | Memory & Lifestyle | `claude-mem`, `claude-health`, `PUA` | Off |
 | Academic Research | `paper-reading`, `tokenization`, `fine-tuning`, `post-training`, `distributed-training`, `inference-serving`, `optimization`, `deepxiv` | `paper-reading` on; others off |
-| Slides | `frontend-slides`, `ppt-master` | Off |
+| Slides | `frontend-slides` | Off |
 | MCP Servers | `lark-mcp` | Off (needs credentials) |
 
 ## Installer Options
@@ -139,7 +139,6 @@ This keeps common principles and language-specific practices aligned.
 | mattpocock/skills | [mattpocock/skills](https://github.com/mattpocock/skills) | `ask-matt`, grilling/design, research, PRD/issues, implementation, triage, TDD, architecture and domain-modeling workflows via `npx skills` |
 | superpowers | [obra/superpowers](https://github.com/obra/superpowers) | full native superpowers set, including brainstorming, plan execution, review handoff, worktrees; installed via `npx skills` with git/junction fallback |
 | andrej-karpathy-skills | [forrestchang/andrej-karpathy-skills](https://github.com/forrestchang/andrej-karpathy-skills) | Karpathy-style coding guidelines via `npx skills` |
-| coding-foundations | Codex local/global skills | Claude's former `everything-claude-code` source is intentionally skipped; Codex uses installed language/testing/security skills instead |
 | anthropic skills packs | [anthropics/skills](https://github.com/anthropics/skills) | document tools, frontend design, canvas/art, MCP builder |
 | DeepXiv skills | [DeepXiv/deepxiv_sdk](https://github.com/DeepXiv/deepxiv_sdk) | latest DeepXiv research workflows (`deepxiv-cli`, `deepxiv-baseline-table`, `deepxiv-trending-digest`) fetched fresh during install |
 | AI research skills | [zechenzhangAGI/AI-research-SKILLs](https://github.com/zechenzhangAGI/AI-research-SKILLs) | tokenization, fine-tuning, post-training, inference, distributed training, optimization |
@@ -152,7 +151,7 @@ Remote skills are installed with:
 npx -y skills@latest add <repo> --global --agent codex --copy --yes --full-depth --skill <name>
 ```
 
-For path-based packs, the installer falls back to the bundled `skill-installer` Python helper if `npx` is unavailable or the `skills` CLI cannot resolve the requested names. Claude-only plugin command workflows (`feature-dev`, `ralph-loop`, `commit-commands`, `code-simplifier`) remain visible in the Workflow group for migration parity, default off, and are skipped with an explicit warning if selected.
+For path-based packs, the installer falls back to the bundled `skill-installer` Python helper if `npx` is unavailable or the `skills` CLI cannot resolve the requested names. The Codex installer does not show Claude-only plugin workflows that have no installable Codex target.
 
 Bundled local skills in this repo:
 - `paper-reading` (`skills/paper-reading/SKILL.md`) — structured research paper summarization
@@ -212,9 +211,12 @@ Template defaults are intentionally autonomous for this Codex branch:
 - `model_reasoning_effort = "xhigh"`
 - `approval_policy = "never"`
 - `sandbox_mode = "danger-full-access"`
-- `status_line = ["model-with-reasoning", "current-dir", "git-branch", "context-remaining"]`
+- `[tui].status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "context-window-size", "used-tokens"]`
+- `[tui].status_line_use_colors = true`
 
 Use this config only in trusted repositories. If you prefer approval prompts and a workspace sandbox, switch these back to `approval_policy = "on-request"` and `sandbox_mode = "workspace-write"` in `~/.codex/config.toml`.
+
+If `[tui].status_line` is present in `~/.codex/config.toml` but the current TUI footer has not changed, restart Codex or run `/statusline` inside the TUI to inspect and persist the active footer items.
 
 ## Customization
 

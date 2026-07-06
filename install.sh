@@ -75,7 +75,6 @@ SELECT_SKILL_SUPERPOWERS=false
 SELECT_SKILL_DOCUMENTS=false
 SELECT_SKILL_EXAMPLES=false
 SELECT_SKILL_FRONTEND_DESIGN=false
-SELECT_SKILL_CODING_FOUNDATIONS=false
 SELECT_SKILL_KARPATHY=false
 SELECT_SKILL_MATTPOCOCK=false
 SELECT_SKILL_CODE_REVIEW=false
@@ -83,12 +82,6 @@ SELECT_SKILL_CLAUDE_MEM=false
 SELECT_SKILL_CLAUDE_HEALTH=false
 SELECT_SKILL_PUA=false
 SELECT_SKILL_FRONTEND_SLIDES=false
-SELECT_SKILL_PPT_MASTER=false
-SELECT_UNSUPPORTED_FEATURE_DEV=false
-SELECT_UNSUPPORTED_RALPH_LOOP=false
-SELECT_UNSUPPORTED_COMMIT_COMMANDS=false
-SELECT_UNSUPPORTED_CODE_SIMPLIFIER=false
-SELECT_UNSUPPORTED_CODEX_PLUGIN=false
 SELECT_SKILL_PAPER_READING=false
 SELECT_SKILL_HUMANIZER=false
 SELECT_SKILL_HUMANIZER_ZH=false
@@ -167,6 +160,8 @@ CLAUDE_MEM_SKILLS=(
 
 CLAUDE_HEALTH_SKILLS=(check health hunt learn read think ui write)
 PUA_SKILLS=(pua pua-en pua-ja)
+CODEX_STATUS_LINE='status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "context-window-size", "used-tokens"]'
+CODEX_STATUS_LINE_USE_COLORS='status_line_use_colors = true'
 
 cleanup_menu() {
   if $MENU_ACTIVE; then
@@ -558,7 +553,11 @@ write_config_template() {
     info "Would copy: config.toml -> $CODEX_DIR/config.toml"
   else
     if $INTERACTIVE_MODE && ! $SELECT_CORE_STATUSLINE; then
-      grep -v '^status_line = ' "$SCRIPT_DIR/config.toml" > "$CODEX_DIR/config.toml"
+      awk '
+        /^\[tui\][[:space:]]*$/ { skip_tui = 1; next }
+        /^\[/ { skip_tui = 0 }
+        !skip_tui { print }
+      ' "$SCRIPT_DIR/config.toml" > "$CODEX_DIR/config.toml"
     else
       cp "$SCRIPT_DIR/config.toml" "$CODEX_DIR/config.toml"
     fi
@@ -568,29 +567,62 @@ write_config_template() {
 
 ensure_status_line_setting() {
   local target="$CODEX_DIR/config.toml"
-  local status_line='status_line = ["model-with-reasoning", "current-dir", "git-branch", "context-remaining"]'
 
   if $DRY_RUN; then
-    info "Would ensure Codex status_line in $target"
+    info "Would ensure Codex [tui].status_line in $target"
     return 0
   fi
 
   mkdir -p "$CODEX_DIR"
   if [[ ! -f "$target" ]]; then
-    printf '%s\n' "$status_line" > "$target"
-    ok "status_line installed in config.toml"
+    printf '[tui]\n%s\n%s\n' "$CODEX_STATUS_LINE" "$CODEX_STATUS_LINE_USE_COLORS" > "$target"
+    ok "[tui].status_line installed in config.toml"
     return 0
   fi
 
-  if grep -Eq '^status_line[[:space:]]*=' "$target"; then
-    local tmp
-    tmp="$(mktemp)"
-    sed "s|^status_line[[:space:]]*=.*|$status_line|" "$target" > "$tmp"
-    mv "$tmp" "$target"
-  else
-    printf '\n%s\n' "$status_line" >> "$target"
-  fi
-  ok "status_line ensured in config.toml"
+  local tmp
+  tmp="$(mktemp)"
+  awk -v status_line="$CODEX_STATUS_LINE" \
+      -v status_colors="$CODEX_STATUS_LINE_USE_COLORS" '
+    function is_status_setting(line) {
+      return line ~ /^[[:space:]]*status_line[[:space:]]*=/ || \
+             line ~ /^[[:space:]]*status_line_use_colors[[:space:]]*=/
+    }
+
+    /^\[tui\][[:space:]]*$/ {
+      print
+      print status_line
+      print status_colors
+      saw_tui = 1
+      in_tui = 1
+      next
+    }
+
+    /^\[/ {
+      in_tui = 0
+    }
+
+    is_status_setting($0) {
+      next
+    }
+
+    {
+      print
+    }
+
+    END {
+      if (!saw_tui) {
+        if (NR > 0) {
+          print ""
+        }
+        print "[tui]"
+        print status_line
+        print status_colors
+      }
+    }
+  ' "$target" > "$tmp"
+  mv "$tmp" "$target"
+  ok "[tui].status_line ensured in config.toml"
 }
 
 install_selected_agents() {
@@ -1002,26 +1034,6 @@ install_selected_recommended_skills() {
     install_skill_paths anthropics/skills skills/frontend-design
   fi
 
-  if $SELECT_SKILL_CODING_FOUNDATIONS; then
-    skip_unsupported_item "coding-foundations" "the former everything-claude-code source is intentionally not used on Codex; use bundled/global Codex skills for language patterns"
-  fi
-
-  if $SELECT_UNSUPPORTED_FEATURE_DEV; then
-    skip_unsupported_item "feature-dev" "Claude plugin command workflow has no Codex-equivalent installer target yet"
-  fi
-  if $SELECT_UNSUPPORTED_RALPH_LOOP; then
-    skip_unsupported_item "ralph-loop" "Claude plugin command workflow has no Codex-equivalent installer target yet"
-  fi
-  if $SELECT_UNSUPPORTED_COMMIT_COMMANDS; then
-    skip_unsupported_item "commit-commands" "Claude plugin command workflow has no Codex-equivalent installer target yet"
-  fi
-  if $SELECT_UNSUPPORTED_CODE_SIMPLIFIER; then
-    skip_unsupported_item "code-simplifier" "Claude plugin command workflow has no Codex-equivalent installer target yet"
-  fi
-  if $SELECT_UNSUPPORTED_CODEX_PLUGIN; then
-    skip_unsupported_item "openai/codex-plugin-cc" "this is a Claude-to-Codex bridge and is not useful as a default Codex-side install"
-  fi
-
   if $SELECT_SKILL_CLAUDE_MEM; then
     install_npx_skill_names thedotmack/claude-mem "${CLAUDE_MEM_SKILLS[@]}" || \
       skip_unsupported_item "claude-mem" "npx skills install failed; full memory daemon behavior is not migrated by this installer"
@@ -1038,10 +1050,6 @@ install_selected_recommended_skills() {
     install_npx_skill_names zarazhangrui/frontend-slides frontend-slides || \
       skip_unsupported_item "frontend-slides" "npx skills install failed"
   fi
-  if $SELECT_SKILL_PPT_MASTER; then
-    skip_unsupported_item "ppt-master" "skills@latest did not find a valid SKILL.md and the repository is heavy; install manually if needed"
-  fi
-
 }
 
 install_selected_ai_skills() {
@@ -1132,8 +1140,12 @@ install_skills() {
       skills/frontend-design skills/pdf skills/docx skills/pptx skills/xlsx \
       skills/canvas-design skills/algorithmic-art skills/mcp-builder
 
-    skip_unsupported_item "coding-foundations" "the former everything-claude-code source is intentionally not used on Codex; use bundled/global Codex skills for language patterns"
     install_local_skills
+  fi
+
+  if [[ "$SKILL_GROUP" == "all" ]]; then
+    install_npx_skill_names zarazhangrui/frontend-slides frontend-slides || \
+      skip_unsupported_item "frontend-slides" "npx skills install failed"
   fi
 
   if [[ "$SKILL_GROUP" == "ai-research" || "$SKILL_GROUP" == "all" ]]; then
@@ -1180,7 +1192,7 @@ interactive_menu() {
   GROUP_HINTS+=("")
   GROUP_ITEMS+=("AGENTS.md|Global Codex instructions|1|core-agents-md
 config.toml|Codex runtime config template|1|core-config
-StatusLine|Codex footer: model, dir, git, context|1|core-statusline
+StatusLine|Codex footer: model, reasoning, branch, context|1|core-statusline
 lessons.md|Lessons source-of-truth|1|core-lessons
 explorer|Code-path exploration agent|1|agent-explorer
 reviewer|Review/regression agent|1|agent-reviewer
@@ -1189,18 +1201,13 @@ docs-researcher|Docs/API verification agent|1|agent-docs-researcher")
   GROUP_LABELS+=("Review")
   GROUP_HINTS+=("Claude parity; Codex-native where available")
   GROUP_ITEMS+=("code-review|PR code review skill or Codex /review fallback|1|skill-code-review
-adversarial-review|Cross-model adversarial review|1|skill-adversarial-review
-Codex CLI bridge|Claude-to-Codex bridge; skipped on Codex by default|0|unsupported-codex-plugin")
+adversarial-review|Cross-model adversarial review|1|skill-adversarial-review")
 
   GROUP_LABELS+=("Workflow")
   GROUP_HINTS+=("planning, iteration, code quality, meta-config")
   GROUP_ITEMS+=("andrej-karpathy-skills|Karpathy coding guidelines|1|skill-karpathy
 superpowers|Planning, brainstorming, TDD, debugging|0|skill-superpowers
 mattpocock/skills|Agent workflows via npx skills|1|skill-mattpocock
-feature-dev|Claude plugin workflow; no Codex target yet|0|unsupported-feature-dev
-ralph-loop|Claude plugin workflow; no Codex target yet|0|unsupported-ralph-loop
-commit-commands|Claude plugin workflow; no Codex target yet|0|unsupported-commit-commands
-code-simplifier|Claude plugin workflow; no Codex target yet|0|unsupported-code-simplifier
 update-config|Update Codex config branch install|1|skill-update")
 
   GROUP_LABELS+=("Development Tools")
@@ -1237,8 +1244,7 @@ deepxiv|DeepXiv research workflow skills|0|ai-deepxiv")
 
   GROUP_LABELS+=("Slides")
   GROUP_HINTS+=("AI slide / PPTX generation; default off")
-  GROUP_ITEMS+=("frontend-slides|HTML slide generator with PPT conversion|0|skill-frontend-slides
-ppt-master|No valid Codex skill detected; manual setup only|0|skill-ppt-master")
+  GROUP_ITEMS+=("frontend-slides|HTML slide generator with PPT conversion|0|skill-frontend-slides")
 
   GROUP_LABELS+=("MCP Servers")
   GROUP_HINTS+=("")
@@ -1540,15 +1546,9 @@ ppt-master|No valid Codex skill detected; manual setup only|0|skill-ppt-master")
       skill-karpathy)          SELECT_SKILL_KARPATHY=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-superpowers)       SELECT_SKILL_SUPERPOWERS=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-mattpocock)        SELECT_SKILL_MATTPOCOCK=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
-      unsupported-feature-dev) SELECT_UNSUPPORTED_FEATURE_DEV=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
-      unsupported-ralph-loop)  SELECT_UNSUPPORTED_RALPH_LOOP=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
-      unsupported-commit-commands) SELECT_UNSUPPORTED_COMMIT_COMMANDS=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
-      unsupported-code-simplifier) SELECT_UNSUPPORTED_CODE_SIMPLIFIER=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
-      unsupported-codex-plugin) SELECT_UNSUPPORTED_CODEX_PLUGIN=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-documents)         SELECT_SKILL_DOCUMENTS=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-examples)          SELECT_SKILL_EXAMPLES=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-frontend-design)   SELECT_SKILL_FRONTEND_DESIGN=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
-      skill-coding-foundations)        SELECT_SKILL_CODING_FOUNDATIONS=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-paper-reading)     SELECT_SKILL_PAPER_READING=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-humanizer)         SELECT_SKILL_HUMANIZER=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-humanizer-zh)      SELECT_SKILL_HUMANIZER_ZH=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
@@ -1559,7 +1559,6 @@ ppt-master|No valid Codex skill detected; manual setup only|0|skill-ppt-master")
       skill-claude-health)     SELECT_SKILL_CLAUDE_HEALTH=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-pua)               SELECT_SKILL_PUA=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-frontend-slides)   SELECT_SKILL_FRONTEND_SLIDES=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
-      skill-ppt-master)        SELECT_SKILL_PPT_MASTER=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       ai-tokenization)         SELECT_AI_TOKENIZATION=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       ai-fine-tuning)          SELECT_AI_FINE_TUNING=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       ai-post-training)        SELECT_AI_POST_TRAINING=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
@@ -1587,15 +1586,13 @@ ppt-master|No valid Codex skill detected; manual setup only|0|skill-ppt-master")
   INSTALL_MCP=$mcp_selected
   if $skills_selected; then
     if $SELECT_SKILL_CODE_REVIEW || $SELECT_SKILL_KARPATHY || $SELECT_SKILL_SUPERPOWERS || \
-       $SELECT_SKILL_MATTPOCOCK || $SELECT_UNSUPPORTED_FEATURE_DEV || $SELECT_UNSUPPORTED_RALPH_LOOP || \
-       $SELECT_UNSUPPORTED_COMMIT_COMMANDS || $SELECT_UNSUPPORTED_CODE_SIMPLIFIER || \
-       $SELECT_UNSUPPORTED_CODEX_PLUGIN || $SELECT_SKILL_DOCUMENTS || $SELECT_SKILL_EXAMPLES || \
-       $SELECT_SKILL_FRONTEND_DESIGN || $SELECT_SKILL_CODING_FOUNDATIONS || \
+       $SELECT_SKILL_MATTPOCOCK || $SELECT_SKILL_DOCUMENTS || $SELECT_SKILL_EXAMPLES || \
+       $SELECT_SKILL_FRONTEND_DESIGN || \
        $SELECT_SKILL_PAPER_READING || $SELECT_SKILL_HUMANIZER || \
        $SELECT_SKILL_HUMANIZER_ZH || $SELECT_SKILL_HANDOFF || \
        $SELECT_SKILL_ADVERSARIAL_REVIEW || $SELECT_SKILL_UPDATE || \
        $SELECT_SKILL_CLAUDE_MEM || $SELECT_SKILL_CLAUDE_HEALTH || $SELECT_SKILL_PUA || \
-       $SELECT_SKILL_FRONTEND_SLIDES || $SELECT_SKILL_PPT_MASTER; then
+       $SELECT_SKILL_FRONTEND_SLIDES; then
       if $SELECT_AI_TOKENIZATION || $SELECT_AI_FINE_TUNING || $SELECT_AI_POST_TRAINING || \
          $SELECT_AI_DISTRIBUTED_TRAINING || $SELECT_AI_INFERENCE_SERVING || \
          $SELECT_AI_OPTIMIZATION || $SELECT_AI_DEEPXIV; then

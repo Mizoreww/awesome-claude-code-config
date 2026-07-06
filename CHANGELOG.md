@@ -5,18 +5,21 @@
 ### Features
 - Migrated the latest Claude main installer categories into the Codex branch as Codex-native groups: Review, Workflow, Development Tools, Design & Content, Memory & Lifestyle, Academic Research, Slides, and MCP Servers.
 - Added `npx skills@latest add ... --agent codex --copy --yes --full-depth` as the first-choice installer path for compatible upstream skill packs, with the Python `skill-installer` kept as fallback for path-based packs.
-- Set the Codex template defaults to `model_reasoning_effort = "xhigh"`, `approval_policy = "never"`, `sandbox_mode = "danger-full-access"`, and a unified `status_line` footer.
+- Set the Codex template defaults to `model_reasoning_effort = "xhigh"`, `approval_policy = "never"`, `sandbox_mode = "danger-full-access"`, and a unified `[tui].status_line` footer.
+- Updated both installers to ensure statusline settings inside `[tui]`, removing misplaced top-level or project-scoped `status_line` entries during the merge.
+- Removed Codex installer entries that have no practical Codex install target, including Claude-only command workflow plugins and `ppt-master`.
 
 ### Design Rationale
 - Codex does not have Claude Code's plugin runtime, so the migration preserves user-facing categories while mapping installable capabilities to Codex skills, MCP servers, or explicit skipped items.
 - `npx skills` is the most direct cross-agent skill installer for repositories that expose valid `SKILL.md` entries, while the existing Python installer remains useful as a fallback for nested path installs.
-- Claude-only command workflow plugins stay visible for migration parity, default off, and are skipped only when a user explicitly selects them.
+- Codex's `/statusline` command persists footer fields under `[tui]`; writing a top-level `status_line` can silently land inside the previous TOML table when appended to an existing config.
+- The Codex installer now favors a clean selectable surface over migration parity for items that would only warn or require heavy manual setup.
 
 ### Notes & Caveats
 - `github` and `lark-mcp` remain credential-gated; non-interactive installs do not write placeholder credentials.
-- `ppt-master` remains listed in Slides for parity, default off, and is skipped because no reliable Codex skill target was detected.
+- The Slides group currently installs `frontend-slides` only; `ppt-master` is intentionally omitted because its setup path is too heavy for this installer.
 - The autonomous YOLO defaults should only be used in trusted repositories.
-- Local strict-config validation for `status_line` was attempted but blocked by the local Codex/Node runtime aborting before config validation; verify this field against the target Codex build before production rollout.
+- Existing Codex TUI sessions may need a restart or `/statusline` refresh before the new footer fields appear.
 
 ## [1.7.3] - 2026-04-09
 

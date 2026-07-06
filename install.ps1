@@ -108,7 +108,6 @@ $script:SelectSkillSuperpowers = $true
 $script:SelectSkillDocumentSkills = $true
 $script:SelectSkillExampleSkills = $true
 $script:SelectSkillFrontendDesign = $true
-$script:SelectSkillCodingFoundations = $false
 $script:SelectSkillKarpathy = $true
 $script:SelectSkillMattPocock = $true
 $script:SelectSkillCodeReview = $true
@@ -116,12 +115,6 @@ $script:SelectSkillClaudeMem = $false
 $script:SelectSkillClaudeHealth = $false
 $script:SelectSkillPUA = $false
 $script:SelectSkillFrontendSlides = $false
-$script:SelectSkillPptMaster = $false
-$script:SelectUnsupportedFeatureDev = $false
-$script:SelectUnsupportedRalphLoop = $false
-$script:SelectUnsupportedCommitCommands = $false
-$script:SelectUnsupportedCodeSimplifier = $false
-$script:SelectUnsupportedCodexPlugin = $false
 $script:SelectSkillPaperReading = $true
 $script:SelectSkillHumanizer = $true
 $script:SelectSkillHumanizerZh = $false
@@ -200,6 +193,8 @@ $CLAUDE_MEM_SKILLS = @(
 
 $CLAUDE_HEALTH_SKILLS = @("check", "health", "hunt", "learn", "read", "think", "ui", "write")
 $PUA_SKILLS = @("pua", "pua-en", "pua-ja")
+$script:CODEX_STATUS_LINE = 'status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "context-window-size", "used-tokens"]'
+$script:CODEX_STATUS_LINE_USE_COLORS = 'status_line_use_colors = true'
 
 # ============================================================
 # Output helpers
@@ -549,9 +544,20 @@ function Install-ConfigTemplate {
     }
 
     if ($script:InteractiveMode -and -not $script:SelectCoreStatusLine) {
-        Get-Content (Join-Path $script:SCRIPT_DIR "config.toml") |
-            Where-Object { $_ -notmatch '^status_line\s*=' } |
-            Set-Content -Path $target -Encoding UTF8
+        $skipTui = $false
+        $templateLines = foreach ($line in (Get-Content (Join-Path $script:SCRIPT_DIR "config.toml"))) {
+            if ($line -match '^\[tui\]\s*$') {
+                $skipTui = $true
+                continue
+            }
+            if ($line -match '^\[') {
+                $skipTui = $false
+            }
+            if (-not $skipTui) {
+                $line
+            }
+        }
+        Set-Content -Path $target -Value $templateLines -Encoding UTF8
     } else {
         Copy-Item (Join-Path $script:SCRIPT_DIR "config.toml") $target -Force
     }
@@ -560,37 +566,55 @@ function Install-ConfigTemplate {
 
 function Ensure-StatusLineSetting {
     $target = Join-Path $CODEX_DIR "config.toml"
-    $statusLine = 'status_line = ["model-with-reasoning", "current-dir", "git-branch", "context-remaining"]'
 
     if ($DryRun) {
-        Write-Info "Would ensure Codex status_line in $target"
+        Write-Info "Would ensure Codex [tui].status_line in $target"
         return
     }
 
     New-Item -ItemType Directory -Path $CODEX_DIR -Force | Out-Null
     if (-not (Test-Path $target)) {
-        Set-Content -Path $target -Value $statusLine -Encoding UTF8
-        Write-Ok "status_line installed in config.toml"
+        Set-Content -Path $target -Value @(
+            "[tui]",
+            $script:CODEX_STATUS_LINE,
+            $script:CODEX_STATUS_LINE_USE_COLORS
+        ) -Encoding UTF8
+        Write-Ok "[tui].status_line installed in config.toml"
         return
     }
 
     $lines = Get-Content $target
-    $found = $false
-    $updated = foreach ($line in $lines) {
-        if ($line -match '^status_line\s*=') {
-            $found = $true
-            $statusLine
-        } else {
-            $line
+    $sawTui = $false
+    $updated = New-Object System.Collections.Generic.List[string]
+
+    foreach ($line in $lines) {
+        if ($line -match '^\[tui\]\s*$') {
+            $updated.Add($line)
+            $updated.Add($script:CODEX_STATUS_LINE)
+            $updated.Add($script:CODEX_STATUS_LINE_USE_COLORS)
+            $sawTui = $true
+            continue
         }
+
+        if ($line -match '^\s*status_line\s*=' -or
+            $line -match '^\s*status_line_use_colors\s*=') {
+            continue
+        }
+
+        $updated.Add($line)
     }
 
-    if (-not $found) {
-        $updated = @($updated) + "" + $statusLine
+    if (-not $sawTui) {
+        if ($updated.Count -gt 0 -and $updated[$updated.Count - 1] -ne "") {
+            $updated.Add("")
+        }
+        $updated.Add("[tui]")
+        $updated.Add($script:CODEX_STATUS_LINE)
+        $updated.Add($script:CODEX_STATUS_LINE_USE_COLORS)
     }
 
     Set-Content -Path $target -Value $updated -Encoding UTF8
-    Write-Ok "status_line ensured in config.toml"
+    Write-Ok "[tui].status_line ensured in config.toml"
 }
 
 function Install-SelectedCoreFiles {
@@ -685,26 +709,6 @@ function Install-SelectedRecommendedSkills {
         Install-SkillPaths "anthropics/skills" @("skills/frontend-design")
     }
 
-    if ($script:SelectSkillCodingFoundations) {
-        Skip-UnsupportedItem "coding-foundations" "the former everything-claude-code source is intentionally not used on Codex; use bundled/global Codex skills for language patterns"
-    }
-
-    if ($script:SelectUnsupportedFeatureDev) {
-        Skip-UnsupportedItem "feature-dev" "Claude plugin command workflow has no Codex-equivalent installer target yet"
-    }
-    if ($script:SelectUnsupportedRalphLoop) {
-        Skip-UnsupportedItem "ralph-loop" "Claude plugin command workflow has no Codex-equivalent installer target yet"
-    }
-    if ($script:SelectUnsupportedCommitCommands) {
-        Skip-UnsupportedItem "commit-commands" "Claude plugin command workflow has no Codex-equivalent installer target yet"
-    }
-    if ($script:SelectUnsupportedCodeSimplifier) {
-        Skip-UnsupportedItem "code-simplifier" "Claude plugin command workflow has no Codex-equivalent installer target yet"
-    }
-    if ($script:SelectUnsupportedCodexPlugin) {
-        Skip-UnsupportedItem "openai/codex-plugin-cc" "this is a Claude-to-Codex bridge and is not useful as a default Codex-side install"
-    }
-
     if ($script:SelectSkillClaudeMem) {
         if (-not (Install-NpxSkillNames "thedotmack/claude-mem" $CLAUDE_MEM_SKILLS)) {
             Skip-UnsupportedItem "claude-mem" "npx skills install failed; full memory daemon behavior is not migrated by this installer"
@@ -725,10 +729,6 @@ function Install-SelectedRecommendedSkills {
             Skip-UnsupportedItem "frontend-slides" "npx skills install failed"
         }
     }
-    if ($script:SelectSkillPptMaster) {
-        Skip-UnsupportedItem "ppt-master" "skills@latest did not find a valid SKILL.md and the repository is heavy; install manually if needed"
-    }
-
     if ($script:SelectSkillPaperReading -or $script:SelectSkillHumanizer -or $script:SelectSkillHumanizerZh -or
         $script:SelectSkillHandoff -or $script:SelectSkillAdversarialReview -or $script:SelectSkillUpdate) {
         if (-not $DryRun) {
@@ -887,7 +887,7 @@ function Show-InteractiveMenu {
             Items = @(
                 [pscustomobject]@{ Label = "AGENTS.md"; Description = "Global Codex instructions"; Default = $true;  StateVar = "SelectCoreAgentsMd" },
                 [pscustomobject]@{ Label = "config.toml"; Description = "Codex runtime config template"; Default = $true; StateVar = "SelectCoreConfig" },
-                [pscustomobject]@{ Label = "StatusLine"; Description = "Codex footer: model, dir, git, context"; Default = $true; StateVar = "SelectCoreStatusLine" },
+                [pscustomobject]@{ Label = "StatusLine"; Description = "Codex footer: model, reasoning, branch, context"; Default = $true; StateVar = "SelectCoreStatusLine" },
                 [pscustomobject]@{ Label = "lessons.md"; Description = "Lessons source-of-truth"; Default = $true; StateVar = "SelectCoreLessons" }
                 [pscustomobject]@{ Label = "explorer"; Description = "Code-path exploration agent"; Default = $true; StateVar = "SelectAgentExplorer" },
                 [pscustomobject]@{ Label = "reviewer"; Description = "Review/regression agent"; Default = $true; StateVar = "SelectAgentReviewer" },
@@ -899,8 +899,7 @@ function Show-InteractiveMenu {
             Hint = "Claude parity; Codex-native where available"
             Items = @(
                 [pscustomobject]@{ Label = "code-review"; Description = "PR code review skill or Codex /review fallback"; Default = $true; StateVar = "SelectSkillCodeReview" },
-                [pscustomobject]@{ Label = "adversarial-review"; Description = "Cross-model adversarial review"; Default = $true; StateVar = "SelectSkillAdversarialReview" },
-                [pscustomobject]@{ Label = "Codex CLI bridge"; Description = "Claude-to-Codex bridge; skipped on Codex by default"; Default = $false; StateVar = "SelectUnsupportedCodexPlugin" }
+                [pscustomobject]@{ Label = "adversarial-review"; Description = "Cross-model adversarial review"; Default = $true; StateVar = "SelectSkillAdversarialReview" }
             )
         },
         [pscustomobject]@{
@@ -910,10 +909,6 @@ function Show-InteractiveMenu {
                 [pscustomobject]@{ Label = "andrej-karpathy-skills"; Description = "Karpathy coding guidelines"; Default = $true; StateVar = "SelectSkillKarpathy" },
                 [pscustomobject]@{ Label = "superpowers"; Description = "Planning, brainstorming, TDD, debugging"; Default = $false; StateVar = "SelectSkillSuperpowers" },
                 [pscustomobject]@{ Label = "mattpocock/skills"; Description = "Agent workflows via npx skills"; Default = $true; StateVar = "SelectSkillMattPocock" },
-                [pscustomobject]@{ Label = "feature-dev"; Description = "Claude plugin workflow; no Codex target yet"; Default = $false; StateVar = "SelectUnsupportedFeatureDev" },
-                [pscustomobject]@{ Label = "ralph-loop"; Description = "Claude plugin workflow; no Codex target yet"; Default = $false; StateVar = "SelectUnsupportedRalphLoop" },
-                [pscustomobject]@{ Label = "commit-commands"; Description = "Claude plugin workflow; no Codex target yet"; Default = $false; StateVar = "SelectUnsupportedCommitCommands" },
-                [pscustomobject]@{ Label = "code-simplifier"; Description = "Claude plugin workflow; no Codex target yet"; Default = $false; StateVar = "SelectUnsupportedCodeSimplifier" },
                 [pscustomobject]@{ Label = "update-config"; Description = "Update Codex config branch install"; Default = $true; StateVar = "SelectSkillUpdate" }
             )
         },
@@ -965,8 +960,7 @@ function Show-InteractiveMenu {
             Label = "Slides"
             Hint = "AI slide / PPTX generation; default off"
             Items = @(
-                [pscustomobject]@{ Label = "frontend-slides"; Description = "HTML slide generator with PPT conversion"; Default = $false; StateVar = "SelectSkillFrontendSlides" },
-                [pscustomobject]@{ Label = "ppt-master"; Description = "No valid Codex skill detected; manual setup only"; Default = $false; StateVar = "SelectSkillPptMaster" }
+                [pscustomobject]@{ Label = "frontend-slides"; Description = "HTML slide generator with PPT conversion"; Default = $false; StateVar = "SelectSkillFrontendSlides" }
             )
         },
         [pscustomobject]@{
@@ -1222,15 +1216,9 @@ function Show-InteractiveMenu {
                 'SelectSkillKarpathy' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillSuperpowers' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillMattPocock' { if ($selected) { $skillsSelected = $true } }
-                'SelectUnsupportedFeatureDev' { if ($selected) { $skillsSelected = $true } }
-                'SelectUnsupportedRalphLoop' { if ($selected) { $skillsSelected = $true } }
-                'SelectUnsupportedCommitCommands' { if ($selected) { $skillsSelected = $true } }
-                'SelectUnsupportedCodeSimplifier' { if ($selected) { $skillsSelected = $true } }
-                'SelectUnsupportedCodexPlugin' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillDocumentSkills' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillExampleSkills' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillFrontendDesign' { if ($selected) { $skillsSelected = $true } }
-                'SelectSkillCodingFoundations' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillPaperReading' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillHumanizer' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillHumanizerZh' { if ($selected) { $skillsSelected = $true } }
@@ -1241,7 +1229,6 @@ function Show-InteractiveMenu {
                 'SelectSkillClaudeHealth' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillPUA' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillFrontendSlides' { if ($selected) { $skillsSelected = $true } }
-                'SelectSkillPptMaster' { if ($selected) { $skillsSelected = $true } }
                 'SelectAiTokenization' { if ($selected) { $skillsSelected = $true } }
                 'SelectAiFineTuning' { if ($selected) { $skillsSelected = $true } }
                 'SelectAiPostTraining' { if ($selected) { $skillsSelected = $true } }
@@ -1588,11 +1575,8 @@ function Install-Skills {
             $script:SelectSkillMattPocock -or $script:SelectSkillFrontendDesign -or
             $script:SelectSkillClaudeMem -or $script:SelectSkillClaudeHealth -or
             $script:SelectSkillPUA -or $script:SelectSkillFrontendSlides -or
-            $script:SelectSkillPptMaster -or $script:SelectUnsupportedFeatureDev -or
-            $script:SelectUnsupportedRalphLoop -or $script:SelectUnsupportedCommitCommands -or
-            $script:SelectUnsupportedCodeSimplifier -or $script:SelectUnsupportedCodexPlugin -or
             $script:SelectSkillSuperpowers -or $script:SelectSkillDocumentSkills -or
-            $script:SelectSkillExampleSkills -or $script:SelectSkillCodingFoundations -or
+            $script:SelectSkillExampleSkills -or
             $script:SelectAiTokenization -or $script:SelectAiFineTuning -or
             $script:SelectAiPostTraining -or $script:SelectAiDistributedTraining -or
             $script:SelectAiInferenceServing -or $script:SelectAiOptimization -or
@@ -1626,8 +1610,13 @@ function Install-Skills {
             "skills/canvas-design", "skills/algorithmic-art", "skills/mcp-builder"
         )
 
-        Skip-UnsupportedItem "coding-foundations" "the former everything-claude-code source is intentionally not used on Codex; use bundled/global Codex skills for language patterns"
         Install-LocalSkills
+    }
+
+    if ($SkillGroup -eq "all") {
+        if (-not (Install-NpxSkillNames "zarazhangrui/frontend-slides" @("frontend-slides"))) {
+            Skip-UnsupportedItem "frontend-slides" "npx skills install failed"
+        }
     }
 
     if ($SkillGroup -eq "ai-research" -or $SkillGroup -eq "all") {

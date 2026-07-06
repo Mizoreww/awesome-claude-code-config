@@ -8,7 +8,10 @@ approval_policy = "never"
 sandbox_mode = "danger-full-access"
 web_search = "live"
 model_instructions_file = "lessons.md"
-status_line = ["model-with-reasoning", "current-dir", "git-branch", "context-remaining"]
+
+[tui]
+status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "context-window-size", "used-tokens"]
+status_line_use_colors = true
 
 [shell_environment_policy]
 inherit = "all"
