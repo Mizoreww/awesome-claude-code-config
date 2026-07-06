@@ -67,13 +67,28 @@ LESSONS_SEEDED=false
 SELECT_CORE_AGENTS_MD=false
 SELECT_CORE_CONFIG=false
 SELECT_CORE_LESSONS=false
+SELECT_CORE_STATUSLINE=false
 SELECT_AGENT_EXPLORER=false
 SELECT_AGENT_REVIEWER=false
 SELECT_AGENT_DOCS_RESEARCHER=false
 SELECT_SKILL_SUPERPOWERS=false
 SELECT_SKILL_DOCUMENTS=false
 SELECT_SKILL_EXAMPLES=false
+SELECT_SKILL_FRONTEND_DESIGN=false
 SELECT_SKILL_CODING_FOUNDATIONS=false
+SELECT_SKILL_KARPATHY=false
+SELECT_SKILL_MATTPOCOCK=false
+SELECT_SKILL_CODE_REVIEW=false
+SELECT_SKILL_CLAUDE_MEM=false
+SELECT_SKILL_CLAUDE_HEALTH=false
+SELECT_SKILL_PUA=false
+SELECT_SKILL_FRONTEND_SLIDES=false
+SELECT_SKILL_PPT_MASTER=false
+SELECT_UNSUPPORTED_FEATURE_DEV=false
+SELECT_UNSUPPORTED_RALPH_LOOP=false
+SELECT_UNSUPPORTED_COMMIT_COMMANDS=false
+SELECT_UNSUPPORTED_CODE_SIMPLIFIER=false
+SELECT_UNSUPPORTED_CODEX_PLUGIN=false
 SELECT_SKILL_PAPER_READING=false
 SELECT_SKILL_HUMANIZER=false
 SELECT_SKILL_HUMANIZER_ZH=false
@@ -113,6 +128,21 @@ MANAGED_SKILLS=(
   deepxiv-cli
   deepxiv-baseline-table
   deepxiv-trending-digest
+  code-review
+  karpathy-guidelines
+  brainstorming dispatching-parallel-agents executing-plans finishing-a-development-branch
+  receiving-code-review requesting-code-review subagent-driven-development using-git-worktrees
+  using-superpowers verification-before-completion writing-plans writing-skills
+  frontend-slides
+  ask-matt diagnosing-bugs grill-with-docs triage
+  implement improve-codebase-architecture setup-matt-pocock-skills tdd
+  to-issues to-prd prototype domain-modeling codebase-design
+  grill-me grilling research teach writing-great-skills
+  babysit design-is do how-it-works knowledge-agent learn-codebase make-plan
+  mem-search oh-my-issues pathfinder smart-explore standup timeline-report
+  claude-code-plugin-release weekly-digests what-the wowerpoint
+  health check hunt learn read think ui write
+  pua pua-en pua-ja
 )
 
 LEGACY_SUPERPOWERS_SKILLS=(
@@ -121,6 +151,22 @@ LEGACY_SUPERPOWERS_SKILLS=(
   writing-plans
   test-driven-development
 )
+
+MATTPOCOCK_SKILLS=(
+  ask-matt diagnosing-bugs grill-with-docs triage
+  implement improve-codebase-architecture setup-matt-pocock-skills tdd
+  to-issues to-prd prototype domain-modeling codebase-design
+  grill-me grilling research teach writing-great-skills
+)
+
+CLAUDE_MEM_SKILLS=(
+  babysit design-is do how-it-works knowledge-agent learn-codebase make-plan
+  mem-search oh-my-issues pathfinder smart-explore standup timeline-report
+  weekly-digests what-the wowerpoint
+)
+
+CLAUDE_HEALTH_SKILLS=(check health hunt learn read think ui write)
+PUA_SKILLS=(pua pua-en pua-ja)
 
 cleanup_menu() {
   if $MENU_ACTIVE; then
@@ -505,6 +551,48 @@ seed_lessons_if_missing() {
   fi
 }
 
+write_config_template() {
+  if [[ -f "$CODEX_DIR/config.toml" ]]; then
+    warn "$CODEX_DIR/config.toml exists -- skipping (merge manually if needed)"
+  elif $DRY_RUN; then
+    info "Would copy: config.toml -> $CODEX_DIR/config.toml"
+  else
+    if $INTERACTIVE_MODE && ! $SELECT_CORE_STATUSLINE; then
+      grep -v '^status_line = ' "$SCRIPT_DIR/config.toml" > "$CODEX_DIR/config.toml"
+    else
+      cp "$SCRIPT_DIR/config.toml" "$CODEX_DIR/config.toml"
+    fi
+    ok "config.toml installed"
+  fi
+}
+
+ensure_status_line_setting() {
+  local target="$CODEX_DIR/config.toml"
+  local status_line='status_line = ["model-with-reasoning", "current-dir", "git-branch", "context-remaining"]'
+
+  if $DRY_RUN; then
+    info "Would ensure Codex status_line in $target"
+    return 0
+  fi
+
+  mkdir -p "$CODEX_DIR"
+  if [[ ! -f "$target" ]]; then
+    printf '%s\n' "$status_line" > "$target"
+    ok "status_line installed in config.toml"
+    return 0
+  fi
+
+  if grep -Eq '^status_line[[:space:]]*=' "$target"; then
+    local tmp
+    tmp="$(mktemp)"
+    sed "s|^status_line[[:space:]]*=.*|$status_line|" "$target" > "$tmp"
+    mv "$tmp" "$target"
+  else
+    printf '\n%s\n' "$status_line" >> "$target"
+  fi
+  ok "status_line ensured in config.toml"
+}
+
 install_selected_agents() {
   if ! $SELECT_AGENT_EXPLORER && ! $SELECT_AGENT_REVIEWER && ! $SELECT_AGENT_DOCS_RESEARCHER; then
     return 0
@@ -538,20 +626,17 @@ install_core() {
     fi
 
     if $SELECT_CORE_CONFIG; then
-      if [[ -f "$CODEX_DIR/config.toml" ]]; then
-        warn "$CODEX_DIR/config.toml exists -- skipping (merge manually if needed)"
-      elif $DRY_RUN; then
-        info "Would copy: config.toml -> $CODEX_DIR/config.toml"
-      else
-        cp "$SCRIPT_DIR/config.toml" "$CODEX_DIR/config.toml"
-        ok "config.toml installed"
-      fi
+      write_config_template
       # config.toml references lessons.md via model_instructions_file; make
       # sure the file exists even when the Lessons item was deselected.
       if ! $SELECT_CORE_LESSONS && [[ ! -f "$CODEX_DIR/lessons.md" ]]; then
         warn "config.toml requires lessons.md (model_instructions_file); seeding it although Lessons was deselected"
       fi
       seed_lessons_if_missing
+    fi
+
+    if $SELECT_CORE_STATUSLINE; then
+      ensure_status_line_setting
     fi
 
     install_selected_agents
@@ -590,6 +675,7 @@ install_core() {
       ok "config.toml installed"
     fi
   fi
+  ensure_status_line_setting
 }
 
 add_mcp_server() {
@@ -665,43 +751,95 @@ install_mcp() {
   report_mcp_result
 }
 
-install_skill_paths() {
+skill_name_from_path() {
+  basename "$1"
+}
+
+install_npx_skill_names() {
   local repo="$1"
   shift
 
   if $DRY_RUN; then
-    info "Would install from $repo: $*"
+    info "Would install via npx skills: $repo -> $*"
+    return 0
+  fi
+
+  if ! command -v npx >/dev/null 2>&1; then
+    return 127
+  fi
+
+  # Equivalent command: npx -y skills@latest add "$repo" --global --agent codex --copy --yes --full-depth --skill <name>
+  local -a args=(-y skills@latest add "$repo" --global --agent codex --copy --yes --full-depth)
+  local skill
+  for skill in "$@"; do
+    args+=(--skill "$skill")
+  done
+
+  DO_NOT_TRACK=1 npx "${args[@]}" </dev/null
+}
+
+install_skill_paths_fallback() {
+  local repo="$1"
+  shift
+
+  if [[ ! -f "$INSTALLER" ]]; then
+    warn "skill-installer not found at $INSTALLER"
+    SKIPPED_COMPONENTS+=("skill pack from $repo (no npx and fallback installer not found)")
     return 0
   fi
 
   if ! python3 "$INSTALLER" --repo "$repo" --path "$@"; then
     warn "Skill install from $repo returned non-zero (possibly already installed)"
-    SKIPPED_COMPONENTS+=("skill pack from $repo (installer returned non-zero)")
+    SKIPPED_COMPONENTS+=("skill pack from $repo (fallback installer returned non-zero)")
   fi
+}
+
+install_skill_paths() {
+  local repo="$1"
+  shift
+
+  local -a names=()
+  local path
+  for path in "$@"; do
+    names+=("$(skill_name_from_path "$path")")
+  done
+
+  if $DRY_RUN; then
+    info "Would install via npx skills: $repo -> ${names[*]}"
+    info "Fallback if npx fails: install-skill-from-github.py $repo -> $*"
+    return 0
+  fi
+
+  if install_npx_skill_names "$repo" "${names[@]}"; then
+    ok "Installed skills via npx: ${names[*]} ($repo)"
+    return 0
+  fi
+
+  warn "npx skills install failed or npx is unavailable; trying Python fallback for $repo"
+  install_skill_paths_fallback "$repo" "$@"
 }
 
 reinstall_skill_paths() {
   local repo="$1"
   shift
 
-  if $DRY_RUN; then
-    info "Would reinstall from $repo: $*"
-    return 0
-  fi
-
   local path skill_name
   for path in "$@"; do
     skill_name=$(basename "$path")
-    if [[ -e "$CODEX_DIR/skills/$skill_name" ]]; then
+    if $DRY_RUN; then
+      info "Would remove existing skill before reinstall: $CODEX_DIR/skills/$skill_name"
+    elif [[ -e "$CODEX_DIR/skills/$skill_name" ]]; then
       rm -rf "$CODEX_DIR/skills/$skill_name"
       ok "Removed existing skill before reinstall: $skill_name"
     fi
   done
 
-  if ! python3 "$INSTALLER" --repo "$repo" --path "$@"; then
-    warn "Skill reinstall from $repo returned non-zero"
-    SKIPPED_COMPONENTS+=("skill pack from $repo (installer returned non-zero)")
+  if $DRY_RUN; then
+    info "Would reinstall via Python skill-installer: $repo -> $*"
+    return 0
   fi
+
+  install_skill_paths_fallback "$repo" "$@"
 }
 
 remove_legacy_superpowers_skills() {
@@ -720,14 +858,26 @@ remove_legacy_superpowers_skills() {
 }
 
 install_superpowers() {
-  info "Installing full superpowers skill set..."
+  info "Installing superpowers skill set..."
 
   if $DRY_RUN; then
-    info "Would clone or update: $SUPERPOWERS_REPO_URL -> $SUPERPOWERS_DIR"
-    info "Would create symlink: $SUPERPOWERS_LINK -> $SUPERPOWERS_DIR/skills"
+    info "Would install via npx skills: obra/superpowers -> all listed superpowers skills"
+    info "Fallback if npx fails: clone/update $SUPERPOWERS_REPO_URL -> $SUPERPOWERS_DIR and link $SUPERPOWERS_LINK"
     info "Would remove legacy copied superpowers skills from $CODEX_DIR/skills"
     return 0
   fi
+
+  if install_npx_skill_names obra/superpowers \
+    brainstorming dispatching-parallel-agents executing-plans finishing-a-development-branch \
+    receiving-code-review requesting-code-review subagent-driven-development systematic-debugging \
+    test-driven-development using-git-worktrees using-superpowers verification-before-completion \
+    writing-plans writing-skills; then
+    ok "Installed superpowers via npx skills"
+    remove_legacy_superpowers_skills
+    return 0
+  fi
+
+  warn "npx skills install failed or npx is unavailable; falling back to git clone/symlink for superpowers"
 
   if ! command -v git >/dev/null 2>&1; then
     warn "git not found. Skip full superpowers install."
@@ -766,6 +916,13 @@ install_superpowers() {
   ok "Linked superpowers skills into $SUPERPOWERS_LINK"
 
   remove_legacy_superpowers_skills
+}
+
+skip_unsupported_item() {
+  local item="$1"
+  local reason="$2"
+  warn "$item is listed for category parity with the Claude installer but is not installed automatically for Codex: $reason"
+  SKIPPED_COMPONENTS+=("$item ($reason)")
 }
 
 copy_local_skill() {
@@ -812,27 +969,23 @@ install_local_skills() {
 
 
 install_selected_recommended_skills() {
-  local needs_remote=false
-  if $SELECT_SKILL_DOCUMENTS || $SELECT_SKILL_EXAMPLES || $SELECT_SKILL_CODING_FOUNDATIONS; then
-    needs_remote=true
+  if $SELECT_SKILL_CODE_REVIEW; then
+    install_npx_skill_names mattpocock/skills code-review || \
+      skip_unsupported_item "code-review" "npx skills install failed; use Codex /review as the native fallback"
   fi
 
-  local remote_installer_available=true
-  if [[ ! -f "$INSTALLER" ]]; then
-    remote_installer_available=false
-    if $needs_remote; then
-      warn "skill-installer not found at $INSTALLER"
-      warn "Remote skill packs that depend on it will be skipped."
-      SKIPPED_COMPONENTS+=("recommended remote skill packs (skill-installer not found)")
-    fi
+  if $SELECT_SKILL_KARPATHY; then
+    install_npx_skill_names forrestchang/andrej-karpathy-skills karpathy-guidelines || \
+      skip_unsupported_item "andrej-karpathy-skills" "npx skills install failed"
   fi
 
   if $SELECT_SKILL_SUPERPOWERS; then
     install_superpowers
   fi
 
-  if ! $remote_installer_available; then
-    return 0
+  if $SELECT_SKILL_MATTPOCOCK; then
+    install_npx_skill_names mattpocock/skills "${MATTPOCOCK_SKILLS[@]}" || \
+      skip_unsupported_item "mattpocock/skills" "npx skills install failed"
   fi
 
   if $SELECT_SKILL_DOCUMENTS; then
@@ -842,14 +995,51 @@ install_selected_recommended_skills() {
 
   if $SELECT_SKILL_EXAMPLES; then
     install_skill_paths anthropics/skills \
-      skills/frontend-design skills/canvas-design skills/algorithmic-art skills/mcp-builder
+      skills/canvas-design skills/algorithmic-art skills/mcp-builder
+  fi
+
+  if $SELECT_SKILL_FRONTEND_DESIGN; then
+    install_skill_paths anthropics/skills skills/frontend-design
   fi
 
   if $SELECT_SKILL_CODING_FOUNDATIONS; then
-    install_skill_paths affaan-m/everything-claude-code \
-      skills/python-patterns skills/python-testing skills/golang-patterns skills/golang-testing \
-      skills/frontend-patterns skills/security-review skills/tdd-workflow skills/verification-loop \
-      skills/api-design skills/database-migrations
+    skip_unsupported_item "coding-foundations" "the former everything-claude-code source is intentionally not used on Codex; use bundled/global Codex skills for language patterns"
+  fi
+
+  if $SELECT_UNSUPPORTED_FEATURE_DEV; then
+    skip_unsupported_item "feature-dev" "Claude plugin command workflow has no Codex-equivalent installer target yet"
+  fi
+  if $SELECT_UNSUPPORTED_RALPH_LOOP; then
+    skip_unsupported_item "ralph-loop" "Claude plugin command workflow has no Codex-equivalent installer target yet"
+  fi
+  if $SELECT_UNSUPPORTED_COMMIT_COMMANDS; then
+    skip_unsupported_item "commit-commands" "Claude plugin command workflow has no Codex-equivalent installer target yet"
+  fi
+  if $SELECT_UNSUPPORTED_CODE_SIMPLIFIER; then
+    skip_unsupported_item "code-simplifier" "Claude plugin command workflow has no Codex-equivalent installer target yet"
+  fi
+  if $SELECT_UNSUPPORTED_CODEX_PLUGIN; then
+    skip_unsupported_item "openai/codex-plugin-cc" "this is a Claude-to-Codex bridge and is not useful as a default Codex-side install"
+  fi
+
+  if $SELECT_SKILL_CLAUDE_MEM; then
+    install_npx_skill_names thedotmack/claude-mem "${CLAUDE_MEM_SKILLS[@]}" || \
+      skip_unsupported_item "claude-mem" "npx skills install failed; full memory daemon behavior is not migrated by this installer"
+  fi
+  if $SELECT_SKILL_CLAUDE_HEALTH; then
+    install_npx_skill_names tw93/claude-health "${CLAUDE_HEALTH_SKILLS[@]}" || \
+      skip_unsupported_item "claude-health" "npx skills install failed"
+  fi
+  if $SELECT_SKILL_PUA; then
+    install_npx_skill_names tanweai/pua "${PUA_SKILLS[@]}" || \
+      skip_unsupported_item "PUA" "npx skills install failed"
+  fi
+  if $SELECT_SKILL_FRONTEND_SLIDES; then
+    install_npx_skill_names zarazhangrui/frontend-slides frontend-slides || \
+      skip_unsupported_item "frontend-slides" "npx skills install failed"
+  fi
+  if $SELECT_SKILL_PPT_MASTER; then
+    skip_unsupported_item "ppt-master" "skills@latest did not find a valid SKILL.md and the repository is heavy; install manually if needed"
   fi
 
 }
@@ -926,39 +1116,27 @@ install_skills() {
 
   info "Installing skills (group: $SKILL_GROUP)..."
 
-  local remote_installer_available=true
-  if [[ ! -f "$INSTALLER" ]]; then
-    remote_installer_available=false
-    warn "skill-installer not found at $INSTALLER"
-    warn "Remote skill packs that depend on it will be skipped."
-  fi
-
   if [[ "$SKILL_GROUP" == "core" || "$SKILL_GROUP" == "all" ]]; then
+    install_npx_skill_names mattpocock/skills code-review || \
+      skip_unsupported_item "code-review" "npx skills install failed; use Codex /review as the native fallback"
+
+    install_npx_skill_names forrestchang/andrej-karpathy-skills karpathy-guidelines || \
+      skip_unsupported_item "andrej-karpathy-skills" "npx skills install failed"
+
     install_superpowers
 
-    if $remote_installer_available; then
-      install_skill_paths anthropics/skills \
-        skills/frontend-design skills/pdf skills/docx skills/pptx skills/xlsx \
-        skills/canvas-design skills/algorithmic-art skills/mcp-builder
+    install_npx_skill_names mattpocock/skills "${MATTPOCOCK_SKILLS[@]}" || \
+      skip_unsupported_item "mattpocock/skills" "npx skills install failed"
 
-      install_skill_paths affaan-m/everything-claude-code \
-        skills/python-patterns skills/python-testing skills/golang-patterns skills/golang-testing \
-        skills/frontend-patterns skills/security-review skills/tdd-workflow skills/verification-loop \
-        skills/api-design skills/database-migrations
-    else
-      SKIPPED_COMPONENTS+=("core remote skill packs (skill-installer not found)")
-    fi
+    install_skill_paths anthropics/skills \
+      skills/frontend-design skills/pdf skills/docx skills/pptx skills/xlsx \
+      skills/canvas-design skills/algorithmic-art skills/mcp-builder
 
+    skip_unsupported_item "coding-foundations" "the former everything-claude-code source is intentionally not used on Codex; use bundled/global Codex skills for language patterns"
     install_local_skills
   fi
 
   if [[ "$SKILL_GROUP" == "ai-research" || "$SKILL_GROUP" == "all" ]]; then
-    if ! $remote_installer_available; then
-      warn "Skipping AI research skills because skill-installer is unavailable"
-      SKIPPED_COMPONENTS+=("AI research skill packs (skill-installer not found)")
-      return 0
-    fi
-
     install_skill_paths zechenzhangAGI/AI-research-SKILLs \
       02-tokenization/huggingface-tokenizers 02-tokenization/sentencepiece \
       03-fine-tuning/axolotl 03-fine-tuning/llama-factory 03-fine-tuning/peft 03-fine-tuning/unsloth \
@@ -967,7 +1145,7 @@ install_skills() {
       10-optimization/awq 10-optimization/gptq 10-optimization/gguf 10-optimization/flash-attention 10-optimization/bitsandbytes \
       12-inference-serving/vllm 12-inference-serving/sglang 12-inference-serving/tensorrt-llm 12-inference-serving/llama-cpp
 
-    # DeepXiv is grouped under "Skills — AI Research" in the README and the
+    # DeepXiv is grouped under "Academic Research" in the README and the
     # interactive menu; keep the non-interactive groups consistent with that.
     reinstall_skill_paths DeepXiv/deepxiv_sdk \
       skills/deepxiv-cli skills/deepxiv-baseline-table skills/deepxiv-trending-digest
@@ -1002,30 +1180,54 @@ interactive_menu() {
   GROUP_HINTS+=("")
   GROUP_ITEMS+=("AGENTS.md|Global Codex instructions|1|core-agents-md
 config.toml|Codex runtime config template|1|core-config
-lessons.md|Lessons source-of-truth|1|core-lessons")
-
-  GROUP_LABELS+=("Agents")
-  GROUP_HINTS+=("")
-  GROUP_ITEMS+=("explorer|Code-path exploration agent|1|agent-explorer
+StatusLine|Codex footer: model, dir, git, context|1|core-statusline
+lessons.md|Lessons source-of-truth|1|core-lessons
+explorer|Code-path exploration agent|1|agent-explorer
 reviewer|Review/regression agent|1|agent-reviewer
 docs-researcher|Docs/API verification agent|1|agent-docs-researcher")
 
-  GROUP_LABELS+=("Skills — Recommended")
-  GROUP_HINTS+=("")
-  GROUP_ITEMS+=("superpowers|Planning and execution workflows|1|skill-superpowers
-document-skills|PDF/DOCX/PPTX/XLSX skills pack|1|skill-documents
-example-skills|Frontend/art/MCP builder pack|1|skill-examples
-coding-foundations|Patterns, testing, security (upstream everything-claude-code)|1|skill-coding-foundations
-paper-reading|Research paper summarization|1|skill-paper-reading
-humanizer|Remove AI writing patterns|1|skill-humanizer
-humanizer-zh|Remove Chinese AI writing patterns|0|skill-humanizer-zh
-handoff|Compact context into a handoff doc|1|skill-handoff
+  GROUP_LABELS+=("Review")
+  GROUP_HINTS+=("Claude parity; Codex-native where available")
+  GROUP_ITEMS+=("code-review|PR code review skill or Codex /review fallback|1|skill-code-review
 adversarial-review|Cross-model adversarial review|1|skill-adversarial-review
-update|Update Codex config branch install|1|skill-update")
+Codex CLI bridge|Claude-to-Codex bridge; skipped on Codex by default|0|unsupported-codex-plugin")
 
-  GROUP_LABELS+=("Skills — AI Research")
-  GROUP_HINTS+=("")
-  GROUP_ITEMS+=("tokenization|Tokenizer training and usage|0|ai-tokenization
+  GROUP_LABELS+=("Workflow")
+  GROUP_HINTS+=("planning, iteration, code quality, meta-config")
+  GROUP_ITEMS+=("andrej-karpathy-skills|Karpathy coding guidelines|1|skill-karpathy
+superpowers|Planning, brainstorming, TDD, debugging|0|skill-superpowers
+mattpocock/skills|Agent workflows via npx skills|1|skill-mattpocock
+feature-dev|Claude plugin workflow; no Codex target yet|0|unsupported-feature-dev
+ralph-loop|Claude plugin workflow; no Codex target yet|0|unsupported-ralph-loop
+commit-commands|Claude plugin workflow; no Codex target yet|0|unsupported-commit-commands
+code-simplifier|Claude plugin workflow; no Codex target yet|0|unsupported-code-simplifier
+update-config|Update Codex config branch install|1|skill-update")
+
+  GROUP_LABELS+=("Development Tools")
+  GROUP_HINTS+=("Codex MCP equivalents")
+  GROUP_ITEMS+=("context7|Up-to-date library docs (MCP)|1|mcp-context7
+github|GitHub workflows (MCP; needs a real PAT)|0|mcp-github
+playwright|Browser automation (MCP)|1|mcp-playwright
+openaiDeveloperDocs|Official OpenAI docs MCP|1|mcp-openai-docs")
+
+  GROUP_LABELS+=("Design & Content")
+  GROUP_HINTS+=("documents, UI, creative artifacts, humanization")
+  GROUP_ITEMS+=("document-skills|PDF/DOCX/PPTX/XLSX skills pack|1|skill-documents
+example-skills|Canvas/art/MCP builder skill pack|1|skill-examples
+frontend-design|Frontend UI design skill|1|skill-frontend-design
+humanizer|Remove AI writing patterns|1|skill-humanizer
+humanizer-zh|Remove Chinese AI writing patterns|0|skill-humanizer-zh")
+
+  GROUP_LABELS+=("Memory & Lifestyle")
+  GROUP_HINTS+=("session memory and personal productivity")
+  GROUP_ITEMS+=("claude-mem|claude-mem skills via npx; daemon not migrated|0|skill-claude-mem
+claude-health|Health check and wellness skills|0|skill-claude-health
+PUA|Productivity coaching skills (CN / EN / JA)|0|skill-pua")
+
+  GROUP_LABELS+=("Academic Research")
+  GROUP_HINTS+=("training/inference skills + paper-reading & DeepXiv")
+  GROUP_ITEMS+=("paper-reading|Research paper summarization|1|skill-paper-reading
+tokenization|Tokenizer training and usage|0|ai-tokenization
 fine-tuning|Fine-tuning workflows|0|ai-fine-tuning
 post-training|RLHF / DPO / GRPO workflows|0|ai-post-training
 distributed-training|DeepSpeed / FSDP / Megatron / Ray|0|ai-distributed-training
@@ -1033,13 +1235,14 @@ inference-serving|vLLM / SGLang / TensorRT / llama.cpp|0|ai-inference-serving
 optimization|Quantization and optimization|0|ai-optimization
 deepxiv|DeepXiv research workflow skills|0|ai-deepxiv")
 
+  GROUP_LABELS+=("Slides")
+  GROUP_HINTS+=("AI slide / PPTX generation; default off")
+  GROUP_ITEMS+=("frontend-slides|HTML slide generator with PPT conversion|0|skill-frontend-slides
+ppt-master|No valid Codex skill detected; manual setup only|0|skill-ppt-master")
+
   GROUP_LABELS+=("MCP Servers")
   GROUP_HINTS+=("")
-  GROUP_ITEMS+=("context7|Up-to-date library docs|1|mcp-context7
-github|GitHub workflows (needs a real PAT)|0|mcp-github
-playwright|Browser automation|1|mcp-playwright
-openaiDeveloperDocs|Official OpenAI docs MCP|1|mcp-openai-docs
-lark-mcp|Feishu/Lark integration (needs credentials)|0|mcp-lark")
+  GROUP_ITEMS+=("lark-mcp|Feishu/Lark integration (needs credentials)|0|mcp-lark")
 
   local num_groups=${#GROUP_LABELS[@]}
 
@@ -1328,13 +1531,23 @@ lark-mcp|Feishu/Lark integration (needs credentials)|0|mcp-lark")
     case "$item_id" in
       core-agents-md)          SELECT_CORE_AGENTS_MD=$is_selected; [[ $is_selected == true ]] && core_selected=true ;;
       core-config)             SELECT_CORE_CONFIG=$is_selected; [[ $is_selected == true ]] && core_selected=true ;;
+      core-statusline)         SELECT_CORE_STATUSLINE=$is_selected; [[ $is_selected == true ]] && core_selected=true ;;
       core-lessons)            SELECT_CORE_LESSONS=$is_selected; [[ $is_selected == true ]] && core_selected=true ;;
       agent-explorer)          SELECT_AGENT_EXPLORER=$is_selected; [[ $is_selected == true ]] && core_selected=true ;;
       agent-reviewer)          SELECT_AGENT_REVIEWER=$is_selected; [[ $is_selected == true ]] && core_selected=true ;;
       agent-docs-researcher)   SELECT_AGENT_DOCS_RESEARCHER=$is_selected; [[ $is_selected == true ]] && core_selected=true ;;
+      skill-code-review)       SELECT_SKILL_CODE_REVIEW=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      skill-karpathy)          SELECT_SKILL_KARPATHY=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-superpowers)       SELECT_SKILL_SUPERPOWERS=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      skill-mattpocock)        SELECT_SKILL_MATTPOCOCK=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      unsupported-feature-dev) SELECT_UNSUPPORTED_FEATURE_DEV=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      unsupported-ralph-loop)  SELECT_UNSUPPORTED_RALPH_LOOP=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      unsupported-commit-commands) SELECT_UNSUPPORTED_COMMIT_COMMANDS=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      unsupported-code-simplifier) SELECT_UNSUPPORTED_CODE_SIMPLIFIER=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      unsupported-codex-plugin) SELECT_UNSUPPORTED_CODEX_PLUGIN=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-documents)         SELECT_SKILL_DOCUMENTS=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-examples)          SELECT_SKILL_EXAMPLES=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      skill-frontend-design)   SELECT_SKILL_FRONTEND_DESIGN=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-coding-foundations)        SELECT_SKILL_CODING_FOUNDATIONS=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-paper-reading)     SELECT_SKILL_PAPER_READING=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-humanizer)         SELECT_SKILL_HUMANIZER=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
@@ -1342,6 +1555,11 @@ lark-mcp|Feishu/Lark integration (needs credentials)|0|mcp-lark")
       skill-handoff)           SELECT_SKILL_HANDOFF=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-adversarial-review) SELECT_SKILL_ADVERSARIAL_REVIEW=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-update)            SELECT_SKILL_UPDATE=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      skill-claude-mem)        SELECT_SKILL_CLAUDE_MEM=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      skill-claude-health)     SELECT_SKILL_CLAUDE_HEALTH=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      skill-pua)               SELECT_SKILL_PUA=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      skill-frontend-slides)   SELECT_SKILL_FRONTEND_SLIDES=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      skill-ppt-master)        SELECT_SKILL_PPT_MASTER=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       ai-tokenization)         SELECT_AI_TOKENIZATION=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       ai-fine-tuning)          SELECT_AI_FINE_TUNING=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       ai-post-training)        SELECT_AI_POST_TRAINING=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
@@ -1368,10 +1586,16 @@ lark-mcp|Feishu/Lark integration (needs credentials)|0|mcp-lark")
   INSTALL_SKILLS=$skills_selected
   INSTALL_MCP=$mcp_selected
   if $skills_selected; then
-    if $SELECT_SKILL_SUPERPOWERS || $SELECT_SKILL_DOCUMENTS || $SELECT_SKILL_EXAMPLES || \
-       $SELECT_SKILL_CODING_FOUNDATIONS || $SELECT_SKILL_PAPER_READING || $SELECT_SKILL_HUMANIZER || \
+    if $SELECT_SKILL_CODE_REVIEW || $SELECT_SKILL_KARPATHY || $SELECT_SKILL_SUPERPOWERS || \
+       $SELECT_SKILL_MATTPOCOCK || $SELECT_UNSUPPORTED_FEATURE_DEV || $SELECT_UNSUPPORTED_RALPH_LOOP || \
+       $SELECT_UNSUPPORTED_COMMIT_COMMANDS || $SELECT_UNSUPPORTED_CODE_SIMPLIFIER || \
+       $SELECT_UNSUPPORTED_CODEX_PLUGIN || $SELECT_SKILL_DOCUMENTS || $SELECT_SKILL_EXAMPLES || \
+       $SELECT_SKILL_FRONTEND_DESIGN || $SELECT_SKILL_CODING_FOUNDATIONS || \
+       $SELECT_SKILL_PAPER_READING || $SELECT_SKILL_HUMANIZER || \
        $SELECT_SKILL_HUMANIZER_ZH || $SELECT_SKILL_HANDOFF || \
-       $SELECT_SKILL_ADVERSARIAL_REVIEW || $SELECT_SKILL_UPDATE; then
+       $SELECT_SKILL_ADVERSARIAL_REVIEW || $SELECT_SKILL_UPDATE || \
+       $SELECT_SKILL_CLAUDE_MEM || $SELECT_SKILL_CLAUDE_HEALTH || $SELECT_SKILL_PUA || \
+       $SELECT_SKILL_FRONTEND_SLIDES || $SELECT_SKILL_PPT_MASTER; then
       if $SELECT_AI_TOKENIZATION || $SELECT_AI_FINE_TUNING || $SELECT_AI_POST_TRAINING || \
          $SELECT_AI_DISTRIBUTED_TRAINING || $SELECT_AI_INFERENCE_SERVING || \
          $SELECT_AI_OPTIMIZATION || $SELECT_AI_DEEPXIV; then

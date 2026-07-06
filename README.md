@@ -68,11 +68,15 @@ Behavior notes:
 
 | Group | Items | Default |
 |-------|-------|---------|
-| Core | `AGENTS.md`, `config.toml`, `lessons.md` | On |
-| Agents | `explorer`, `reviewer`, `docs-researcher` | On |
-| Skills — Recommended | `superpowers`, `document-skills`, `example-skills`, `coding-foundations`, `paper-reading`, `humanizer`, `humanizer-zh`, `handoff`, `adversarial-review`, `update` | On except `humanizer-zh` |
-| Skills — AI Research | `tokenization`, `fine-tuning`, `post-training`, `distributed-training`, `inference-serving`, `optimization`, `deepxiv` | Off |
-| MCP Servers | `context7`, `github`, `playwright`, `openaiDeveloperDocs`, `lark-mcp` | On except `github` and `lark-mcp` (need credentials) |
+| Core | `AGENTS.md`, `config.toml`, `StatusLine`, `lessons.md`, `explorer`, `reviewer`, `docs-researcher` | On |
+| Review | `code-review`, `adversarial-review`, `Codex CLI bridge` | On except `Codex CLI bridge` |
+| Workflow | `andrej-karpathy-skills`, `superpowers`, `mattpocock/skills`, `feature-dev`, `ralph-loop`, `commit-commands`, `code-simplifier`, `update-config` | On for `andrej-karpathy-skills`, `mattpocock/skills`, and `update-config`; `superpowers` and Claude-only workflow entries are off by default |
+| Development Tools | `context7`, `github`, `playwright`, `openaiDeveloperDocs` | On except `github` (needs credentials) |
+| Design & Content | `document-skills`, `example-skills`, `frontend-design`, `humanizer`, `humanizer-zh` | On except `humanizer-zh` |
+| Memory & Lifestyle | `claude-mem`, `claude-health`, `PUA` | Off |
+| Academic Research | `paper-reading`, `tokenization`, `fine-tuning`, `post-training`, `distributed-training`, `inference-serving`, `optimization`, `deepxiv` | `paper-reading` on; others off |
+| Slides | `frontend-slides`, `ppt-master` | Off |
+| MCP Servers | `lark-mcp` | Off (needs credentials) |
 
 ## Installer Options
 
@@ -132,16 +136,23 @@ This keeps common principles and language-specific practices aligned.
 
 | Skill Set | Source | Coverage |
 |----------|--------|----------|
-| superpowers | [obra/superpowers](https://github.com/obra/superpowers) | full native superpowers set, including brainstorming, plan execution, review handoff, worktrees |
-| coding-foundations | [affaan-m/everything-claude-code](https://github.com/affaan-m/everything-claude-code) | language patterns, testing, security, verification (Codex-facing label for this upstream pack) |
+| mattpocock/skills | [mattpocock/skills](https://github.com/mattpocock/skills) | `ask-matt`, grilling/design, research, PRD/issues, implementation, triage, TDD, architecture and domain-modeling workflows via `npx skills` |
+| superpowers | [obra/superpowers](https://github.com/obra/superpowers) | full native superpowers set, including brainstorming, plan execution, review handoff, worktrees; installed via `npx skills` with git/junction fallback |
+| andrej-karpathy-skills | [forrestchang/andrej-karpathy-skills](https://github.com/forrestchang/andrej-karpathy-skills) | Karpathy-style coding guidelines via `npx skills` |
+| coding-foundations | Codex local/global skills | Claude's former `everything-claude-code` source is intentionally skipped; Codex uses installed language/testing/security skills instead |
 | anthropic skills packs | [anthropics/skills](https://github.com/anthropics/skills) | document tools, frontend design, canvas/art, MCP builder |
 | DeepXiv skills | [DeepXiv/deepxiv_sdk](https://github.com/DeepXiv/deepxiv_sdk) | latest DeepXiv research workflows (`deepxiv-cli`, `deepxiv-baseline-table`, `deepxiv-trending-digest`) fetched fresh during install |
 | AI research skills | [zechenzhangAGI/AI-research-SKILLs](https://github.com/zechenzhangAGI/AI-research-SKILLs) | tokenization, fine-tuning, post-training, inference, distributed training, optimization |
+| frontend-slides | [zarazhangrui/frontend-slides](https://github.com/zarazhangrui/frontend-slides) | slide generation skill via `npx skills`; default off |
+| claude-mem / claude-health / PUA | upstream skill repos | optional skill-only installs via `npx skills`; long-running daemons or Claude-only command flows are not migrated automatically |
 
-Superpowers are installed using the repo's current native-discovery flow:
-- clone to `~/.codex/superpowers`
-- symlink `~/.codex/superpowers/skills` to `~/.agents/skills/superpowers`
-- clean up the legacy partial-copy install (`using-superpowers`, `systematic-debugging`, `writing-plans`, `test-driven-development`) under `~/.codex/skills`
+Remote skills are installed with:
+
+```bash
+npx -y skills@latest add <repo> --global --agent codex --copy --yes --full-depth --skill <name>
+```
+
+For path-based packs, the installer falls back to the bundled `skill-installer` Python helper if `npx` is unavailable or the `skills` CLI cannot resolve the requested names. Claude-only plugin command workflows (`feature-dev`, `ralph-loop`, `commit-commands`, `code-simplifier`) remain visible in the Workflow group for migration parity, default off, and are skipped with an explicit warning if selected.
 
 Bundled local skills in this repo:
 - `paper-reading` (`skills/paper-reading/SKILL.md`) — structured research paper summarization
@@ -197,11 +208,13 @@ See [`docs/claude-main-to-codex-migration.md`](./docs/claude-main-to-codex-migra
 
 ## Security Note
 
-Template defaults are conservative:
-- `approval_policy = "on-request"`
-- `sandbox_mode = "workspace-write"`
+Template defaults are intentionally autonomous for this Codex branch:
+- `model_reasoning_effort = "xhigh"`
+- `approval_policy = "never"`
+- `sandbox_mode = "danger-full-access"`
+- `status_line = ["model-with-reasoning", "current-dir", "git-branch", "context-remaining"]`
 
-If you prefer full autonomy, switch these to `approval_policy = "never"` and `sandbox_mode = "danger-full-access"` in `~/.codex/config.toml`.
+Use this config only in trusted repositories. If you prefer approval prompts and a workspace sandbox, switch these back to `approval_policy = "on-request"` and `sandbox_mode = "workspace-write"` in `~/.codex/config.toml`.
 
 ## Customization
 

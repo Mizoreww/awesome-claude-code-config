@@ -100,13 +100,28 @@ $script:LessonsSeeded = $false
 $script:SelectCoreAgentsMd = $true
 $script:SelectCoreConfig = $true
 $script:SelectCoreLessons = $true
+$script:SelectCoreStatusLine = $true
 $script:SelectAgentExplorer = $true
 $script:SelectAgentReviewer = $true
 $script:SelectAgentDocsResearcher = $true
 $script:SelectSkillSuperpowers = $true
 $script:SelectSkillDocumentSkills = $true
 $script:SelectSkillExampleSkills = $true
-$script:SelectSkillCodingFoundations = $true
+$script:SelectSkillFrontendDesign = $true
+$script:SelectSkillCodingFoundations = $false
+$script:SelectSkillKarpathy = $true
+$script:SelectSkillMattPocock = $true
+$script:SelectSkillCodeReview = $true
+$script:SelectSkillClaudeMem = $false
+$script:SelectSkillClaudeHealth = $false
+$script:SelectSkillPUA = $false
+$script:SelectSkillFrontendSlides = $false
+$script:SelectSkillPptMaster = $false
+$script:SelectUnsupportedFeatureDev = $false
+$script:SelectUnsupportedRalphLoop = $false
+$script:SelectUnsupportedCommitCommands = $false
+$script:SelectUnsupportedCodeSimplifier = $false
+$script:SelectUnsupportedCodexPlugin = $false
 $script:SelectSkillPaperReading = $true
 $script:SelectSkillHumanizer = $true
 $script:SelectSkillHumanizerZh = $false
@@ -145,7 +160,22 @@ $MANAGED_SKILLS = @(
     "update",
     "deepxiv-cli",
     "deepxiv-baseline-table",
-    "deepxiv-trending-digest"
+    "deepxiv-trending-digest",
+    "code-review",
+    "karpathy-guidelines",
+    "brainstorming", "dispatching-parallel-agents", "executing-plans", "finishing-a-development-branch",
+    "receiving-code-review", "requesting-code-review", "subagent-driven-development", "using-git-worktrees",
+    "using-superpowers", "verification-before-completion", "writing-plans", "writing-skills",
+    "frontend-slides",
+    "ask-matt", "diagnosing-bugs", "grill-with-docs", "triage",
+    "implement", "improve-codebase-architecture", "setup-matt-pocock-skills", "tdd",
+    "to-issues", "to-prd", "prototype", "domain-modeling", "codebase-design",
+    "grill-me", "grilling", "research", "teach", "writing-great-skills",
+    "babysit", "design-is", "do", "how-it-works", "knowledge-agent", "learn-codebase", "make-plan",
+    "mem-search", "oh-my-issues", "pathfinder", "smart-explore", "standup", "timeline-report",
+    "claude-code-plugin-release", "weekly-digests", "what-the", "wowerpoint",
+    "health", "check", "hunt", "learn", "read", "think", "ui", "write",
+    "pua", "pua-en", "pua-ja"
 )
 
 $LEGACY_SUPERPOWERS_SKILLS = @(
@@ -154,6 +184,22 @@ $LEGACY_SUPERPOWERS_SKILLS = @(
     "writing-plans",
     "test-driven-development"
 )
+
+$MATTPOCOCK_SKILLS = @(
+    "ask-matt", "diagnosing-bugs", "grill-with-docs", "triage",
+    "implement", "improve-codebase-architecture", "setup-matt-pocock-skills", "tdd",
+    "to-issues", "to-prd", "prototype", "domain-modeling", "codebase-design",
+    "grill-me", "grilling", "research", "teach", "writing-great-skills"
+)
+
+$CLAUDE_MEM_SKILLS = @(
+    "babysit", "design-is", "do", "how-it-works", "knowledge-agent", "learn-codebase", "make-plan",
+    "mem-search", "oh-my-issues", "pathfinder", "smart-explore", "standup", "timeline-report",
+    "weekly-digests", "what-the", "wowerpoint"
+)
+
+$CLAUDE_HEALTH_SKILLS = @("check", "health", "hunt", "learn", "read", "think", "ui", "write")
+$PUA_SKILLS = @("pua", "pua-en", "pua-ja")
 
 # ============================================================
 # Output helpers
@@ -490,6 +536,63 @@ function Install-LessonsIfMissing {
     }
 }
 
+function Install-ConfigTemplate {
+    $target = Join-Path $CODEX_DIR "config.toml"
+    if (Test-Path $target) {
+        Write-Warn "$target exists -- skipping (merge manually if needed)"
+        return
+    }
+
+    if ($DryRun) {
+        Write-Info "Would copy: config.toml -> $target"
+        return
+    }
+
+    if ($script:InteractiveMode -and -not $script:SelectCoreStatusLine) {
+        Get-Content (Join-Path $script:SCRIPT_DIR "config.toml") |
+            Where-Object { $_ -notmatch '^status_line\s*=' } |
+            Set-Content -Path $target -Encoding UTF8
+    } else {
+        Copy-Item (Join-Path $script:SCRIPT_DIR "config.toml") $target -Force
+    }
+    Write-Ok "config.toml installed"
+}
+
+function Ensure-StatusLineSetting {
+    $target = Join-Path $CODEX_DIR "config.toml"
+    $statusLine = 'status_line = ["model-with-reasoning", "current-dir", "git-branch", "context-remaining"]'
+
+    if ($DryRun) {
+        Write-Info "Would ensure Codex status_line in $target"
+        return
+    }
+
+    New-Item -ItemType Directory -Path $CODEX_DIR -Force | Out-Null
+    if (-not (Test-Path $target)) {
+        Set-Content -Path $target -Value $statusLine -Encoding UTF8
+        Write-Ok "status_line installed in config.toml"
+        return
+    }
+
+    $lines = Get-Content $target
+    $found = $false
+    $updated = foreach ($line in $lines) {
+        if ($line -match '^status_line\s*=') {
+            $found = $true
+            $statusLine
+        } else {
+            $line
+        }
+    }
+
+    if (-not $found) {
+        $updated = @($updated) + "" + $statusLine
+    }
+
+    Set-Content -Path $target -Value $updated -Encoding UTF8
+    Write-Ok "status_line ensured in config.toml"
+}
+
 function Install-SelectedCoreFiles {
     Write-Info "Installing selected core files..."
 
@@ -506,17 +609,17 @@ function Install-SelectedCoreFiles {
     }
 
     if ($script:SelectCoreConfig) {
-        Copy-SelectedFile -Selected $true `
-            -Source (Join-Path $script:SCRIPT_DIR "config.toml") `
-            -Target (Join-Path $CODEX_DIR "config.toml") `
-            -Label "config.toml" `
-            -SkipIfExists
+        Install-ConfigTemplate
         # config.toml references lessons.md via model_instructions_file; make
         # sure the file exists even when the Lessons item was deselected.
         if (-not $script:SelectCoreLessons -and -not (Test-Path (Join-Path $CODEX_DIR "lessons.md"))) {
             Write-Warn "config.toml requires lessons.md (model_instructions_file); seeding it although Lessons was deselected"
         }
         Install-LessonsIfMissing
+    }
+
+    if ($script:SelectCoreStatusLine) {
+        Ensure-StatusLineSetting
     }
 }
 
@@ -544,38 +647,86 @@ function Install-SelectedAgents {
 }
 
 function Install-SelectedRecommendedSkills {
-    $remoteAvailable = Test-Path $INSTALLER
-    $needsRemote = $script:SelectSkillDocumentSkills -or $script:SelectSkillExampleSkills -or $script:SelectSkillCodingFoundations
-    if (-not $remoteAvailable -and $needsRemote) {
-        Write-Warn "skill-installer not found at $INSTALLER"
-        Write-Warn "Remote skill packs that depend on it will be skipped."
-        $script:SKIPPED_COMPONENTS += "recommended remote skill packs (skill-installer not found)"
+    if ($script:SelectSkillCodeReview) {
+        if (-not (Install-NpxSkillNames "mattpocock/skills" @("code-review"))) {
+            Skip-UnsupportedItem "code-review" "npx skills install failed; use Codex /review as the native fallback"
+        }
+    }
+
+    if ($script:SelectSkillKarpathy) {
+        if (-not (Install-NpxSkillNames "forrestchang/andrej-karpathy-skills" @("karpathy-guidelines"))) {
+            Skip-UnsupportedItem "andrej-karpathy-skills" "npx skills install failed"
+        }
     }
 
     if ($script:SelectSkillSuperpowers) {
         Install-Superpowers
     }
 
-    if ($remoteAvailable) {
-        if ($script:SelectSkillDocumentSkills) {
-            Install-SkillPaths "anthropics/skills" @(
-                "skills/pdf", "skills/docx", "skills/pptx", "skills/xlsx"
-            )
+    if ($script:SelectSkillMattPocock) {
+        if (-not (Install-NpxSkillNames "mattpocock/skills" $MATTPOCOCK_SKILLS)) {
+            Skip-UnsupportedItem "mattpocock/skills" "npx skills install failed"
         }
+    }
 
-        if ($script:SelectSkillExampleSkills) {
-            Install-SkillPaths "anthropics/skills" @(
-                "skills/frontend-design", "skills/canvas-design", "skills/algorithmic-art", "skills/mcp-builder"
-            )
-        }
+    if ($script:SelectSkillDocumentSkills) {
+        Install-SkillPaths "anthropics/skills" @(
+            "skills/pdf", "skills/docx", "skills/pptx", "skills/xlsx"
+        )
+    }
 
-        if ($script:SelectSkillCodingFoundations) {
-            Install-SkillPaths "affaan-m/everything-claude-code" @(
-                "skills/python-patterns", "skills/python-testing", "skills/golang-patterns", "skills/golang-testing",
-                "skills/frontend-patterns", "skills/security-review", "skills/tdd-workflow", "skills/verification-loop",
-                "skills/api-design", "skills/database-migrations"
-            )
+    if ($script:SelectSkillExampleSkills) {
+        Install-SkillPaths "anthropics/skills" @(
+            "skills/canvas-design", "skills/algorithmic-art", "skills/mcp-builder"
+        )
+    }
+
+    if ($script:SelectSkillFrontendDesign) {
+        Install-SkillPaths "anthropics/skills" @("skills/frontend-design")
+    }
+
+    if ($script:SelectSkillCodingFoundations) {
+        Skip-UnsupportedItem "coding-foundations" "the former everything-claude-code source is intentionally not used on Codex; use bundled/global Codex skills for language patterns"
+    }
+
+    if ($script:SelectUnsupportedFeatureDev) {
+        Skip-UnsupportedItem "feature-dev" "Claude plugin command workflow has no Codex-equivalent installer target yet"
+    }
+    if ($script:SelectUnsupportedRalphLoop) {
+        Skip-UnsupportedItem "ralph-loop" "Claude plugin command workflow has no Codex-equivalent installer target yet"
+    }
+    if ($script:SelectUnsupportedCommitCommands) {
+        Skip-UnsupportedItem "commit-commands" "Claude plugin command workflow has no Codex-equivalent installer target yet"
+    }
+    if ($script:SelectUnsupportedCodeSimplifier) {
+        Skip-UnsupportedItem "code-simplifier" "Claude plugin command workflow has no Codex-equivalent installer target yet"
+    }
+    if ($script:SelectUnsupportedCodexPlugin) {
+        Skip-UnsupportedItem "openai/codex-plugin-cc" "this is a Claude-to-Codex bridge and is not useful as a default Codex-side install"
+    }
+
+    if ($script:SelectSkillClaudeMem) {
+        if (-not (Install-NpxSkillNames "thedotmack/claude-mem" $CLAUDE_MEM_SKILLS)) {
+            Skip-UnsupportedItem "claude-mem" "npx skills install failed; full memory daemon behavior is not migrated by this installer"
         }
+    }
+    if ($script:SelectSkillClaudeHealth) {
+        if (-not (Install-NpxSkillNames "tw93/claude-health" $CLAUDE_HEALTH_SKILLS)) {
+            Skip-UnsupportedItem "claude-health" "npx skills install failed"
+        }
+    }
+    if ($script:SelectSkillPUA) {
+        if (-not (Install-NpxSkillNames "tanweai/pua" $PUA_SKILLS)) {
+            Skip-UnsupportedItem "PUA" "npx skills install failed"
+        }
+    }
+    if ($script:SelectSkillFrontendSlides) {
+        if (-not (Install-NpxSkillNames "zarazhangrui/frontend-slides" @("frontend-slides"))) {
+            Skip-UnsupportedItem "frontend-slides" "npx skills install failed"
+        }
+    }
+    if ($script:SelectSkillPptMaster) {
+        Skip-UnsupportedItem "ppt-master" "skills@latest did not find a valid SKILL.md and the repository is heavy; install manually if needed"
     }
 
     if ($script:SelectSkillPaperReading -or $script:SelectSkillHumanizer -or $script:SelectSkillHumanizerZh -or
@@ -624,17 +775,6 @@ function Install-SelectedRecommendedSkills {
 }
 
 function Install-SelectedAiSkills {
-    $remoteAvailable = Test-Path $INSTALLER
-    $needsRemote = $script:SelectAiTokenization -or $script:SelectAiFineTuning -or $script:SelectAiPostTraining -or `
-        $script:SelectAiDistributedTraining -or $script:SelectAiInferenceServing -or $script:SelectAiOptimization -or `
-        $script:SelectAiDeepXiv
-    if (-not $remoteAvailable -and $needsRemote) {
-        Write-Warn "skill-installer not found at $INSTALLER"
-        Write-Warn "AI research skill packs that depend on it will be skipped."
-        $script:SKIPPED_COMPONENTS += "AI research skill packs (skill-installer not found)"
-        return
-    }
-
     if ($script:SelectAiTokenization) {
         Install-SkillPaths "zechenzhangAGI/AI-research-SKILLs" @(
             "02-tokenization/huggingface-tokenizers", "02-tokenization/sentencepiece"
@@ -747,38 +887,71 @@ function Show-InteractiveMenu {
             Items = @(
                 [pscustomobject]@{ Label = "AGENTS.md"; Description = "Global Codex instructions"; Default = $true;  StateVar = "SelectCoreAgentsMd" },
                 [pscustomobject]@{ Label = "config.toml"; Description = "Codex runtime config template"; Default = $true; StateVar = "SelectCoreConfig" },
+                [pscustomobject]@{ Label = "StatusLine"; Description = "Codex footer: model, dir, git, context"; Default = $true; StateVar = "SelectCoreStatusLine" },
                 [pscustomobject]@{ Label = "lessons.md"; Description = "Lessons source-of-truth"; Default = $true; StateVar = "SelectCoreLessons" }
-            )
-        },
-        [pscustomobject]@{
-            Label = "Agents"
-            Hint = ""
-            Items = @(
                 [pscustomobject]@{ Label = "explorer"; Description = "Code-path exploration agent"; Default = $true; StateVar = "SelectAgentExplorer" },
                 [pscustomobject]@{ Label = "reviewer"; Description = "Review/regression agent"; Default = $true; StateVar = "SelectAgentReviewer" },
                 [pscustomobject]@{ Label = "docs-researcher"; Description = "Docs/API verification agent"; Default = $true; StateVar = "SelectAgentDocsResearcher" }
             )
         },
         [pscustomobject]@{
-            Label = "Skills - Recommended"
-            Hint = ""
+            Label = "Review"
+            Hint = "Claude parity; Codex-native where available"
             Items = @(
-                [pscustomobject]@{ Label = "superpowers"; Description = "Planning and execution workflows"; Default = $true; StateVar = "SelectSkillSuperpowers" },
-                [pscustomobject]@{ Label = "document-skills"; Description = "PDF/DOCX/PPTX/XLSX skills pack"; Default = $true; StateVar = "SelectSkillDocumentSkills" },
-                [pscustomobject]@{ Label = "example-skills"; Description = "Frontend/art/MCP builder pack"; Default = $true; StateVar = "SelectSkillExampleSkills" },
-                [pscustomobject]@{ Label = "coding-foundations"; Description = "Patterns, testing, security (upstream everything-claude-code)"; Default = $true; StateVar = "SelectSkillCodingFoundations" },
-                [pscustomobject]@{ Label = "paper-reading"; Description = "Research paper summarization"; Default = $true; StateVar = "SelectSkillPaperReading" },
-                [pscustomobject]@{ Label = "humanizer"; Description = "Remove AI writing patterns"; Default = $true; StateVar = "SelectSkillHumanizer" },
-                [pscustomobject]@{ Label = "humanizer-zh"; Description = "Remove Chinese AI writing patterns"; Default = $false; StateVar = "SelectSkillHumanizerZh" },
-                [pscustomobject]@{ Label = "handoff"; Description = "Compact context into a handoff doc"; Default = $true; StateVar = "SelectSkillHandoff" },
+                [pscustomobject]@{ Label = "code-review"; Description = "PR code review skill or Codex /review fallback"; Default = $true; StateVar = "SelectSkillCodeReview" },
                 [pscustomobject]@{ Label = "adversarial-review"; Description = "Cross-model adversarial review"; Default = $true; StateVar = "SelectSkillAdversarialReview" },
-                [pscustomobject]@{ Label = "update"; Description = "Update Codex config branch install"; Default = $true; StateVar = "SelectSkillUpdate" }
+                [pscustomobject]@{ Label = "Codex CLI bridge"; Description = "Claude-to-Codex bridge; skipped on Codex by default"; Default = $false; StateVar = "SelectUnsupportedCodexPlugin" }
             )
         },
         [pscustomobject]@{
-            Label = "Skills - AI Research"
-            Hint = ""
+            Label = "Workflow"
+            Hint = "planning, iteration, code quality, meta-config"
             Items = @(
+                [pscustomobject]@{ Label = "andrej-karpathy-skills"; Description = "Karpathy coding guidelines"; Default = $true; StateVar = "SelectSkillKarpathy" },
+                [pscustomobject]@{ Label = "superpowers"; Description = "Planning, brainstorming, TDD, debugging"; Default = $false; StateVar = "SelectSkillSuperpowers" },
+                [pscustomobject]@{ Label = "mattpocock/skills"; Description = "Agent workflows via npx skills"; Default = $true; StateVar = "SelectSkillMattPocock" },
+                [pscustomobject]@{ Label = "feature-dev"; Description = "Claude plugin workflow; no Codex target yet"; Default = $false; StateVar = "SelectUnsupportedFeatureDev" },
+                [pscustomobject]@{ Label = "ralph-loop"; Description = "Claude plugin workflow; no Codex target yet"; Default = $false; StateVar = "SelectUnsupportedRalphLoop" },
+                [pscustomobject]@{ Label = "commit-commands"; Description = "Claude plugin workflow; no Codex target yet"; Default = $false; StateVar = "SelectUnsupportedCommitCommands" },
+                [pscustomobject]@{ Label = "code-simplifier"; Description = "Claude plugin workflow; no Codex target yet"; Default = $false; StateVar = "SelectUnsupportedCodeSimplifier" },
+                [pscustomobject]@{ Label = "update-config"; Description = "Update Codex config branch install"; Default = $true; StateVar = "SelectSkillUpdate" }
+            )
+        },
+        [pscustomobject]@{
+            Label = "Development Tools"
+            Hint = "Codex MCP equivalents"
+            Items = @(
+                [pscustomobject]@{ Label = "context7"; Description = "Up-to-date library docs (MCP)"; Default = $true; StateVar = "SelectMcpContext7" },
+                [pscustomobject]@{ Label = "github"; Description = "GitHub workflows (MCP; needs a real PAT)"; Default = $false; StateVar = "SelectMcpGithub" },
+                [pscustomobject]@{ Label = "playwright"; Description = "Browser automation (MCP)"; Default = $true; StateVar = "SelectMcpPlaywright" },
+                [pscustomobject]@{ Label = "openaiDeveloperDocs"; Description = "Official OpenAI docs MCP"; Default = $true; StateVar = "SelectMcpOpenaiDeveloperDocs" }
+            )
+        },
+        [pscustomobject]@{
+            Label = "Design & Content"
+            Hint = "documents, UI, creative artifacts, humanization"
+            Items = @(
+                [pscustomobject]@{ Label = "document-skills"; Description = "PDF/DOCX/PPTX/XLSX skills pack"; Default = $true; StateVar = "SelectSkillDocumentSkills" },
+                [pscustomobject]@{ Label = "example-skills"; Description = "Canvas/art/MCP builder skill pack"; Default = $true; StateVar = "SelectSkillExampleSkills" },
+                [pscustomobject]@{ Label = "frontend-design"; Description = "Frontend UI design skill"; Default = $true; StateVar = "SelectSkillFrontendDesign" },
+                [pscustomobject]@{ Label = "humanizer"; Description = "Remove AI writing patterns"; Default = $true; StateVar = "SelectSkillHumanizer" },
+                [pscustomobject]@{ Label = "humanizer-zh"; Description = "Remove Chinese AI writing patterns"; Default = $false; StateVar = "SelectSkillHumanizerZh" }
+            )
+        },
+        [pscustomobject]@{
+            Label = "Memory & Lifestyle"
+            Hint = "session memory and personal productivity"
+            Items = @(
+                [pscustomobject]@{ Label = "claude-mem"; Description = "claude-mem skills via npx; daemon not migrated"; Default = $false; StateVar = "SelectSkillClaudeMem" },
+                [pscustomobject]@{ Label = "claude-health"; Description = "Health check and wellness skills"; Default = $false; StateVar = "SelectSkillClaudeHealth" },
+                [pscustomobject]@{ Label = "PUA"; Description = "Productivity coaching skills (CN / EN / JA)"; Default = $false; StateVar = "SelectSkillPUA" }
+            )
+        },
+        [pscustomobject]@{
+            Label = "Academic Research"
+            Hint = "training/inference skills + paper-reading & DeepXiv"
+            Items = @(
+                [pscustomobject]@{ Label = "paper-reading"; Description = "Research paper summarization"; Default = $true; StateVar = "SelectSkillPaperReading" },
                 [pscustomobject]@{ Label = "tokenization"; Description = "Tokenizer training and usage"; Default = $false; StateVar = "SelectAiTokenization" },
                 [pscustomobject]@{ Label = "fine-tuning"; Description = "Fine-tuning workflows"; Default = $false; StateVar = "SelectAiFineTuning" },
                 [pscustomobject]@{ Label = "post-training"; Description = "RLHF / DPO / GRPO workflows"; Default = $false; StateVar = "SelectAiPostTraining" },
@@ -789,13 +962,17 @@ function Show-InteractiveMenu {
             )
         },
         [pscustomobject]@{
+            Label = "Slides"
+            Hint = "AI slide / PPTX generation; default off"
+            Items = @(
+                [pscustomobject]@{ Label = "frontend-slides"; Description = "HTML slide generator with PPT conversion"; Default = $false; StateVar = "SelectSkillFrontendSlides" },
+                [pscustomobject]@{ Label = "ppt-master"; Description = "No valid Codex skill detected; manual setup only"; Default = $false; StateVar = "SelectSkillPptMaster" }
+            )
+        },
+        [pscustomobject]@{
             Label = "MCP Servers"
             Hint = ""
             Items = @(
-                [pscustomobject]@{ Label = "context7"; Description = "Up-to-date library docs"; Default = $true; StateVar = "SelectMcpContext7" },
-                [pscustomobject]@{ Label = "github"; Description = "GitHub workflows (needs a real PAT)"; Default = $false; StateVar = "SelectMcpGithub" },
-                [pscustomobject]@{ Label = "playwright"; Description = "Browser automation"; Default = $true; StateVar = "SelectMcpPlaywright" },
-                [pscustomobject]@{ Label = "openaiDeveloperDocs"; Description = "Official OpenAI docs MCP"; Default = $true; StateVar = "SelectMcpOpenaiDeveloperDocs" },
                 [pscustomobject]@{ Label = "lark-mcp"; Description = "Feishu/Lark integration (needs credentials)"; Default = $false; StateVar = "SelectMcpLark" }
             )
         }
@@ -1036,13 +1213,23 @@ function Show-InteractiveMenu {
             switch ($item.StateVar) {
                 'SelectCoreAgentsMd' { if ($selected) { $coreSelected = $true } }
                 'SelectCoreConfig' { if ($selected) { $coreSelected = $true } }
+                'SelectCoreStatusLine' { if ($selected) { $coreSelected = $true } }
                 'SelectCoreLessons' { if ($selected) { $coreSelected = $true } }
                 'SelectAgentExplorer' { if ($selected) { $coreSelected = $true } }
                 'SelectAgentReviewer' { if ($selected) { $coreSelected = $true } }
                 'SelectAgentDocsResearcher' { if ($selected) { $coreSelected = $true } }
+                'SelectSkillCodeReview' { if ($selected) { $skillsSelected = $true } }
+                'SelectSkillKarpathy' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillSuperpowers' { if ($selected) { $skillsSelected = $true } }
+                'SelectSkillMattPocock' { if ($selected) { $skillsSelected = $true } }
+                'SelectUnsupportedFeatureDev' { if ($selected) { $skillsSelected = $true } }
+                'SelectUnsupportedRalphLoop' { if ($selected) { $skillsSelected = $true } }
+                'SelectUnsupportedCommitCommands' { if ($selected) { $skillsSelected = $true } }
+                'SelectUnsupportedCodeSimplifier' { if ($selected) { $skillsSelected = $true } }
+                'SelectUnsupportedCodexPlugin' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillDocumentSkills' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillExampleSkills' { if ($selected) { $skillsSelected = $true } }
+                'SelectSkillFrontendDesign' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillCodingFoundations' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillPaperReading' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillHumanizer' { if ($selected) { $skillsSelected = $true } }
@@ -1050,6 +1237,11 @@ function Show-InteractiveMenu {
                 'SelectSkillHandoff' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillAdversarialReview' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillUpdate' { if ($selected) { $skillsSelected = $true } }
+                'SelectSkillClaudeMem' { if ($selected) { $skillsSelected = $true } }
+                'SelectSkillClaudeHealth' { if ($selected) { $skillsSelected = $true } }
+                'SelectSkillPUA' { if ($selected) { $skillsSelected = $true } }
+                'SelectSkillFrontendSlides' { if ($selected) { $skillsSelected = $true } }
+                'SelectSkillPptMaster' { if ($selected) { $skillsSelected = $true } }
                 'SelectAiTokenization' { if ($selected) { $skillsSelected = $true } }
                 'SelectAiFineTuning' { if ($selected) { $skillsSelected = $true } }
                 'SelectAiPostTraining' { if ($selected) { $skillsSelected = $true } }
@@ -1124,6 +1316,7 @@ function Install-Core {
             Write-Ok "config.toml installed"
         }
     }
+    Ensure-StatusLineSetting
 }
 
 function Install-Mcp {
@@ -1151,11 +1344,49 @@ function Install-Mcp {
     Write-McpResult
 }
 
-function Install-SkillPaths {
-    param([string]$Repo, [string[]]$Paths)
+function Get-SkillNameFromPath {
+    param([string]$Path)
+    return (Split-Path $Path -Leaf)
+}
+
+function Install-NpxSkillNames {
+    param([string]$Repo, [string[]]$SkillNames)
 
     if ($DryRun) {
-        Write-Info "Would install from ${Repo}: $($Paths -join ', ')"
+        Write-Info "Would install via npx skills: ${Repo} -> $($SkillNames -join ', ')"
+        return $true
+    }
+
+    if (-not (Get-Command "npx" -ErrorAction SilentlyContinue)) {
+        return $false
+    }
+
+    $npxArgs = @("-y", "skills@latest", "add", $Repo, "--global", "--agent", "codex", "--copy", "--yes", "--full-depth")
+    foreach ($skill in $SkillNames) {
+        $npxArgs += @("--skill", $skill)
+    }
+
+    $oldDoNotTrack = $env:DO_NOT_TRACK
+    $env:DO_NOT_TRACK = "1"
+    try {
+        & npx @npxArgs 2>&1 | ForEach-Object { Write-Host $_ }
+        $exitCode = $LASTEXITCODE
+        return ($exitCode -eq 0)
+    } finally {
+        if ($null -eq $oldDoNotTrack) {
+            Remove-Item Env:DO_NOT_TRACK -ErrorAction SilentlyContinue
+        } else {
+            $env:DO_NOT_TRACK = $oldDoNotTrack
+        }
+    }
+}
+
+function Install-SkillPathsFallback {
+    param([string]$Repo, [string[]]$Paths)
+
+    if (-not (Test-Path $INSTALLER)) {
+        Write-Warn "skill-installer not found at $INSTALLER"
+        $script:SKIPPED_COMPONENTS += "skill pack from $Repo (no npx and fallback installer not found)"
         return
     }
 
@@ -1174,44 +1405,53 @@ function Install-SkillPaths {
     & $exe @pyArgs $INSTALLER --repo $Repo --path @Paths
     if ($LASTEXITCODE -ne 0) {
         Write-Warn "Skill install from $Repo returned non-zero (possibly already installed)"
-        $script:SKIPPED_COMPONENTS += "skill pack from $Repo (installer returned non-zero)"
+        $script:SKIPPED_COMPONENTS += "skill pack from $Repo (fallback installer returned non-zero)"
     }
+}
+
+function Install-SkillPaths {
+    param([string]$Repo, [string[]]$Paths)
+
+    $names = @()
+    foreach ($path in $Paths) {
+        $names += Get-SkillNameFromPath $path
+    }
+
+    if ($DryRun) {
+        Write-Info "Would install via npx skills: ${Repo} -> $($names -join ', ')"
+        Write-Info "Fallback if npx fails: install-skill-from-github.py ${Repo} -> $($Paths -join ', ')"
+        return
+    }
+
+    if (Install-NpxSkillNames $Repo $names) {
+        Write-Ok "Installed skills via npx: $($names -join ', ') ($Repo)"
+        return
+    }
+
+    Write-Warn "npx skills install failed or npx is unavailable; trying Python fallback for $Repo"
+    Install-SkillPathsFallback $Repo $Paths
 }
 
 function Reinstall-SkillPaths {
     param([string]$Repo, [string[]]$Paths)
 
-    if ($DryRun) {
-        Write-Info "Would reinstall from ${Repo}: $($Paths -join ', ')"
-        return
-    }
-
     foreach ($path in $Paths) {
         $skill = Split-Path $path -Leaf
         $dest = Join-Path $CODEX_DIR "skills/$skill"
-        if (Test-Path $dest) {
+        if ($DryRun) {
+            Write-Info "Would remove existing skill before reinstall: $dest"
+        } elseif (Test-Path $dest) {
             Remove-Item -Recurse -Force $dest
             Write-Ok "Removed existing skill before reinstall: $skill"
         }
     }
 
-    $py = Resolve-PythonCommand
-    if (-not $py) {
-        Write-Warn "No usable Python 3 found. Install Python 3 or set PYTHON to a working interpreter."
-        $script:SKIPPED_COMPONENTS += "skill pack from $Repo (Python 3 not found)"
+    if ($DryRun) {
+        Write-Info "Would reinstall via Python skill-installer: ${Repo} -> $($Paths -join ', ')"
         return
     }
 
-    $exe = $py[0]
-    $pyArgs = @()
-    if ($py.Count -gt 1) {
-        $pyArgs = $py[1..($py.Count - 1)]
-    }
-    & $exe @pyArgs $INSTALLER --repo $Repo --path @Paths
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warn "Skill reinstall from $Repo returned non-zero"
-        $script:SKIPPED_COMPONENTS += "skill pack from $Repo (installer returned non-zero)"
-    }
+    Install-SkillPathsFallback $Repo $Paths
 }
 
 function Remove-LegacySuperPowersSkills {
@@ -1229,15 +1469,34 @@ function Remove-LegacySuperPowersSkills {
     }
 }
 
+function Skip-UnsupportedItem {
+    param([string]$Item, [string]$Reason)
+    Write-Warn "$Item is listed for category parity with the Claude installer but is not installed automatically for Codex: $Reason"
+    $script:SKIPPED_COMPONENTS += "$Item ($Reason)"
+}
+
 function Install-Superpowers {
-    Write-Info "Installing full superpowers skill set..."
+    Write-Info "Installing superpowers skill set..."
 
     if ($DryRun) {
-        Write-Info "Would clone or update: $SUPERPOWERS_REPO_URL -> $SUPERPOWERS_DIR"
-        Write-Info "Would create junction:  $SUPERPOWERS_LINK -> $SUPERPOWERS_DIR\skills"
+        Write-Info "Would install via npx skills: obra/superpowers -> all listed superpowers skills"
+        Write-Info "Fallback if npx fails: clone/update $SUPERPOWERS_REPO_URL -> $SUPERPOWERS_DIR and link $SUPERPOWERS_LINK"
         Write-Info "Would remove legacy copied superpowers skills from $CODEX_DIR\skills"
         return
     }
+
+    if (Install-NpxSkillNames "obra/superpowers" @(
+        "brainstorming", "dispatching-parallel-agents", "executing-plans", "finishing-a-development-branch",
+        "receiving-code-review", "requesting-code-review", "subagent-driven-development", "systematic-debugging",
+        "test-driven-development", "using-git-worktrees", "using-superpowers", "verification-before-completion",
+        "writing-plans", "writing-skills"
+    )) {
+        Write-Ok "Installed superpowers via npx skills"
+        Remove-LegacySuperPowersSkills
+        return
+    }
+
+    Write-Warn "npx skills install failed or npx is unavailable; falling back to git clone/junction for superpowers"
 
     if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
         Write-Warn "git not found. Skip full superpowers install."
@@ -1325,6 +1584,13 @@ function Install-Skills {
         if ($script:SelectSkillPaperReading -or $script:SelectSkillHumanizer -or
             $script:SelectSkillHumanizerZh -or $script:SelectSkillHandoff -or
             $script:SelectSkillAdversarialReview -or $script:SelectSkillUpdate -or
+            $script:SelectSkillCodeReview -or $script:SelectSkillKarpathy -or
+            $script:SelectSkillMattPocock -or $script:SelectSkillFrontendDesign -or
+            $script:SelectSkillClaudeMem -or $script:SelectSkillClaudeHealth -or
+            $script:SelectSkillPUA -or $script:SelectSkillFrontendSlides -or
+            $script:SelectSkillPptMaster -or $script:SelectUnsupportedFeatureDev -or
+            $script:SelectUnsupportedRalphLoop -or $script:SelectUnsupportedCommitCommands -or
+            $script:SelectUnsupportedCodeSimplifier -or $script:SelectUnsupportedCodexPlugin -or
             $script:SelectSkillSuperpowers -or $script:SelectSkillDocumentSkills -or
             $script:SelectSkillExampleSkills -or $script:SelectSkillCodingFoundations -or
             $script:SelectAiTokenization -or $script:SelectAiFineTuning -or
@@ -1340,39 +1606,31 @@ function Install-Skills {
 
     Write-Info "Installing skills (group: $SkillGroup)..."
 
-    $remoteAvailable = Test-Path $INSTALLER
-    if (-not $remoteAvailable) {
-        Write-Warn "skill-installer not found at $INSTALLER"
-        Write-Warn "Remote skill packs that depend on it will be skipped."
-    }
-
     if ($SkillGroup -eq "core" -or $SkillGroup -eq "all") {
-        Install-Superpowers
-
-        if ($remoteAvailable) {
-            Install-SkillPaths "anthropics/skills" @(
-                "skills/frontend-design", "skills/pdf", "skills/docx", "skills/pptx", "skills/xlsx",
-                "skills/canvas-design", "skills/algorithmic-art", "skills/mcp-builder"
-            )
-            Install-SkillPaths "affaan-m/everything-claude-code" @(
-                "skills/python-patterns", "skills/python-testing", "skills/golang-patterns", "skills/golang-testing",
-                "skills/frontend-patterns", "skills/security-review", "skills/tdd-workflow", "skills/verification-loop",
-                "skills/api-design", "skills/database-migrations"
-            )
-        } else {
-            $script:SKIPPED_COMPONENTS += "core remote skill packs (skill-installer not found)"
+        if (-not (Install-NpxSkillNames "mattpocock/skills" @("code-review"))) {
+            Skip-UnsupportedItem "code-review" "npx skills install failed; use Codex /review as the native fallback"
         }
 
+        if (-not (Install-NpxSkillNames "forrestchang/andrej-karpathy-skills" @("karpathy-guidelines"))) {
+            Skip-UnsupportedItem "andrej-karpathy-skills" "npx skills install failed"
+        }
+
+        Install-Superpowers
+
+        if (-not (Install-NpxSkillNames "mattpocock/skills" $MATTPOCOCK_SKILLS)) {
+            Skip-UnsupportedItem "mattpocock/skills" "npx skills install failed"
+        }
+
+        Install-SkillPaths "anthropics/skills" @(
+            "skills/frontend-design", "skills/pdf", "skills/docx", "skills/pptx", "skills/xlsx",
+            "skills/canvas-design", "skills/algorithmic-art", "skills/mcp-builder"
+        )
+
+        Skip-UnsupportedItem "coding-foundations" "the former everything-claude-code source is intentionally not used on Codex; use bundled/global Codex skills for language patterns"
         Install-LocalSkills
     }
 
     if ($SkillGroup -eq "ai-research" -or $SkillGroup -eq "all") {
-        if (-not $remoteAvailable) {
-            Write-Warn "Skipping AI research skills because skill-installer is unavailable"
-            $script:SKIPPED_COMPONENTS += "AI research skill packs (skill-installer not found)"
-            return
-        }
-
         Install-SkillPaths "zechenzhangAGI/AI-research-SKILLs" @(
             "02-tokenization/huggingface-tokenizers", "02-tokenization/sentencepiece",
             "03-fine-tuning/axolotl", "03-fine-tuning/llama-factory", "03-fine-tuning/peft", "03-fine-tuning/unsloth",
@@ -1386,7 +1644,7 @@ function Install-Skills {
             "12-inference-serving/tensorrt-llm", "12-inference-serving/llama-cpp"
         )
 
-        # DeepXiv is grouped under "Skills - AI Research" in the README and the
+        # DeepXiv is grouped under "Academic Research" in the README and the
         # interactive menu; keep the non-interactive groups consistent with that.
         Reinstall-SkillPaths "DeepXiv/deepxiv_sdk" @(
             "skills/deepxiv-cli", "skills/deepxiv-baseline-table", "skills/deepxiv-trending-digest"

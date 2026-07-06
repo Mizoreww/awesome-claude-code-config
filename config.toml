@@ -1,15 +1,14 @@
 # Codex configuration template
 
 model = "gpt-5.4"
-model_reasoning_effort = "high"
-# Conservative defaults: Codex asks before privileged actions and file writes
-# stay inside the workspace sandbox. If you prefer full autonomy, switch to:
-#   approval_policy = "never"
-#   sandbox_mode = "danger-full-access"
-approval_policy = "on-request"
-sandbox_mode = "workspace-write"
+model_reasoning_effort = "xhigh"
+# Default to YOLO mode for this config branch. Codex runs without approval
+# prompts and without the workspace sandbox, so use it only in trusted repos.
+approval_policy = "never"
+sandbox_mode = "danger-full-access"
 web_search = "live"
 model_instructions_file = "lessons.md"
+status_line = ["model-with-reasoning", "current-dir", "git-branch", "context-remaining"]
 
 [shell_environment_policy]
 inherit = "all"

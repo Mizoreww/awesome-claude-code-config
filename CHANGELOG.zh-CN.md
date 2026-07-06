@@ -1,5 +1,23 @@
 # 更新日志
 
+## [Unreleased] - 2026-07-06
+
+### 新功能
+- 将 Claude main 的最新安装分类迁移到 Codex 分支，并用 Codex-native 分组呈现：Review、Workflow、Development Tools、Design & Content、Memory & Lifestyle、Academic Research、Slides、MCP Servers。
+- 对兼容的上游 skill 包优先使用 `npx skills@latest add ... --agent codex --copy --yes --full-depth` 安装；按路径安装的包仍保留 Python `skill-installer` 作为 fallback。
+- Codex 模板默认设置为 `model_reasoning_effort = "xhigh"`、`approval_policy = "never"`、`sandbox_mode = "danger-full-access"`，并统一 `status_line` 底边栏字段。
+
+### 设计理由
+- Codex 没有 Claude Code 的同款 plugin runtime，所以迁移目标是保留用户可识别的分类，同时把能力映射到 Codex skills、MCP server 或明确跳过的项目。
+- `npx skills` 是安装包含有效 `SKILL.md` 的跨 agent skill 仓库的直接路径；既有 Python installer 继续作为嵌套路径安装的回退方案。
+- Claude-only command workflow 插件保留展示用于迁移对齐，默认关闭；只有用户主动选择时才会明确跳过。
+
+### 注意事项
+- `github` 和 `lark-mcp` 仍需要真实凭据；非交互安装不会写入占位凭据。
+- `ppt-master` 保留在 Slides 分组中用于对齐，默认关闭；因为未检测到可靠 Codex skill target，会在主动选择时明确跳过。
+- YOLO 自主默认值只适合可信仓库。
+- 已尝试本地 strict-config 验证 `status_line`，但当前 Codex/Node runtime 在进入配置校验前 abort；投产前需要在目标 Codex build 上再次验证该字段。
+
 ## [2.6.1] - 2026-05-25
 
 ### 新功能

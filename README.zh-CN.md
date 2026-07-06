@@ -68,11 +68,15 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 
 | 分组 | 条目 | 默认值 |
 |------|------|--------|
-| Core | `AGENTS.md`、`config.toml`、`lessons.md` | 开启 |
-| Agents | `explorer`、`reviewer`、`docs-researcher` | 开启 |
-| Skills — Recommended | `superpowers`、`document-skills`、`example-skills`、`coding-foundations`、`paper-reading`、`humanizer`、`humanizer-zh`、`handoff`、`adversarial-review`、`update` | 除 `humanizer-zh` 外开启 |
-| Skills — AI Research | `tokenization`、`fine-tuning`、`post-training`、`distributed-training`、`inference-serving`、`optimization`、`deepxiv` | 关闭 |
-| MCP Servers | `context7`、`github`、`playwright`、`openaiDeveloperDocs`、`lark-mcp` | 除 `github` 与 `lark-mcp`（需凭据）外均开启 |
+| Core | `AGENTS.md`、`config.toml`、`StatusLine`、`lessons.md`、`explorer`、`reviewer`、`docs-researcher` | 开启 |
+| Review | `code-review`、`adversarial-review`、`Codex CLI bridge` | 除 `Codex CLI bridge` 外开启 |
+| Workflow | `andrej-karpathy-skills`、`superpowers`、`mattpocock/skills`、`feature-dev`、`ralph-loop`、`commit-commands`、`code-simplifier`、`update-config` | `andrej-karpathy-skills`、`mattpocock/skills`、`update-config` 开启；`superpowers` 和 Claude-only 工作流项默认关闭 |
+| Development Tools | `context7`、`github`、`playwright`、`openaiDeveloperDocs` | 除 `github`（需凭据）外开启 |
+| Design & Content | `document-skills`、`example-skills`、`frontend-design`、`humanizer`、`humanizer-zh` | 除 `humanizer-zh` 外开启 |
+| Memory & Lifestyle | `claude-mem`、`claude-health`、`PUA` | 关闭 |
+| Academic Research | `paper-reading`、`tokenization`、`fine-tuning`、`post-training`、`distributed-training`、`inference-serving`、`optimization`、`deepxiv` | `paper-reading` 开启，其余关闭 |
+| Slides | `frontend-slides`、`ppt-master` | 关闭 |
+| MCP Servers | `lark-mcp` | 关闭（需凭据） |
 
 ## 安装器参数
 
@@ -132,16 +136,23 @@ skills/rules  → python-patterns、golang-patterns、frontend-patterns
 
 | 技能集 | 来源 | 覆盖范围 |
 |-------|------|----------|
-| superpowers | [obra/superpowers](https://github.com/obra/superpowers) | 完整原生 superpowers 集合，含 brainstorming、计划执行、review handoff、worktree 等 |
-| coding-foundations | [affaan-m/everything-claude-code](https://github.com/affaan-m/everything-claude-code) | 语言模式、测试、安全、验证（面向 Codex 的展示名） |
+| mattpocock/skills | [mattpocock/skills](https://github.com/mattpocock/skills) | 通过 `npx skills` 安装 `ask-matt`、grilling/design、research、PRD/issues、implementation、triage、TDD、架构和领域建模工作流 |
+| superpowers | [obra/superpowers](https://github.com/obra/superpowers) | 完整原生 superpowers 集合，含 brainstorming、计划执行、review handoff、worktree 等；优先通过 `npx skills` 安装，失败时回退到 git/junction |
+| andrej-karpathy-skills | [forrestchang/andrej-karpathy-skills](https://github.com/forrestchang/andrej-karpathy-skills) | 通过 `npx skills` 安装 Karpathy 风格编码指南 |
+| coding-foundations | Codex 本地/全局 skills | Claude 时代的 `everything-claude-code` 来源会被有意跳过；Codex 使用已安装的语言/测试/安全 skills |
 | anthropic skills packs | [anthropics/skills](https://github.com/anthropics/skills) | 文档处理、前端设计、画布/艺术、MCP builder |
 | DeepXiv skills | [DeepXiv/deepxiv_sdk](https://github.com/DeepXiv/deepxiv_sdk) | 安装时始终拉取最新 DeepXiv 研究工作流（`deepxiv-cli`、`deepxiv-baseline-table`、`deepxiv-trending-digest`） |
 | AI research skills | [zechenzhangAGI/AI-research-SKILLs](https://github.com/zechenzhangAGI/AI-research-SKILLs) | 分词、微调、后训练、推理服务、分布式训练、优化 |
+| frontend-slides | [zarazhangrui/frontend-slides](https://github.com/zarazhangrui/frontend-slides) | 通过 `npx skills` 安装幻灯片生成 skill；默认关闭 |
+| claude-mem / claude-health / PUA | 上游 skill 仓库 | 可选的 skill-only `npx skills` 安装；常驻 daemon 或 Claude-only command flow 不会自动迁移 |
 
-Superpowers 采用仓库当前的原生发现安装方式：
-- clone 到 `~/.codex/superpowers`
-- 将 `~/.codex/superpowers/skills` 符号链接到 `~/.agents/skills/superpowers`
-- 清理 `~/.codex/skills` 下旧的局部复制安装（`using-superpowers`、`systematic-debugging`、`writing-plans`、`test-driven-development`）
+远程 skills 默认使用：
+
+```bash
+npx -y skills@latest add <repo> --global --agent codex --copy --yes --full-depth --skill <name>
+```
+
+对于按路径安装的技能包，如果 `npx` 不可用或 `skills` CLI 无法解析指定名称，安装器会回退到内置的 `skill-installer` Python helper。Claude-only plugin command 工作流（`feature-dev`、`ralph-loop`、`commit-commands`、`code-simplifier`）会保留在 Workflow 分组中用于迁移对齐，默认关闭；如果主动选择，会明确警告并跳过。
 
 本仓库内置本地技能：
 - `paper-reading`（`skills/paper-reading/SKILL.md`）— 结构化论文阅读与总结
@@ -197,11 +208,13 @@ AGENTS.md 包含 **Code Review** 规则：需要代码审查时，调用 `advers
 
 ## 安全提示
 
-模板默认采用保守配置：
-- `approval_policy = "on-request"`
-- `sandbox_mode = "workspace-write"`
+这个 Codex 分支的模板默认值有意偏自主：
+- `model_reasoning_effort = "xhigh"`
+- `approval_policy = "never"`
+- `sandbox_mode = "danger-full-access"`
+- `status_line = ["model-with-reasoning", "current-dir", "git-branch", "context-remaining"]`
 
-如果你希望完全自主运行，可在 `~/.codex/config.toml` 中改为 `approval_policy = "never"` 和 `sandbox_mode = "danger-full-access"`。
+请只在可信仓库使用这套配置。如果希望保留审批提示和 workspace sandbox，可在 `~/.codex/config.toml` 中改回 `approval_policy = "on-request"` 和 `sandbox_mode = "workspace-write"`。
 
 ## 自定义
 
