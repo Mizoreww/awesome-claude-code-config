@@ -71,9 +71,9 @@ Behavior notes:
 | Core | `AGENTS.md`, `config.toml`, `StatusLine`, `lessons.md`, `explorer`, `reviewer`, `docs-researcher` | On |
 | Review | `code-review`, `adversarial-review` | On |
 | Workflow | `andrej-karpathy-skills`, `superpowers`, `mattpocock/skills`, `update-config` | On for `andrej-karpathy-skills`, `mattpocock/skills`, and `update-config`; `superpowers` off by default |
-| Development Tools | `context7`, `github`, `playwright`, `openaiDeveloperDocs` | On except `github` (needs credentials) |
+| Development Tools | `context7`, `github`, `playwright`, `openaiDeveloperDocs` | On; `github` requires `GITHUB_PERSONAL_ACCESS_TOKEN` |
 | Design & Content | `document-skills`, `example-skills`, `frontend-design`, `humanizer`, `humanizer-zh` | On except `humanizer-zh` |
-| Memory & Lifestyle | `claude-mem`, `claude-health`, `PUA` | Off |
+| Lifestyle | `PUA` | Off |
 | Academic Research | `paper-reading`, `tokenization`, `fine-tuning`, `post-training`, `distributed-training`, `inference-serving`, `optimization`, `deepxiv` | `paper-reading` on; others off |
 | Slides | `frontend-slides` | Off |
 | MCP Servers | `lark-mcp` | Off (needs credentials) |
@@ -143,7 +143,7 @@ This keeps common principles and language-specific practices aligned.
 | DeepXiv skills | [DeepXiv/deepxiv_sdk](https://github.com/DeepXiv/deepxiv_sdk) | latest DeepXiv research workflows (`deepxiv-cli`, `deepxiv-baseline-table`, `deepxiv-trending-digest`) fetched fresh during install |
 | AI research skills | [zechenzhangAGI/AI-research-SKILLs](https://github.com/zechenzhangAGI/AI-research-SKILLs) | tokenization, fine-tuning, post-training, inference, distributed training, optimization |
 | frontend-slides | [zarazhangrui/frontend-slides](https://github.com/zarazhangrui/frontend-slides) | slide generation skill via `npx skills`; default off |
-| claude-mem / claude-health / PUA | upstream skill repos | optional skill-only installs via `npx skills`; long-running daemons or Claude-only command flows are not migrated automatically |
+| PUA | [tanweai/pua](https://github.com/tanweai/pua) | optional productivity coaching skills via `npx skills`; default off |
 
 Remote skills are installed with:
 

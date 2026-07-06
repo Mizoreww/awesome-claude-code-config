@@ -66,7 +66,7 @@ for label in \
   "Workflow" \
   "Development Tools" \
   "Design & Content" \
-  "Memory & Lifestyle" \
+  "Lifestyle" \
   "Academic Research" \
   "Slides" \
   "MCP Servers"; do
@@ -80,11 +80,17 @@ for item in \
   "research" \
   "andrej-karpathy-skills" \
   "frontend-slides" \
-  "claude-health" \
   "PUA"; do
   assert_file_contains "install.sh" "$item"
   assert_file_contains "install.ps1" "$item"
 done
+
+assert_file_contains "install.sh" "github|GitHub workflows (MCP; needs a real PAT)|1|mcp-github"
+assert_file_contains "install.ps1" 'Label = "github"; Description = "GitHub workflows (MCP; needs a real PAT)"; Default = $true'
+assert_file_contains "install.sh" "GITHUB_PERSONAL_ACCESS_TOKEN is not set; skipping GitHub MCP server"
+assert_file_contains "install.ps1" "GITHUB_PERSONAL_ACCESS_TOKEN is not set; skipping GitHub MCP server"
+assert_file_not_contains "install.sh" "GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB_PAT"
+assert_file_not_contains "install.ps1" "GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB_PAT"
 
 assert_file_contains "install.sh" "npx -y skills@latest add"
 assert_file_contains "install.sh" "--agent codex"
@@ -109,6 +115,23 @@ for removed in \
   "SelectSkillPptMaster" \
   "SELECT_SKILL_PPT_MASTER" \
   "skill-ppt-master"; do
+  assert_file_not_contains "install.sh" "$removed"
+  assert_file_not_contains "install.ps1" "$removed"
+  assert_file_not_contains "README.md" "$removed"
+  assert_file_not_contains "README.zh-CN.md" "$removed"
+done
+
+for removed in \
+  "claude-mem" \
+  "claude-health" \
+  "CLAUDE_MEM" \
+  "CLAUDE_HEALTH" \
+  "SelectSkillClaudeMem" \
+  "SelectSkillClaudeHealth" \
+  "SELECT_SKILL_CLAUDE_MEM" \
+  "SELECT_SKILL_CLAUDE_HEALTH" \
+  "skill-claude-mem" \
+  "skill-claude-health"; do
   assert_file_not_contains "install.sh" "$removed"
   assert_file_not_contains "install.ps1" "$removed"
   assert_file_not_contains "README.md" "$removed"

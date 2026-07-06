@@ -71,9 +71,9 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 | Core | `AGENTS.md`、`config.toml`、`StatusLine`、`lessons.md`、`explorer`、`reviewer`、`docs-researcher` | 开启 |
 | Review | `code-review`、`adversarial-review` | 开启 |
 | Workflow | `andrej-karpathy-skills`、`superpowers`、`mattpocock/skills`、`update-config` | `andrej-karpathy-skills`、`mattpocock/skills`、`update-config` 开启；`superpowers` 默认关闭 |
-| Development Tools | `context7`、`github`、`playwright`、`openaiDeveloperDocs` | 除 `github`（需凭据）外开启 |
+| Development Tools | `context7`、`github`、`playwright`、`openaiDeveloperDocs` | 开启；`github` 需要 `GITHUB_PERSONAL_ACCESS_TOKEN` |
 | Design & Content | `document-skills`、`example-skills`、`frontend-design`、`humanizer`、`humanizer-zh` | 除 `humanizer-zh` 外开启 |
-| Memory & Lifestyle | `claude-mem`、`claude-health`、`PUA` | 关闭 |
+| Lifestyle | `PUA` | 关闭 |
 | Academic Research | `paper-reading`、`tokenization`、`fine-tuning`、`post-training`、`distributed-training`、`inference-serving`、`optimization`、`deepxiv` | `paper-reading` 开启，其余关闭 |
 | Slides | `frontend-slides` | 关闭 |
 | MCP Servers | `lark-mcp` | 关闭（需凭据） |
@@ -143,7 +143,7 @@ skills/rules  → python-patterns、golang-patterns、frontend-patterns
 | DeepXiv skills | [DeepXiv/deepxiv_sdk](https://github.com/DeepXiv/deepxiv_sdk) | 安装时始终拉取最新 DeepXiv 研究工作流（`deepxiv-cli`、`deepxiv-baseline-table`、`deepxiv-trending-digest`） |
 | AI research skills | [zechenzhangAGI/AI-research-SKILLs](https://github.com/zechenzhangAGI/AI-research-SKILLs) | 分词、微调、后训练、推理服务、分布式训练、优化 |
 | frontend-slides | [zarazhangrui/frontend-slides](https://github.com/zarazhangrui/frontend-slides) | 通过 `npx skills` 安装幻灯片生成 skill；默认关闭 |
-| claude-mem / claude-health / PUA | 上游 skill 仓库 | 可选的 skill-only `npx skills` 安装；常驻 daemon 或 Claude-only command flow 不会自动迁移 |
+| PUA | [tanweai/pua](https://github.com/tanweai/pua) | 可选的 productivity coaching skills，通过 `npx skills` 安装；默认关闭 |
 
 远程 skills 默认使用：
 

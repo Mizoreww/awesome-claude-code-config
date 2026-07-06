@@ -111,8 +111,6 @@ $script:SelectSkillFrontendDesign = $true
 $script:SelectSkillKarpathy = $true
 $script:SelectSkillMattPocock = $true
 $script:SelectSkillCodeReview = $true
-$script:SelectSkillClaudeMem = $false
-$script:SelectSkillClaudeHealth = $false
 $script:SelectSkillPUA = $false
 $script:SelectSkillFrontendSlides = $false
 $script:SelectSkillPaperReading = $true
@@ -129,7 +127,7 @@ $script:SelectAiInferenceServing = $false
 $script:SelectAiOptimization = $false
 $script:SelectAiDeepXiv = $false
 $script:SelectMcpContext7 = $true
-$script:SelectMcpGithub = $false
+$script:SelectMcpGithub = $true
 $script:SelectMcpPlaywright = $true
 $script:SelectMcpOpenaiDeveloperDocs = $true
 $script:SelectMcpLark = $false
@@ -185,13 +183,6 @@ $MATTPOCOCK_SKILLS = @(
     "grill-me", "grilling", "research", "teach", "writing-great-skills"
 )
 
-$CLAUDE_MEM_SKILLS = @(
-    "babysit", "design-is", "do", "how-it-works", "knowledge-agent", "learn-codebase", "make-plan",
-    "mem-search", "oh-my-issues", "pathfinder", "smart-explore", "standup", "timeline-report",
-    "weekly-digests", "what-the", "wowerpoint"
-)
-
-$CLAUDE_HEALTH_SKILLS = @("check", "health", "hunt", "learn", "read", "think", "ui", "write")
 $PUA_SKILLS = @("pua", "pua-en", "pua-ja")
 $script:CODEX_STATUS_LINE = 'status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "context-window-size", "used-tokens"]'
 $script:CODEX_STATUS_LINE_USE_COLORS = 'status_line_use_colors = true'
@@ -442,7 +433,7 @@ function Reset-InteractiveSelections {
     $script:SelectAiOptimization = $false
     $script:SelectAiDeepXiv = $false
     $script:SelectMcpContext7 = $true
-    $script:SelectMcpGithub = $false
+    $script:SelectMcpGithub = $true
     $script:SelectMcpPlaywright = $true
     $script:SelectMcpOpenaiDeveloperDocs = $true
     $script:SelectMcpLark = $false
@@ -709,16 +700,6 @@ function Install-SelectedRecommendedSkills {
         Install-SkillPaths "anthropics/skills" @("skills/frontend-design")
     }
 
-    if ($script:SelectSkillClaudeMem) {
-        if (-not (Install-NpxSkillNames "thedotmack/claude-mem" $CLAUDE_MEM_SKILLS)) {
-            Skip-UnsupportedItem "claude-mem" "npx skills install failed; full memory daemon behavior is not migrated by this installer"
-        }
-    }
-    if ($script:SelectSkillClaudeHealth) {
-        if (-not (Install-NpxSkillNames "tw93/claude-health" $CLAUDE_HEALTH_SKILLS)) {
-            Skip-UnsupportedItem "claude-health" "npx skills install failed"
-        }
-    }
     if ($script:SelectSkillPUA) {
         if (-not (Install-NpxSkillNames "tanweai/pua" $PUA_SKILLS)) {
             Skip-UnsupportedItem "PUA" "npx skills install failed"
@@ -833,6 +814,19 @@ function Add-McpServer {
     }
 }
 
+function Add-GithubMcpServer {
+    if ([string]::IsNullOrWhiteSpace($env:GITHUB_PERSONAL_ACCESS_TOKEN)) {
+        Write-Warn "GITHUB_PERSONAL_ACCESS_TOKEN is not set; skipping GitHub MCP server"
+        $script:SKIPPED_COMPONENTS += "github MCP server (GITHUB_PERSONAL_ACCESS_TOKEN not set)"
+        return
+    }
+
+    Add-McpServer "github" @(
+        "--env", "GITHUB_PERSONAL_ACCESS_TOKEN=$($env:GITHUB_PERSONAL_ACCESS_TOKEN)",
+        "--", "npx", "-y", "@modelcontextprotocol/server-github"
+    )
+}
+
 function Write-McpResult {
     if ($script:MCP_FAILED_SERVERS.Count -eq 0) {
         Write-Ok "MCP setup complete (existing entries are ignored)"
@@ -855,7 +849,7 @@ function Install-SelectedMcp {
         Add-McpServer "context7" @("--", "npx", "-y", "@upstash/context7-mcp")
     }
     if ($script:SelectMcpGithub) {
-        Add-McpServer "github" @("--env", "GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB_PAT", "--", "npx", "-y", "@modelcontextprotocol/server-github")
+        Add-GithubMcpServer
     }
     if ($script:SelectMcpPlaywright) {
         Add-McpServer "playwright" @("--", "npx", "-y", "@playwright/mcp@latest")
@@ -917,7 +911,7 @@ function Show-InteractiveMenu {
             Hint = "Codex MCP equivalents"
             Items = @(
                 [pscustomobject]@{ Label = "context7"; Description = "Up-to-date library docs (MCP)"; Default = $true; StateVar = "SelectMcpContext7" },
-                [pscustomobject]@{ Label = "github"; Description = "GitHub workflows (MCP; needs a real PAT)"; Default = $false; StateVar = "SelectMcpGithub" },
+                [pscustomobject]@{ Label = "github"; Description = "GitHub workflows (MCP; needs a real PAT)"; Default = $true; StateVar = "SelectMcpGithub" },
                 [pscustomobject]@{ Label = "playwright"; Description = "Browser automation (MCP)"; Default = $true; StateVar = "SelectMcpPlaywright" },
                 [pscustomobject]@{ Label = "openaiDeveloperDocs"; Description = "Official OpenAI docs MCP"; Default = $true; StateVar = "SelectMcpOpenaiDeveloperDocs" }
             )
@@ -934,11 +928,9 @@ function Show-InteractiveMenu {
             )
         },
         [pscustomobject]@{
-            Label = "Memory & Lifestyle"
-            Hint = "session memory and personal productivity"
+            Label = "Lifestyle"
+            Hint = "personal productivity"
             Items = @(
-                [pscustomobject]@{ Label = "claude-mem"; Description = "claude-mem skills via npx; daemon not migrated"; Default = $false; StateVar = "SelectSkillClaudeMem" },
-                [pscustomobject]@{ Label = "claude-health"; Description = "Health check and wellness skills"; Default = $false; StateVar = "SelectSkillClaudeHealth" },
                 [pscustomobject]@{ Label = "PUA"; Description = "Productivity coaching skills (CN / EN / JA)"; Default = $false; StateVar = "SelectSkillPUA" }
             )
         },
@@ -1225,8 +1217,6 @@ function Show-InteractiveMenu {
                 'SelectSkillHandoff' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillAdversarialReview' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillUpdate' { if ($selected) { $skillsSelected = $true } }
-                'SelectSkillClaudeMem' { if ($selected) { $skillsSelected = $true } }
-                'SelectSkillClaudeHealth' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillPUA' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillFrontendSlides' { if ($selected) { $skillsSelected = $true } }
                 'SelectAiTokenization' { if ($selected) { $skillsSelected = $true } }
@@ -1320,12 +1310,10 @@ function Install-Mcp {
         return
     }
 
-    # lark-mcp and github need real credentials; configuring them with the
-    # template placeholders would create active-but-broken servers. They stay
-    # opt-in via the interactive menu or a manual `codex mcp add`.
-    Write-Info "Skipping lark-mcp and github MCP servers: they require real credentials."
-    Write-Info "Enable them via the interactive installer or 'codex mcp add' after filling credentials."
+    Write-Info "Skipping lark-mcp: it requires real app credentials."
+    Write-Info "Enable it via the interactive installer or 'codex mcp add' after filling credentials."
     Add-McpServer "context7" @("--", "npx", "-y", "@upstash/context7-mcp")
+    Add-GithubMcpServer
     Add-McpServer "playwright" @("--", "npx", "-y", "@playwright/mcp@latest")
     Add-McpServer "openaiDeveloperDocs" @("--url", "https://developers.openai.com/mcp")
     Write-McpResult
@@ -1573,7 +1561,6 @@ function Install-Skills {
             $script:SelectSkillAdversarialReview -or $script:SelectSkillUpdate -or
             $script:SelectSkillCodeReview -or $script:SelectSkillKarpathy -or
             $script:SelectSkillMattPocock -or $script:SelectSkillFrontendDesign -or
-            $script:SelectSkillClaudeMem -or $script:SelectSkillClaudeHealth -or
             $script:SelectSkillPUA -or $script:SelectSkillFrontendSlides -or
             $script:SelectSkillSuperpowers -or $script:SelectSkillDocumentSkills -or
             $script:SelectSkillExampleSkills -or

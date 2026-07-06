@@ -78,8 +78,6 @@ SELECT_SKILL_FRONTEND_DESIGN=false
 SELECT_SKILL_KARPATHY=false
 SELECT_SKILL_MATTPOCOCK=false
 SELECT_SKILL_CODE_REVIEW=false
-SELECT_SKILL_CLAUDE_MEM=false
-SELECT_SKILL_CLAUDE_HEALTH=false
 SELECT_SKILL_PUA=false
 SELECT_SKILL_FRONTEND_SLIDES=false
 SELECT_SKILL_PAPER_READING=false
@@ -152,13 +150,6 @@ MATTPOCOCK_SKILLS=(
   grill-me grilling research teach writing-great-skills
 )
 
-CLAUDE_MEM_SKILLS=(
-  babysit design-is do how-it-works knowledge-agent learn-codebase make-plan
-  mem-search oh-my-issues pathfinder smart-explore standup timeline-report
-  weekly-digests what-the wowerpoint
-)
-
-CLAUDE_HEALTH_SKILLS=(check health hunt learn read think ui write)
 PUA_SKILLS=(pua pua-en pua-ja)
 CODEX_STATUS_LINE='status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "context-window-size", "used-tokens"]'
 CODEX_STATUS_LINE_USE_COLORS='status_line_use_colors = true'
@@ -727,6 +718,16 @@ add_mcp_server() {
   fi
 }
 
+add_github_mcp_server() {
+  if [[ -z "${GITHUB_PERSONAL_ACCESS_TOKEN:-}" ]]; then
+    warn "GITHUB_PERSONAL_ACCESS_TOKEN is not set; skipping GitHub MCP server"
+    SKIPPED_COMPONENTS+=("github MCP server (GITHUB_PERSONAL_ACCESS_TOKEN not set)")
+    return 0
+  fi
+
+  add_mcp_server github --env "GITHUB_PERSONAL_ACCESS_TOKEN=$GITHUB_PERSONAL_ACCESS_TOKEN" -- npx -y @modelcontextprotocol/server-github
+}
+
 report_mcp_result() {
   if [[ ${#MCP_FAILED_SERVERS[@]} -eq 0 ]]; then
     ok "MCP setup complete (existing entries are ignored)"
@@ -749,7 +750,7 @@ install_mcp() {
       add_mcp_server context7 -- npx -y @upstash/context7-mcp
     fi
     if $SELECT_MCP_GITHUB; then
-      add_mcp_server github --env GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB_PAT -- npx -y @modelcontextprotocol/server-github
+      add_github_mcp_server
     fi
     if $SELECT_MCP_PLAYWRIGHT; then
       add_mcp_server playwright -- npx -y @playwright/mcp@latest
@@ -772,12 +773,10 @@ install_mcp() {
     return 0
   fi
 
-  # lark-mcp and github need real credentials; configuring them with the
-  # template placeholders would create active-but-broken servers. They stay
-  # opt-in via the interactive menu or a manual `codex mcp add`.
-  info "Skipping lark-mcp and github MCP servers: they require real credentials."
-  info "Enable them via the interactive installer or 'codex mcp add' after filling credentials."
+  info "Skipping lark-mcp: it requires real app credentials."
+  info "Enable it via the interactive installer or 'codex mcp add' after filling credentials."
   add_mcp_server context7 -- npx -y @upstash/context7-mcp
+  add_github_mcp_server
   add_mcp_server playwright -- npx -y @playwright/mcp@latest
   add_mcp_server openaiDeveloperDocs --url https://developers.openai.com/mcp
   report_mcp_result
@@ -1034,14 +1033,6 @@ install_selected_recommended_skills() {
     install_skill_paths anthropics/skills skills/frontend-design
   fi
 
-  if $SELECT_SKILL_CLAUDE_MEM; then
-    install_npx_skill_names thedotmack/claude-mem "${CLAUDE_MEM_SKILLS[@]}" || \
-      skip_unsupported_item "claude-mem" "npx skills install failed; full memory daemon behavior is not migrated by this installer"
-  fi
-  if $SELECT_SKILL_CLAUDE_HEALTH; then
-    install_npx_skill_names tw93/claude-health "${CLAUDE_HEALTH_SKILLS[@]}" || \
-      skip_unsupported_item "claude-health" "npx skills install failed"
-  fi
   if $SELECT_SKILL_PUA; then
     install_npx_skill_names tanweai/pua "${PUA_SKILLS[@]}" || \
       skip_unsupported_item "PUA" "npx skills install failed"
@@ -1213,7 +1204,7 @@ update-config|Update Codex config branch install|1|skill-update")
   GROUP_LABELS+=("Development Tools")
   GROUP_HINTS+=("Codex MCP equivalents")
   GROUP_ITEMS+=("context7|Up-to-date library docs (MCP)|1|mcp-context7
-github|GitHub workflows (MCP; needs a real PAT)|0|mcp-github
+github|GitHub workflows (MCP; needs a real PAT)|1|mcp-github
 playwright|Browser automation (MCP)|1|mcp-playwright
 openaiDeveloperDocs|Official OpenAI docs MCP|1|mcp-openai-docs")
 
@@ -1225,11 +1216,9 @@ frontend-design|Frontend UI design skill|1|skill-frontend-design
 humanizer|Remove AI writing patterns|1|skill-humanizer
 humanizer-zh|Remove Chinese AI writing patterns|0|skill-humanizer-zh")
 
-  GROUP_LABELS+=("Memory & Lifestyle")
-  GROUP_HINTS+=("session memory and personal productivity")
-  GROUP_ITEMS+=("claude-mem|claude-mem skills via npx; daemon not migrated|0|skill-claude-mem
-claude-health|Health check and wellness skills|0|skill-claude-health
-PUA|Productivity coaching skills (CN / EN / JA)|0|skill-pua")
+  GROUP_LABELS+=("Lifestyle")
+  GROUP_HINTS+=("personal productivity")
+  GROUP_ITEMS+=("PUA|Productivity coaching skills (CN / EN / JA)|0|skill-pua")
 
   GROUP_LABELS+=("Academic Research")
   GROUP_HINTS+=("training/inference skills + paper-reading & DeepXiv")
@@ -1555,8 +1544,6 @@ deepxiv|DeepXiv research workflow skills|0|ai-deepxiv")
       skill-handoff)           SELECT_SKILL_HANDOFF=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-adversarial-review) SELECT_SKILL_ADVERSARIAL_REVIEW=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-update)            SELECT_SKILL_UPDATE=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
-      skill-claude-mem)        SELECT_SKILL_CLAUDE_MEM=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
-      skill-claude-health)     SELECT_SKILL_CLAUDE_HEALTH=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-pua)               SELECT_SKILL_PUA=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-frontend-slides)   SELECT_SKILL_FRONTEND_SLIDES=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       ai-tokenization)         SELECT_AI_TOKENIZATION=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
@@ -1591,7 +1578,7 @@ deepxiv|DeepXiv research workflow skills|0|ai-deepxiv")
        $SELECT_SKILL_PAPER_READING || $SELECT_SKILL_HUMANIZER || \
        $SELECT_SKILL_HUMANIZER_ZH || $SELECT_SKILL_HANDOFF || \
        $SELECT_SKILL_ADVERSARIAL_REVIEW || $SELECT_SKILL_UPDATE || \
-       $SELECT_SKILL_CLAUDE_MEM || $SELECT_SKILL_CLAUDE_HEALTH || $SELECT_SKILL_PUA || \
+       $SELECT_SKILL_PUA || \
        $SELECT_SKILL_FRONTEND_SLIDES; then
       if $SELECT_AI_TOKENIZATION || $SELECT_AI_FINE_TUNING || $SELECT_AI_POST_TRAINING || \
          $SELECT_AI_DISTRIBUTED_TRAINING || $SELECT_AI_INFERENCE_SERVING || \

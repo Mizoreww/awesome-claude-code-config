@@ -3,11 +3,12 @@
 ## [Unreleased] - 2026-07-06
 
 ### 新功能
-- 将 Claude main 的最新安装分类迁移到 Codex 分支，并用 Codex-native 分组呈现：Review、Workflow、Development Tools、Design & Content、Memory & Lifestyle、Academic Research、Slides、MCP Servers。
+- 将 Claude main 的最新安装分类迁移到 Codex 分支，并用 Codex-native 分组呈现：Review、Workflow、Development Tools、Design & Content、Lifestyle、Academic Research、Slides、MCP Servers。
 - 对兼容的上游 skill 包优先使用 `npx skills@latest add ... --agent codex --copy --yes --full-depth` 安装；按路径安装的包仍保留 Python `skill-installer` 作为 fallback。
 - Codex 模板默认设置为 `model = "gpt-5.5"`、`model_reasoning_effort = "xhigh"`、`approval_policy = "never"`、`sandbox_mode = "danger-full-access"`，并统一 `[tui].status_line` 底边栏字段。
 - 两个安装器都会把 statusline 写入 `[tui]`，并在合并现有配置时清理误写到顶层或 project 表里的 `status_line`。
-- 移除没有实际 Codex 安装目标的安装器选项，包括 Claude-only command workflow 插件和 `ppt-master`。
+- 移除没有实际 Codex 安装目标的安装器选项，包括 Claude-only command workflow 插件、`ppt-master`、`claude-mem` 和 `claude-health`。
+- GitHub MCP 菜单项默认开启；安装时如果存在 `GITHUB_PERSONAL_ACCESS_TOKEN` 就使用它配置 GitHub MCP，如果没有则跳过且不写入占位 token。
 
 ### 设计理由
 - Codex 没有 Claude Code 的同款 plugin runtime，所以迁移目标是保留用户可识别的分类，同时把能力映射到 Codex skills、MCP server 或明确跳过的项目。
@@ -16,7 +17,7 @@
 - Codex 安装器现在优先保持可选项干净；只会警告或需要很重手动配置的项目不再为了迁移对齐而展示。
 
 ### 注意事项
-- `github` 和 `lark-mcp` 仍需要真实凭据；非交互安装不会写入占位凭据。
+- `github` 和 `lark-mcp` 仍需要真实凭据；GitHub 使用 `GITHUB_PERSONAL_ACCESS_TOKEN`，lark-mcp 因需要 app credentials 仍保持手动配置。
 - Slides 分组目前只安装 `frontend-slides`；`ppt-master` 因安装路径过重，已从该安装器移除。
 - YOLO 自主默认值只适合可信仓库。
 - 已打开的 Codex TUI 可能需要重启或重新运行 `/statusline` 后才会显示新的 footer 字段。

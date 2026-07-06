@@ -3,11 +3,12 @@
 ## [Unreleased] - 2026-07-06
 
 ### Features
-- Migrated the latest Claude main installer categories into the Codex branch as Codex-native groups: Review, Workflow, Development Tools, Design & Content, Memory & Lifestyle, Academic Research, Slides, and MCP Servers.
+- Migrated the latest Claude main installer categories into the Codex branch as Codex-native groups: Review, Workflow, Development Tools, Design & Content, Lifestyle, Academic Research, Slides, and MCP Servers.
 - Added `npx skills@latest add ... --agent codex --copy --yes --full-depth` as the first-choice installer path for compatible upstream skill packs, with the Python `skill-installer` kept as fallback for path-based packs.
 - Set the Codex template defaults to `model = "gpt-5.5"`, `model_reasoning_effort = "xhigh"`, `approval_policy = "never"`, `sandbox_mode = "danger-full-access"`, and a unified `[tui].status_line` footer.
 - Updated both installers to ensure statusline settings inside `[tui]`, removing misplaced top-level or project-scoped `status_line` entries during the merge.
-- Removed Codex installer entries that have no practical Codex install target, including Claude-only command workflow plugins and `ppt-master`.
+- Removed Codex installer entries that have no practical Codex install target, including Claude-only command workflow plugins, `ppt-master`, `claude-mem`, and `claude-health`.
+- Enabled the GitHub MCP menu item by default; installation uses `GITHUB_PERSONAL_ACCESS_TOKEN` when present and skips GitHub MCP without writing a placeholder token when absent.
 
 ### Design Rationale
 - Codex does not have Claude Code's plugin runtime, so the migration preserves user-facing categories while mapping installable capabilities to Codex skills, MCP servers, or explicit skipped items.
@@ -16,7 +17,7 @@
 - The Codex installer now favors a clean selectable surface over migration parity for items that would only warn or require heavy manual setup.
 
 ### Notes & Caveats
-- `github` and `lark-mcp` remain credential-gated; non-interactive installs do not write placeholder credentials.
+- `github` and `lark-mcp` remain credential-gated; GitHub uses `GITHUB_PERSONAL_ACCESS_TOKEN`, while lark-mcp stays manual because it needs app credentials.
 - The Slides group currently installs `frontend-slides` only; `ppt-master` is intentionally omitted because its setup path is too heavy for this installer.
 - The autonomous YOLO defaults should only be used in trusted repositories.
 - Existing Codex TUI sessions may need a restart or `/statusline` refresh before the new footer fields appear.
