@@ -919,9 +919,14 @@ function Add-PlaywrightMcpServer {
     }
 
     if (-not $DryRun) {
-        & npx @launcherArgs "--version" *> $null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warn "Playwright MCP startup check failed; not registering a broken server"
+        $initializeRequest = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"awesome-claude-code-config-installer","version":"1.0.0"}}}'
+        $initializeOutput = $initializeRequest | & npx @launcherArgs 2>&1
+        $initializeExitCode = $LASTEXITCODE
+        $initializeText = ($initializeOutput | ForEach-Object { $_.ToString() }) -join "`n"
+        if ($initializeExitCode -ne 0 -or
+            $initializeText -notmatch '"result"\s*:' -or
+            $initializeText -notmatch '"serverInfo"\s*:') {
+            Write-Warn "Playwright MCP initialize check failed; not registering a broken server"
             $script:MCP_FAILED_SERVERS += "playwright"
             return
         }

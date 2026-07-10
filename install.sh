@@ -778,6 +778,8 @@ get_node_major_version() {
 add_playwright_mcp_server() {
   local node_major=0
   local package="@playwright/mcp@$PLAYWRIGHT_MCP_VERSION"
+  local initialize_output
+  local initialize_request='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"awesome-claude-code-config-installer","version":"1.0.0"}}}'
   local -a launcher_args
 
   if ! node_major="$(get_node_major_version)" && ! $DRY_RUN; then
@@ -806,10 +808,13 @@ add_playwright_mcp_server() {
     launcher_args=(-y "$package")
   fi
 
-  if ! $DRY_RUN && ! npx "${launcher_args[@]}" --version >/dev/null 2>&1; then
-    warn "Playwright MCP startup check failed; not registering a broken server"
-    MCP_FAILED_SERVERS+=("playwright")
-    return 0
+  if ! $DRY_RUN; then
+    if ! initialize_output="$(printf '%s\n' "$initialize_request" | npx "${launcher_args[@]}" 2>&1)" ||
+       [[ "$initialize_output" != *'"result"'* || "$initialize_output" != *'"serverInfo"'* ]]; then
+      warn "Playwright MCP initialize check failed; not registering a broken server"
+      MCP_FAILED_SERVERS+=("playwright")
+      return 0
+    fi
   fi
 
   add_mcp_server playwright -- npx "${launcher_args[@]}"
