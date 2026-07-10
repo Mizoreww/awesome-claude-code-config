@@ -99,6 +99,8 @@ $OWNERSHIP_SKILLS = @($MANAGED_SKILLS) + @($MATTPOCOCK_LEGACY_SKILLS)
 $script:SKIPPED_COMPONENTS = @()
 $script:SCRIPT_DIR = $repoRoot
 $script:MattPocockQuickstartReady = $true
+$script:MATTPOCOCK_VERSION = "v1.1.0"
+$script:MATTPOCOCK_COMMIT = "d574778f94cf620fcc8ce741584093bc650a61d3"
 $DryRun = $false
 
 $quickstart = @(Show-MattPocockQuickstart) -join "`n"
@@ -194,6 +196,28 @@ function npx {
     $global:LASTEXITCODE = 0
 }
 
+$script:DownloadUris = @()
+function Invoke-WebRequest {
+    param(
+        [string]$Uri,
+        [string]$OutFile,
+        [switch]$UseBasicParsing
+    )
+    $script:DownloadUris += $Uri
+    Set-Content -LiteralPath $OutFile -Value "fixture"
+}
+
+function tar {
+    $destinationIndex = [Array]::IndexOf($args, "-C")
+    if ($destinationIndex -lt 0) {
+        $global:LASTEXITCODE = 1
+        return
+    }
+    $destination = $args[$destinationIndex + 1]
+    Copy-Item -LiteralPath $script:PinnedFixtureRoot -Destination $destination -Recurse
+    $global:LASTEXITCODE = 0
+}
+
 try {
     New-Item -ItemType Directory -Path (Join-Path $CODEX_DIR "skills/pua") -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $CODEX_DIR "skills/handoff") -Force | Out-Null
@@ -270,6 +294,52 @@ try {
     Assert-True (-not $script:OwnedManagedSkills.Contains("to-issues")) "to-issues ownership should be removed"
     $lastNpxCall = $script:NpxCalls[-1]
     Assert-True ($lastNpxCall -contains "*") "legacy cleanup should remove all agent associations"
+
+    # Execute the pinned snapshot path itself: stale content must fail and
+    # clear previous ownership; a matching snapshot must use the immutable
+    # commit, install through a local source, and retire only matching locks.
+    $script:PinnedFixtureRoot = Join-Path $tempDir "pinned-fixture/skills-test"
+    foreach ($skill in @("ask-matt", "to-spec")) {
+        $skillDir = Join-Path $script:PinnedFixtureRoot "skills/engineering/$skill"
+        New-Item -ItemType Directory -Path $skillDir -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $skillDir "SKILL.md") -Value "name: $skill"
+    }
+
+    [System.IO.File]::WriteAllLines($MANAGED_SKILLS_STATE_FILE, @("ask-matt", "to-spec"))
+    $script:ManagedSkillOwnershipLoaded = $false
+    $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
+    $staleSkill = Join-Path $AGENTS_SKILLS_DIR "to-spec"
+    New-Item -ItemType Directory -Path $staleSkill -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $staleSkill "SKILL.md") -Value "stale"
+    $script:NpxSkipSkill = "to-spec"
+    $staleResult = Install-MattPocockSkillNames @("ask-matt", "to-spec")
+    Assert-True (-not $staleResult) "stale Matt Pocock content should fail pinned installation"
+    Assert-True (-not $script:OwnedManagedSkills.Contains("ask-matt")) "failed pinned install retained ask-matt ownership"
+    Assert-True (-not $script:OwnedManagedSkills.Contains("to-spec")) "failed pinned install retained to-spec ownership"
+
+    $script:NpxSkipSkill = $null
+    Remove-Item -LiteralPath (Join-Path $AGENTS_SKILLS_DIR "ask-matt") -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $AGENTS_SKILLS_DIR "to-spec") -Recurse -Force -ErrorAction SilentlyContinue
+    Set-Content -LiteralPath $GLOBAL_SKILL_LOCK_FILE -Value '{"version":3,"skills":{"ask-matt":{"source":"mattpocock/skills"},"to-spec":{"source":"mattpocock/skills"},"custom-skill":{"source":"user/custom-skills"}}}'
+    $script:NpxCalls = @()
+    $pinnedResult = Install-MattPocockSkillNames @("ask-matt", "to-spec")
+    Assert-True $pinnedResult "matching pinned Matt Pocock snapshot should install"
+    Assert-True ($script:DownloadUris[-1] -like "*$($script:MATTPOCOCK_COMMIT)*") "archive URL should pin the release commit"
+    $pinnedNpxCall = $script:NpxCalls[-1]
+    Assert-True (-not ($pinnedNpxCall -contains "mattpocock/skills")) "pinned install should not pass mutable remote source to npx"
+    Assert-True (@($pinnedNpxCall | Where-Object { $_ -like "*mattpocock-skills.*" }).Count -gt 0) "pinned install should use a local snapshot path"
+    $lockAfterPinnedInstall = Get-Content -LiteralPath $GLOBAL_SKILL_LOCK_FILE -Raw | ConvertFrom-Json
+    Assert-True (-not $lockAfterPinnedInstall.skills.PSObject.Properties["ask-matt"]) "ask-matt remote lock should be retired"
+    Assert-True (-not $lockAfterPinnedInstall.skills.PSObject.Properties["to-spec"]) "to-spec remote lock should be retired"
+    Assert-True ($lockAfterPinnedInstall.skills.PSObject.Properties["custom-skill"].Value.source -ceq "user/custom-skills") "unrelated lock should be preserved"
+
+    $customReview = Join-Path $AGENTS_SKILLS_DIR "review"
+    New-Item -ItemType Directory -Path $customReview -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $customReview "SKILL.md") -Value "custom"
+    Set-Content -LiteralPath $GLOBAL_SKILL_LOCK_FILE -Value '{"version":3,"skills":{"review":{"source":"user/custom-skills"}}}'
+    $customLegacyResult = Remove-LegacyMattPocockSkills
+    Assert-True $customLegacyResult "custom legacy-name provenance check should succeed"
+    Assert-True (Test-Path $customReview) "custom same-name skill should be preserved"
 } finally {
     $env:PATH = $oldPath
     Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue

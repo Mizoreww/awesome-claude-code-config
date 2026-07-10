@@ -381,9 +381,16 @@ download_archive() {
 reset_ownership_discovery
 mkdir -p "$AGENTS_SKILLS_DIR/to-spec"
 printf '%s\n' stale > "$AGENTS_SKILLS_DIR/to-spec/SKILL.md"
+write_owned_skills ask-matt to-spec
 if NPX_SKIP_SKILL=to-spec TMPDIR="$TMP" \
   install_mattpocock_skill_names ask-matt to-spec; then
   fail "stale Matt Pocock content was accepted as the pinned snapshot"
+fi
+if [[ -f "$MANAGED_SKILLS_STATE_FILE" ]]; then
+  grep -Fxq ask-matt "$MANAGED_SKILLS_STATE_FILE" && \
+    fail "failed pinned upgrade retained ask-matt ownership"
+  grep -Fxq to-spec "$MANAGED_SKILLS_STATE_FILE" && \
+    fail "failed pinned upgrade retained to-spec ownership"
 fi
 rm -rf "$AGENTS_SKILLS_DIR/ask-matt" "$AGENTS_SKILLS_DIR/to-spec"
 mkdir -p "$(dirname "$GLOBAL_SKILL_LOCK_FILE")"

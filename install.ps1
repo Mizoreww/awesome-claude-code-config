@@ -1784,6 +1784,7 @@ function Install-MattPocockSkillNames {
         }
 
         if (-not (Install-NpxSkillNames $sourceDir.FullName $SkillNames)) {
+            Remove-ManagedSkillOwnership $SkillNames
             return $false
         }
 

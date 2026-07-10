@@ -1278,6 +1278,9 @@ install_mattpocock_skill_names() {
 
   local result=0 source_skill target_skill
   install_npx_skill_names "$source_dir" "${skill_names[@]}" || result=$?
+  if [[ "$result" -ne 0 ]]; then
+    remove_managed_skill_ownership "${skill_names[@]}"
+  fi
   if [[ "$result" -eq 0 ]]; then
     for skill in "${skill_names[@]}"; do
       source_skill=$(find "$source_dir/skills" -path "*/$skill/SKILL.md" -type f -print -quit)
