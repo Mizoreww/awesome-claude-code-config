@@ -59,7 +59,8 @@ foreach ($name in @(
     "Get-SelectedManagedSkills",
     "Remove-NpxSkillNames",
     "Remove-SuperpowersFallback",
-    "Sync-InteractiveSkills"
+    "Sync-InteractiveSkills",
+    "Show-MattPocockQuickstart"
 )) {
     $functionText = Get-FunctionText -Path $installerPath -Name $name
     Assert-True ($null -ne $functionText) "install.ps1 should define $name"
@@ -79,6 +80,19 @@ $LEGACY_CLEANUP_SKILLS = @()
 $OWNERSHIP_SKILLS = @($MANAGED_SKILLS)
 $script:SKIPPED_COMPONENTS = @()
 $script:SCRIPT_DIR = $repoRoot
+$script:MattPocockQuickstartReady = $true
+$DryRun = $false
+
+$quickstart = @(Show-MattPocockQuickstart) -join "`n"
+Assert-True ($quickstart -like "*Matt Pocock skills quickstart (30-second setup)*") "quickstart heading should be present"
+Assert-True ($quickstart -like "*/skills*") "quickstart should explain /skills"
+Assert-True ($quickstart -like "*press @*") "quickstart should explain the @ shortcut"
+Assert-True ($quickstart -like "*setup-matt-pocock-skills*") "quickstart should name the setup skill"
+Assert-True ($quickstart -like "*not individual root slash commands*") "quickstart should explain root slash behavior"
+
+$DryRun = $true
+Assert-True (@(Show-MattPocockQuickstart).Count -eq 0) "dry-run should not display the installed quickstart"
+$DryRun = $false
 
 $script:SelectSkillSuperpowers = $false
 $script:SelectSkillDocumentSkills = $false

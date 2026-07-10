@@ -65,6 +65,7 @@ MCP_FAILED_SERVERS=()
 LESSONS_SEEDED=false
 OWNED_MANAGED_SKILLS=()
 MANAGED_SKILLS_OWNERSHIP_LOADED=false
+MATTPOCOCK_QUICKSTART_READY=false
 
 SELECT_CORE_AGENTS_MD=false
 SELECT_CORE_CONFIG=false
@@ -168,6 +169,19 @@ MANAGED_SKILLS_STATE_FILE="$CODEX_DIR/.awesome-claude-code-config-managed-skills
 GLOBAL_SKILL_LOCK_FILE="$HOME/.agents/.skill-lock.json"
 CODEX_STATUS_LINE='status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 CODEX_STATUS_LINE_USE_COLORS='status_line_use_colors = true'
+
+show_mattpocock_quickstart() {
+  $MATTPOCOCK_QUICKSTART_READY || return 0
+  $DRY_RUN && return 0
+
+  echo ""
+  echo "Matt Pocock skills quickstart (30-second setup)"
+  echo "  Matt Pocock skills are already installed; do not run npx again."
+  echo "  1. Restart Codex if it was open during installation."
+  echo "  2. Type /skills (or press @), choose List skills, then search for setup-matt-pocock-skills."
+  echo "  3. Insert and run it; it will ask about your issue tracker, triage labels, and docs location."
+  echo "  Note: installed skills are not individual root slash commands such as /setup-matt-pocock-skills."
+}
 
 cleanup_menu() {
   if $MENU_ACTIVE; then
@@ -1466,8 +1480,11 @@ install_selected_recommended_skills() {
   fi
 
   if $SELECT_SKILL_MATTPOCOCK; then
-    install_npx_skill_names mattpocock/skills "${MATTPOCOCK_SKILLS[@]}" || \
+    if install_npx_skill_names mattpocock/skills "${MATTPOCOCK_SKILLS[@]}"; then
+      MATTPOCOCK_QUICKSTART_READY=true
+    else
       skip_unsupported_item "mattpocock/skills" "npx skills install failed"
+    fi
   fi
 
   if $SELECT_SKILL_DOCUMENTS; then
@@ -1560,8 +1577,11 @@ install_skills() {
 
     install_superpowers
 
-    install_npx_skill_names mattpocock/skills "${MATTPOCOCK_SKILLS[@]}" || \
+    if install_npx_skill_names mattpocock/skills "${MATTPOCOCK_SKILLS[@]}"; then
+      MATTPOCOCK_QUICKSTART_READY=true
+    else
       skip_unsupported_item "mattpocock/skills" "npx skills install failed"
+    fi
 
     install_skill_paths anthropics/skills \
       skills/frontend-design skills/pdf skills/docx skills/pptx skills/xlsx \
@@ -2179,6 +2199,7 @@ main() {
     warn "Resolve the issues above and re-run the installer to complete them."
   fi
 
+  show_mattpocock_quickstart
   ok "Done. Restart Codex to load new skills/config if needed."
 }
 

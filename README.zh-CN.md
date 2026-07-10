@@ -154,6 +154,8 @@ skills/rules  → python-patterns、golang-patterns、frontend-patterns
 npx -y skills@latest add <repo> --global --agent codex --copy --yes --full-depth --skill <name>
 ```
 
+`mattpocock/skills` 安装成功后，安装器会显示一段 30 秒 Codex Quickstart。当前版本的 `skills` CLI 即使指定 `--agent codex --copy`，全局 Codex skill 也可能放在共享目录 `~/.agents/skills`，Codex 会直接发现它们。在 Codex 中输入 `/skills` 并选择 **List skills**，或直接按 `@`，然后搜索 `setup-matt-pocock-skills`。已安装的 skill 不会变成 `/setup-matt-pocock-skills` 这样的根级 slash command。
+
 对于按路径安装的技能包，如果 `npx` 不可用或 `skills` CLI 无法解析指定名称，安装器会回退到内置的 `skill-installer` Python helper。Codex 安装器不会显示没有可安装 Codex target 的 Claude-only plugin 工作流。
 
 本仓库内置本地技能：

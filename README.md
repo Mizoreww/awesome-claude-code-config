@@ -154,6 +154,8 @@ Remote skills are installed with:
 npx -y skills@latest add <repo> --global --agent codex --copy --yes --full-depth --skill <name>
 ```
 
+After `mattpocock/skills` installs successfully, the installer prints a 30-second Codex quickstart. With the current `skills` CLI, global Codex installs may use the shared `~/.agents/skills` directory even when `--agent codex --copy` is set; Codex discovers those skills directly. In Codex, type `/skills` and choose **List skills**, or press `@`, then search for `setup-matt-pocock-skills`. Installed skills are not separate root slash commands such as `/setup-matt-pocock-skills`.
+
 For path-based packs, the installer falls back to the bundled `skill-installer` Python helper if `npx` is unavailable or the `skills` CLI cannot resolve the requested names. The Codex installer does not show Claude-only plugin workflows that have no installable Codex target.
 
 Bundled local skills in this repo:

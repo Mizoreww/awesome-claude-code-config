@@ -239,4 +239,31 @@ mkdir -p "$noninteractive_home/.codex/skills/pua"
 HOME="$noninteractive_home" bash "$ROOT/install.sh" --core >/dev/null
 assert_exists "$noninteractive_home/.codex/skills/pua"
 
+# The Matt Pocock quickstart is shown only after the full pack installs
+# successfully. It must explain Codex's /skills picker rather than inventing
+# one slash command per installed skill.
+clear_skill_selections
+SELECT_SKILL_MATTPOCOCK=true
+MATTPOCOCK_QUICKSTART_READY=false
+install_npx_skill_names() { return 0; }
+install_selected_recommended_skills >/dev/null
+$MATTPOCOCK_QUICKSTART_READY || fail "successful Matt Pocock install did not enable the quickstart"
+quickstart_output="$(show_mattpocock_quickstart)"
+[[ "$quickstart_output" == *"Matt Pocock skills quickstart (30-second setup)"* ]] || fail "quickstart heading missing"
+[[ "$quickstart_output" == *"/skills"* ]] || fail "quickstart should explain /skills"
+[[ "$quickstart_output" == *"press @"* ]] || fail "quickstart should explain the @ shortcut"
+[[ "$quickstart_output" == *"setup-matt-pocock-skills"* ]] || fail "quickstart should name the setup skill"
+[[ "$quickstart_output" == *"not individual root slash commands"* ]] || fail "quickstart should explain root slash behavior"
+
+MATTPOCOCK_QUICKSTART_READY=false
+SKIPPED_COMPONENTS=()
+install_npx_skill_names() { return 1; }
+install_selected_recommended_skills >/dev/null 2>&1
+$MATTPOCOCK_QUICKSTART_READY && fail "failed Matt Pocock install enabled the quickstart"
+
+MATTPOCOCK_QUICKSTART_READY=true
+DRY_RUN=true
+[[ -z "$(show_mattpocock_quickstart)" ]] || fail "dry-run displayed the installed quickstart"
+DRY_RUN=false
+
 printf '%s\n' "Codex skill reconciliation checks passed"

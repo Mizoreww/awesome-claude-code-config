@@ -64,7 +64,7 @@ When making version-level changes to a project (new features, major refactors, a
 
 ## Code Review
 
-Whenever a code review is needed — whether explicitly requested by the user or triggered by a workflow — invoke the `adversarial-review` skill to perform it. In Codex sessions the skill spawns reviewers on the opposite model's CLI (`claude -p`). Never substitute the actual review call with a text-only description.
+Whenever a code review is needed — whether explicitly requested by the user or triggered by a workflow — invoke the `code-review` skill from `mattpocock/skills`. In Codex sessions, do not invoke `adversarial-review` and do not spawn reviewers through `claude -p`; use the Matt Pocock two-axis Standards/Spec review workflow directly.
 
 ## Paper Reading
 

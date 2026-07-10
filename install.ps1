@@ -196,6 +196,7 @@ $MANAGED_SKILLS_STATE_FILE = Join-Path $CODEX_DIR ".awesome-claude-code-config-m
 $GLOBAL_SKILL_LOCK_FILE = Join-Path $HOME ".agents/.skill-lock.json"
 $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
 $script:ManagedSkillOwnershipLoaded = $false
+$script:MattPocockQuickstartReady = $false
 $script:CODEX_STATUS_LINE = 'status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 $script:CODEX_STATUS_LINE_USE_COLORS = 'status_line_use_colors = true'
 
@@ -206,6 +207,20 @@ function Write-Info  { param($msg) Write-Host "[INFO]  $msg" -ForegroundColor Cy
 function Write-Ok    { param($msg) Write-Host "[OK]    $msg" -ForegroundColor Green }
 function Write-Warn  { param($msg) Write-Host "[WARN]  $msg" -ForegroundColor Yellow }
 function Write-Err   { param($msg) Write-Host "[ERROR] $msg" -ForegroundColor Red }
+
+function Show-MattPocockQuickstart {
+    if (-not $script:MattPocockQuickstartReady -or $DryRun) { return }
+
+    @(
+        "",
+        "Matt Pocock skills quickstart (30-second setup)",
+        "  Matt Pocock skills are already installed; do not run npx again.",
+        "  1. Restart Codex if it was open during installation.",
+        "  2. Type /skills (or press @), choose List skills, then search for setup-matt-pocock-skills.",
+        "  3. Insert and run it; it will ask about your issue tracker, triage labels, and docs location.",
+        "  Note: installed skills are not individual root slash commands such as /setup-matt-pocock-skills."
+    )
+}
 
 # ============================================================
 # Script directory detection
@@ -712,7 +727,9 @@ function Install-SelectedRecommendedSkills {
     }
 
     if ($script:SelectSkillMattPocock) {
-        if (-not (Install-NpxSkillNames "mattpocock/skills" $MATTPOCOCK_SKILLS)) {
+        if (Install-NpxSkillNames "mattpocock/skills" $MATTPOCOCK_SKILLS) {
+            $script:MattPocockQuickstartReady = $true
+        } else {
             Skip-UnsupportedItem "mattpocock/skills" "npx skills install failed"
         }
     }
@@ -1993,7 +2010,9 @@ function Install-Skills {
 
         Install-Superpowers
 
-        if (-not (Install-NpxSkillNames "mattpocock/skills" $MATTPOCOCK_SKILLS)) {
+        if (Install-NpxSkillNames "mattpocock/skills" $MATTPOCOCK_SKILLS) {
+            $script:MattPocockQuickstartReady = $true
+        } else {
             Skip-UnsupportedItem "mattpocock/skills" "npx skills install failed"
         }
 
@@ -2205,6 +2224,7 @@ try {
         Write-Warn "Resolve the issues above and re-run the installer to complete them."
     }
 
+    Show-MattPocockQuickstart
     Write-Ok "Done. Restart Codex to load new skills/config if needed."
 } finally {
     Remove-TempDir

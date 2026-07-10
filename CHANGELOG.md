@@ -12,6 +12,8 @@
 - Removed Codex installer entries that have no practical Codex install target, including Claude-only command workflow plugins, `ppt-master`, `claude-mem`, and `claude-health`.
 - Enabled the GitHub MCP menu item by default; installation uses `GITHUB_PERSONAL_ACCESS_TOKEN` when present and skips GitHub MCP without writing a placeholder token when absent.
 - Hardened installer edge cases found in review: removed orphaned managed skill names, restored npx-first AI/DeepXiv paths, and made statusline merging handle missing or multi-line config safely.
+- Added a conditional Matt Pocock post-install quickstart to both installers: after the full pack succeeds, it points users to Codex `/skills` or `@`, names `setup-matt-pocock-skills`, and explains that installed skills are not individual root slash commands.
+- Changed the installed Codex review policy to use Matt Pocock's `code-review` Standards/Spec workflow instead of invoking `adversarial-review` or spawning `claude -p` reviewers.
 
 ### Design Rationale
 - Codex does not have Claude Code's plugin runtime, so the migration preserves user-facing categories while mapping installable capabilities to Codex skills, MCP servers, or explicit skipped items.
@@ -19,6 +21,7 @@
 - Codex's `/statusline` command persists footer fields under `[tui]`; writing a top-level `status_line` can silently land inside the previous TOML table when appended to an existing config.
 - The Codex installer now favors a clean selectable surface over migration parity for items that would only warn or require heavy manual setup.
 - A validated ownership file bounds reconciliation so a generic catalogue name is never treated as deletion authority by itself. `npx skills remove --global --agent codex` updates Codex/global metadata before Codex-local fallback cleanup, and generic `~/.agents/skills` children are never scanned or deleted.
+- Current `skills@latest` global Codex installs can use the canonical shared `~/.agents/skills` directory even with `--agent codex --copy`; Codex discovers that directory, while its root `/` menu remains a command menu and exposes installed skills through `/skills` or `@`.
 
 ### Notes & Caveats
 - `github` and `lark-mcp` remain credential-gated; GitHub uses `GITHUB_PERSONAL_ACCESS_TOKEN`, while lark-mcp stays manual because it needs app credentials.
@@ -27,6 +30,7 @@
 - Existing Codex TUI sessions may need a restart or `/statusline` refresh before the new footer fields appear.
 - Skill reconciliation runs only after a real interactive menu submission. Explicit non-interactive flags remain additive, and core files, MCP configuration, shared-agent skills, unowned/custom skills, and ambiguous legacy entries are not removed.
 - Repeat installs preserve existing `model` and `model_reasoning_effort` values; the new defaults apply only when creating `config.toml`, while a selected StatusLine is refreshed to the managed footer layout.
+- The Matt Pocock quickstart is suppressed for dry-runs and failed installs, and an already-open Codex TUI may need to be restarted before newly installed skills appear.
 
 ## [1.7.3] - 2026-04-09
 

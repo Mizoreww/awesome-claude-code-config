@@ -30,6 +30,9 @@ assert_file_contains "config.toml" "[tui]"
 assert_file_contains "config.toml" 'status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 assert_file_contains "config.toml" "status_line_use_colors = true"
 assert_file_not_contains "config.toml" "model-with-reasoning"
+assert_file_contains "AGENTS.md" 'invoke the `code-review` skill from `mattpocock/skills`'
+assert_file_contains "AGENTS.md" 'do not invoke `adversarial-review`'
+assert_file_not_contains "AGENTS.md" 'invoke the `adversarial-review` skill to perform it'
 assert_file_contains "install.sh" "SELECT_CORE_STATUSLINE"
 assert_file_contains "install.sh" "core-statusline)"
 assert_file_contains "install.ps1" "SelectCoreStatusLine"
@@ -101,6 +104,11 @@ assert_file_contains "install.sh" "initialize_managed_skill_ownership"
 assert_file_contains "install.sh" "add_managed_skill_ownership"
 assert_file_contains "install.sh" "remove_managed_skill_ownership"
 assert_file_contains "install.sh" "confirm_empty_skill_removal"
+assert_file_contains "install.sh" "MATTPOCOCK_QUICKSTART_READY"
+assert_file_contains "install.sh" "show_mattpocock_quickstart"
+assert_file_contains "install.sh" "Matt Pocock skills quickstart (30-second setup)"
+assert_file_contains "install.sh" "Type /skills (or press @)"
+assert_file_contains "install.sh" "not individual root slash commands"
 assert_file_contains "install.sh" "superpowers_ownership_is_recorded"
 assert_file_contains "install.sh" "skills@latest remove"
 assert_file_contains "install.sh" "--global --agent codex --yes"
@@ -120,6 +128,11 @@ assert_file_contains "install.ps1" "function Initialize-ManagedSkillOwnership"
 assert_file_contains "install.ps1" "function Add-ManagedSkillOwnership"
 assert_file_contains "install.ps1" "function Remove-ManagedSkillOwnership"
 assert_file_contains "install.ps1" "function Confirm-EmptySkillRemoval"
+assert_file_contains "install.ps1" "MattPocockQuickstartReady"
+assert_file_contains "install.ps1" "function Show-MattPocockQuickstart"
+assert_file_contains "install.ps1" "Matt Pocock skills quickstart (30-second setup)"
+assert_file_contains "install.ps1" "Type /skills (or press @)"
+assert_file_contains "install.ps1" "not individual root slash commands"
 assert_file_contains "install.ps1" "function Test-SuperpowersOwnershipRecorded"
 assert_file_contains "install.ps1" '"--global", "--agent", "codex", "--yes"'
 assert_file_contains "install.ps1" 'Label = "handoff"; Description = "Conversation handoff skill"; Default = $true; StateVar = "SelectSkillHandoff"'
