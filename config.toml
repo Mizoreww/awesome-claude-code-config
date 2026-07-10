@@ -1,7 +1,7 @@
 # Codex configuration template
 
-model = "gpt-5.5"
-model_reasoning_effort = "xhigh"
+model = "gpt-5.6-sol"
+model_reasoning_effort = "max"
 # Default to YOLO mode for this config branch. Codex runs without approval
 # prompts and without the workspace sandbox, so use it only in trusted repos.
 approval_policy = "never"
@@ -10,7 +10,7 @@ web_search = "live"
 model_instructions_file = "lessons.md"
 
 [tui]
-status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "context-window-size", "used-tokens"]
+status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]
 status_line_use_colors = true
 
 [shell_environment_policy]

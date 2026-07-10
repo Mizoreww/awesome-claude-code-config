@@ -180,7 +180,7 @@ $MATTPOCOCK_SKILLS = @(
 )
 
 $PUA_SKILLS = @("pua", "pua-en", "pua-ja")
-$script:CODEX_STATUS_LINE = 'status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "context-window-size", "used-tokens"]'
+$script:CODEX_STATUS_LINE = 'status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 $script:CODEX_STATUS_LINE_USE_COLORS = 'status_line_use_colors = true'
 
 # ============================================================

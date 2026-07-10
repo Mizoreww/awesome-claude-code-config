@@ -22,12 +22,12 @@ assert_file_not_contains() {
   fi
 }
 
-assert_file_contains "config.toml" 'model = "gpt-5.5"'
-assert_file_contains "config.toml" 'model_reasoning_effort = "xhigh"'
+assert_file_contains "config.toml" 'model = "gpt-5.6-sol"'
+assert_file_contains "config.toml" 'model_reasoning_effort = "max"'
 assert_file_contains "config.toml" 'approval_policy = "never"'
 assert_file_contains "config.toml" 'sandbox_mode = "danger-full-access"'
 assert_file_contains "config.toml" "[tui]"
-assert_file_contains "config.toml" 'status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "context-window-size", "used-tokens"]'
+assert_file_contains "config.toml" 'status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 assert_file_contains "config.toml" "status_line_use_colors = true"
 assert_file_not_contains "config.toml" "model-with-reasoning"
 assert_file_contains "install.sh" "SELECT_CORE_STATUSLINE"
@@ -225,8 +225,8 @@ expected = [
     "project-name",
     "git-branch",
     "context-used",
-    "context-window-size",
-    "used-tokens",
+    "five-hour-limit",
+    "weekly-limit",
 ]
 
 with open(sys.argv[1], "rb") as fh:
@@ -282,15 +282,17 @@ import tomllib
 with open(sys.argv[1], "rb") as fh:
     data = tomllib.load(fh)
 
-if data.get("tui", {}).get("status_line") != [
+expected = [
     "model",
     "reasoning",
     "project-name",
     "git-branch",
     "context-used",
-    "context-window-size",
-    "used-tokens",
-]:
+    "five-hour-limit",
+    "weekly-limit",
+]
+
+if data.get("tui", {}).get("status_line") != expected:
     raise SystemExit("multi-line [tui].status_line was not replaced cleanly")
 PY
 
