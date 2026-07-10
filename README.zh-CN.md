@@ -62,7 +62,9 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 - PowerShell 的纯无参运行在可用控制台 I/O 下会进入交互模式；如果无法使用控制台，就会警告并回退到非交互式全量安装。
 - Bash 的 `--dry-run` 会以非交互式方式预览完整安装。
 - PowerShell 的 `-DryRun` 单独使用时，会以非交互式方式预览完整安装。
-- 两个安装器都会把空的交互提交视为无操作（no-op）——不安装任何内容，也不写版本戳。
+- 交互菜单对安装器托管的 skills 具有最终决定权：重复安装时，之前已安装但本次未勾选的托管 skill 会被移除，自定义或非托管 skill 会保留。
+- 空的交互提交会移除托管清单中的所有既有 skill，但不会删除 `.system`、自定义 skill、Core 文件或 MCP 配置。
+- 显式非交互参数（`--all`、`--core`、`--mcp`、`--skills` 及其 PowerShell 对应参数）仍是增量安装，不会按本次选择清理既有 skill。
 
 ### Codex 菜单分组与默认值
 
@@ -207,13 +209,15 @@ AGENTS.md 包含 **Code Review** 规则：需要代码审查时，调用 `advers
 
 ## 安全提示
 
-这个 Codex 分支的模板默认值有意偏自主：
-- `model = "gpt-5.5"`
-- `model_reasoning_effort = "xhigh"`
+这个分支为新 Codex 配置提供的模板默认值有意偏自主：
+- `model = "gpt-5.6-sol"`
+- `model_reasoning_effort = "max"`
 - `approval_policy = "never"`
 - `sandbox_mode = "danger-full-access"`
-- `[tui].status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "context-window-size", "used-tokens"]`
+- `[tui].status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]`
 - `[tui].status_line_use_colors = true`
+
+重复安装会保留已有的 `model` 和 `model_reasoning_effort`；勾选 StatusLine 时会刷新为上面的托管 footer 字段。
 
 请只在可信仓库使用这套配置。如果希望保留审批提示和 workspace sandbox，可在 `~/.codex/config.toml` 中改回 `approval_policy = "on-request"` 和 `sandbox_mode = "workspace-write"`。
 

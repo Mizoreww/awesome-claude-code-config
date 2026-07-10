@@ -1,11 +1,12 @@
 # 更新日志
 
-## [Unreleased] - 2026-07-06
+## [Unreleased] - 2026-07-10
 
 ### 新功能
 - 将 Claude main 的最新安装分类迁移到 Codex 分支，并用 Codex-native 分组呈现：Review、Workflow、Development Tools、Design & Content、Lifestyle、Academic Research、Slides、MCP Servers。
 - 对兼容的上游 skill 包优先使用 `npx skills@latest add ... --agent codex --copy --yes --full-depth` 安装；按路径安装的包仍保留 Python `skill-installer` 作为 fallback。
-- Codex 模板默认设置为 `model = "gpt-5.5"`、`model_reasoning_effort = "xhigh"`、`approval_policy = "never"`、`sandbox_mode = "danger-full-access"`，并统一 `[tui].status_line` 底边栏字段。
+- Codex 模板默认设置为 `model = "gpt-5.6-sol"`、`model_reasoning_effort = "max"`、`approval_policy = "never"`、`sandbox_mode = "danger-full-access"`；`[tui].status_line` 统一显示模型、推理强度、项目、分支、上下文用量、5 小时配额和每周配额。
+- Bash 和 PowerShell 的重复交互安装现在都以本次菜单选择为准：未勾选的托管 skill 会被移除，空选择会清空托管 skill 目录。
 - 两个安装器都会把 statusline 写入 `[tui]`，并在合并现有配置时清理误写到顶层或 project 表里的 `status_line`。
 - 移除没有实际 Codex 安装目标的安装器选项，包括 Claude-only command workflow 插件、`ppt-master`、`claude-mem` 和 `claude-health`。
 - GitHub MCP 菜单项默认开启；安装时如果存在 `GITHUB_PERSONAL_ACCESS_TOKEN` 就使用它配置 GitHub MCP，如果没有则跳过且不写入占位 token。
@@ -16,12 +17,15 @@
 - `npx skills` 是安装包含有效 `SKILL.md` 的跨 agent skill 仓库的直接路径；既有 Python installer 继续作为嵌套路径安装的回退方案。
 - Codex 的 `/statusline` 会把 footer 字段保存到 `[tui]`；把 `status_line` 追加到顶层可能因为 TOML table 作用域而悄悄落进前一个表。
 - Codex 安装器现在优先保持可选项干净；只会警告或需要很重手动配置的项目不再为了迁移对齐而展示。
+- 清理范围受固定的托管 skill 清单约束；安装器先通过 `npx skills remove --global --agent codex` 处理共享/全局关联，再只对 Codex 本地目录做 fallback 清理，因此不会误删自定义 skill。
 
 ### 注意事项
 - `github` 和 `lark-mcp` 仍需要真实凭据；GitHub 使用 `GITHUB_PERSONAL_ACCESS_TOKEN`，lark-mcp 因需要 app credentials 仍保持手动配置。
 - Slides 分组目前只安装 `frontend-slides`；`ppt-master` 因安装路径过重，已从该安装器移除。
 - YOLO 自主默认值只适合可信仓库。
 - 已打开的 Codex TUI 可能需要重启或重新运行 `/statusline` 后才会显示新的 footer 字段。
+- Skill 清理只在真实的交互菜单提交后执行；显式非交互参数仍是增量安装，Core 文件、MCP 配置和非托管 skill 不会被移除。
+- 重复安装会保留已有的 `model` 与 `model_reasoning_effort`；新默认值只在新建 `config.toml` 时使用，勾选 StatusLine 则会刷新为托管的 footer 布局。
 
 ## [2.6.1] - 2026-05-25
 

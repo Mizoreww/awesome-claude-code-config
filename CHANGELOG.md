@@ -1,11 +1,12 @@
 # Changelog
 
-## [Unreleased] - 2026-07-06
+## [Unreleased] - 2026-07-10
 
 ### Features
 - Migrated the latest Claude main installer categories into the Codex branch as Codex-native groups: Review, Workflow, Development Tools, Design & Content, Lifestyle, Academic Research, Slides, and MCP Servers.
 - Added `npx skills@latest add ... --agent codex --copy --yes --full-depth` as the first-choice installer path for compatible upstream skill packs, with the Python `skill-installer` kept as fallback for path-based packs.
-- Set the Codex template defaults to `model = "gpt-5.5"`, `model_reasoning_effort = "xhigh"`, `approval_policy = "never"`, `sandbox_mode = "danger-full-access"`, and a unified `[tui].status_line` footer.
+- Set the Codex template defaults to `model = "gpt-5.6-sol"`, `model_reasoning_effort = "max"`, `approval_policy = "never"`, `sandbox_mode = "danger-full-access"`, and a `[tui].status_line` footer showing model, reasoning, project, branch, context use, five-hour quota, and weekly quota.
+- Made repeat interactive installs selection-authoritative for installer-managed skills in both Bash and PowerShell: skills left unchecked are removed, including an empty selection that clears the managed catalog.
 - Updated both installers to ensure statusline settings inside `[tui]`, removing misplaced top-level or project-scoped `status_line` entries during the merge.
 - Removed Codex installer entries that have no practical Codex install target, including Claude-only command workflow plugins, `ppt-master`, `claude-mem`, and `claude-health`.
 - Enabled the GitHub MCP menu item by default; installation uses `GITHUB_PERSONAL_ACCESS_TOKEN` when present and skips GitHub MCP without writing a placeholder token when absent.
@@ -16,12 +17,15 @@
 - `npx skills` is the most direct cross-agent skill installer for repositories that expose valid `SKILL.md` entries, while the existing Python installer remains useful as a fallback for nested path installs.
 - Codex's `/statusline` command persists footer fields under `[tui]`; writing a top-level `status_line` can silently land inside the previous TOML table when appended to an existing config.
 - The Codex installer now favors a clean selectable surface over migration parity for items that would only warn or require heavy manual setup.
+- A fixed managed-skill catalog bounds reconciliation so the installer can remove its own stale selections without deleting custom skills; `npx skills remove --global --agent codex` handles shared/global associations before Codex-local fallback cleanup.
 
 ### Notes & Caveats
 - `github` and `lark-mcp` remain credential-gated; GitHub uses `GITHUB_PERSONAL_ACCESS_TOKEN`, while lark-mcp stays manual because it needs app credentials.
 - The Slides group currently installs `frontend-slides` only; `ppt-master` is intentionally omitted because its setup path is too heavy for this installer.
 - The autonomous YOLO defaults should only be used in trusted repositories.
 - Existing Codex TUI sessions may need a restart or `/statusline` refresh before the new footer fields appear.
+- Skill reconciliation runs only after a real interactive menu submission. Explicit non-interactive flags remain additive, and core files, MCP configuration, and unmanaged skills are not removed.
+- Repeat installs preserve existing `model` and `model_reasoning_effort` values; the new defaults apply only when creating `config.toml`, while a selected StatusLine is refreshed to the managed footer layout.
 
 ## [1.7.3] - 2026-04-09
 

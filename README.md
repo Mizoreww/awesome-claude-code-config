@@ -62,7 +62,9 @@ Behavior notes:
 - PowerShell plain no-arg runs are interactive when console I/O is available; if it cannot use the console, it warns and falls back to a non-interactive full install.
 - In Bash, `--dry-run` previews the full install non-interactively.
 - In PowerShell, `-DryRun` alone previews the full install non-interactively.
-- Both shells treat an empty interactive submission as a no-op (nothing is installed and no version stamp is written).
+- Interactive selections are authoritative for installer-managed skills: on a repeat install, managed skills left unchecked are removed, while unmanaged/custom skills are preserved.
+- An empty interactive submission removes all previously installed skills in the managed catalog; it does not delete `.system`, custom skills, core files, or MCP configuration.
+- Explicit non-interactive component flags (`--all`, `--core`, `--mcp`, `--skills` and their PowerShell equivalents) remain additive and do not reconcile prior skill selections.
 
 ### Codex menu groups and defaults
 
@@ -207,13 +209,15 @@ See [`docs/claude-main-to-codex-migration.md`](./docs/claude-main-to-codex-migra
 
 ## Security Note
 
-Template defaults are intentionally autonomous for this Codex branch:
-- `model = "gpt-5.5"`
-- `model_reasoning_effort = "xhigh"`
+Template defaults for new Codex configurations are intentionally autonomous for this branch:
+- `model = "gpt-5.6-sol"`
+- `model_reasoning_effort = "max"`
 - `approval_policy = "never"`
 - `sandbox_mode = "danger-full-access"`
-- `[tui].status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "context-window-size", "used-tokens"]`
+- `[tui].status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]`
 - `[tui].status_line_use_colors = true`
+
+Repeat installs preserve an existing `model` and `model_reasoning_effort`; selecting StatusLine refreshes the managed footer fields above.
 
 Use this config only in trusted repositories. If you prefer approval prompts and a workspace sandbox, switch these back to `approval_policy = "on-request"` and `sandbox_mode = "workspace-write"` in `~/.codex/config.toml`.
 
