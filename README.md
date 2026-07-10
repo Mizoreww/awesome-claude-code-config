@@ -189,7 +189,7 @@ Default MCP servers in `config.toml`:
 | Playwright | browser automation and E2E testing ([repo](https://github.com/microsoft/playwright-mcp)) |
 | OpenAI Developer Docs | official OpenAI docs MCP endpoint (`https://developers.openai.com/mcp`) |
 
-The installer pins Playwright MCP to the version it has tested and runs a startup smoke check before registering it with Codex. With Node.js 20 or newer it uses the standard upstream `npx` command. On older Node.js installations it prints a warning and uses an isolated Node.js 24 runtime for Playwright only, without replacing the user's system Node.js. A supported Node.js 24 LTS installation is still recommended; the compatibility runtime requires `npx` and downloads its packages on first use.
+The installer pins Playwright MCP to the version it has tested and completes an MCP `initialize` handshake before registering it with Codex. With Node.js 20 or newer it uses the standard upstream `npx` command. On older Node.js installations it prints a warning and uses an isolated Node.js 24 runtime for Playwright only, without replacing the user's system Node.js. The static `config.toml` template uses that compatible launcher too, so a Core-only install cannot reintroduce the startup failure. A supported Node.js 24 LTS installation is still recommended; the compatibility runtime requires `npx` and downloads its packages on first use.
 
 ## Installation Notes
 
