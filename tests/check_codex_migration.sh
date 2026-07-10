@@ -112,6 +112,9 @@ assert_file_contains "install.sh" "not individual root slash commands"
 assert_file_contains "install.sh" "superpowers_ownership_is_recorded"
 assert_file_contains "install.sh" "skills@latest remove"
 assert_file_contains "install.sh" "--global --agent codex --yes"
+assert_file_contains "install.sh" "remove_legacy_mattpocock_skills"
+assert_file_contains "install.sh" "locked_skill_source_matches"
+assert_file_contains "install.sh" "--global --agent '*' --yes"
 assert_file_not_contains "install.sh" "SELECT_SKILL_CODING_FOUNDATIONS"
 assert_file_contains "install.sh" "handoff|Conversation handoff skill|1|skill-handoff"
 assert_file_not_contains "install.sh" '-e "$AGENTS_SKILLS_DIR/$skill"'
@@ -135,9 +138,11 @@ assert_file_contains "install.ps1" "Type /skills (or press @)"
 assert_file_contains "install.ps1" "not individual root slash commands"
 assert_file_contains "install.ps1" "function Test-SuperpowersOwnershipRecorded"
 assert_file_contains "install.ps1" '"--global", "--agent", "codex", "--yes"'
+assert_file_contains "install.ps1" "function Remove-LegacyMattPocockSkills"
+assert_file_contains "install.ps1" "function Test-LockedSkillSource"
+assert_file_contains "install.ps1" '@("--global", "--agent", "*", "--yes")'
 assert_file_contains "install.ps1" 'Label = "handoff"; Description = "Conversation handoff skill"; Default = $true; StateVar = "SelectSkillHandoff"'
 assert_file_not_contains "install.ps1" 'SelectSkillCodingFoundations'
-assert_file_not_contains "install.ps1" 'Join-Path $AGENTS_SKILLS_DIR $skill'
 assert_file_contains "install.ps1" "Resolve-PythonCommand"
 
 assert_file_contains "install.sh" "affaan-m/everything-claude-code"
@@ -303,6 +308,38 @@ for array_name in ("SUPERPOWERS_SKILLS", "MATTPOCOCK_SKILLS", "PUA_SKILLS"):
     missing = sorted(set(bash_values) - bash_skills)
     if missing:
         raise SystemExit(f"{array_name} contains unmanaged skills: {', '.join(missing)}")
+
+expected_mattpocock = {
+    "ask-matt", "diagnosing-bugs", "grill-with-docs", "triage", "implement",
+    "improve-codebase-architecture", "setup-matt-pocock-skills", "tdd",
+    "to-spec", "to-tickets", "wayfinder", "prototype", "domain-modeling",
+    "codebase-design", "grill-me", "grilling", "research", "teach",
+    "writing-great-skills",
+}
+retired_mattpocock = {"to-issues", "to-prd", "decision-mapping", "review"}
+for label, text in (("install.sh", bash), ("install.ps1", ps)):
+    if label == "install.sh":
+        current = set(re.search(
+            r"(?m)^MATTPOCOCK_SKILLS=\((?P<body>.*?)\)", text, re.S
+        ).group("body").split())
+        legacy = set(re.search(
+            r"(?m)^MATTPOCOCK_LEGACY_SKILLS=\((?P<body>.*?)\)", text, re.S
+        ).group("body").split())
+    else:
+        current = set(re.findall(r'"([^"]+)"', re.search(
+            r"(?m)^\$MATTPOCOCK_SKILLS = @\((?P<body>.*?)\)", text, re.S
+        ).group("body")))
+        legacy = set(re.findall(r'"([^"]+)"', re.search(
+            r"(?m)^\$MATTPOCOCK_LEGACY_SKILLS = @\((?P<body>.*?)\)", text, re.S
+        ).group("body")))
+    if current != expected_mattpocock:
+        raise SystemExit(f"{label} Matt Pocock v1.1 manifest is incorrect: {sorted(current)}")
+    if legacy != retired_mattpocock:
+        raise SystemExit(f"{label} Matt Pocock legacy manifest is incorrect: {sorted(legacy)}")
+
+mattpocock_commit = "d574778f94cf620fcc8ce741584093bc650a61d3"
+if bash.count(mattpocock_commit) != 1 or ps.count(mattpocock_commit) != 1:
+    raise SystemExit("both installers must pin the Matt Pocock v1.1.0 release commit exactly once")
 
 if bash.count("reconcile_interactive_skills") != 2:
     raise SystemExit("Bash reconciliation should have exactly one definition and one interactive call")

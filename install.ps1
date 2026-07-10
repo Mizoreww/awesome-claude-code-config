@@ -158,7 +158,7 @@ $MANAGED_SKILLS = @(
     "frontend-slides",
     "ask-matt", "diagnosing-bugs", "grill-with-docs", "triage",
     "implement", "improve-codebase-architecture", "setup-matt-pocock-skills", "tdd",
-    "to-issues", "to-prd", "prototype", "domain-modeling", "codebase-design",
+    "to-spec", "to-tickets", "wayfinder", "prototype", "domain-modeling", "codebase-design",
     "grill-me", "grilling", "research", "teach", "writing-great-skills",
     "pua", "pua-en", "pua-ja"
 )
@@ -168,7 +168,11 @@ $LEGACY_CLEANUP_SKILLS = @(
     "security-review", "tdd-workflow", "verification-loop", "api-design", "database-migrations"
 )
 
-$OWNERSHIP_SKILLS = @($MANAGED_SKILLS) + @($LEGACY_CLEANUP_SKILLS)
+$MATTPOCOCK_LEGACY_SKILLS = @(
+    "to-issues", "to-prd", "decision-mapping", "review"
+)
+
+$OWNERSHIP_SKILLS = @($MANAGED_SKILLS) + @($LEGACY_CLEANUP_SKILLS) + @($MATTPOCOCK_LEGACY_SKILLS)
 
 $LEGACY_SUPERPOWERS_SKILLS = @(
     "using-superpowers",
@@ -180,7 +184,7 @@ $LEGACY_SUPERPOWERS_SKILLS = @(
 $MATTPOCOCK_SKILLS = @(
     "ask-matt", "diagnosing-bugs", "grill-with-docs", "triage",
     "implement", "improve-codebase-architecture", "setup-matt-pocock-skills", "tdd",
-    "to-issues", "to-prd", "prototype", "domain-modeling", "codebase-design",
+    "to-spec", "to-tickets", "wayfinder", "prototype", "domain-modeling", "codebase-design",
     "grill-me", "grilling", "research", "teach", "writing-great-skills"
 )
 
@@ -197,6 +201,8 @@ $GLOBAL_SKILL_LOCK_FILE = Join-Path $HOME ".agents/.skill-lock.json"
 $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
 $script:ManagedSkillOwnershipLoaded = $false
 $script:MattPocockQuickstartReady = $false
+$script:MATTPOCOCK_VERSION = "v1.1.0"
+$script:MATTPOCOCK_COMMIT = "d574778f94cf620fcc8ce741584093bc650a61d3"
 $script:CODEX_STATUS_LINE = 'status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 $script:CODEX_STATUS_LINE_USE_COLORS = 'status_line_use_colors = true'
 $script:PLAYWRIGHT_MCP_VERSION = "0.0.78"
@@ -220,7 +226,7 @@ function Show-MattPocockQuickstart {
         "  Matt Pocock skills are already installed; do not run npx again.",
         "  1. Restart Codex if it was open during installation.",
         "  2. Type /skills (or press @), choose List skills, then search for setup-matt-pocock-skills.",
-        "  3. Insert and run it; it will ask about your issue tracker, triage labels, and docs location.",
+        "  3. Insert and run it; it will configure the issue tracker, triage labels when applicable, and domain docs.",
         "  Note: installed skills are not individual root slash commands such as /setup-matt-pocock-skills."
     )
 }
@@ -714,7 +720,7 @@ function Install-SelectedAgents {
 
 function Install-SelectedRecommendedSkills {
     if ($script:SelectSkillCodeReview) {
-        if (-not (Install-NpxSkillNames "mattpocock/skills" @("code-review"))) {
+        if (-not (Install-MattPocockSkillNames @("code-review"))) {
             Skip-UnsupportedItem "code-review" "npx skills install failed; use Codex /review as the native fallback"
         }
     }
@@ -730,7 +736,7 @@ function Install-SelectedRecommendedSkills {
     }
 
     if ($script:SelectSkillMattPocock) {
-        if (Install-NpxSkillNames "mattpocock/skills" $MATTPOCOCK_SKILLS) {
+        if (Install-MattPocockSkillNames $MATTPOCOCK_SKILLS) {
             $script:MattPocockQuickstartReady = $true
         } else {
             Skip-UnsupportedItem "mattpocock/skills" "npx skills install failed"
@@ -1461,7 +1467,9 @@ function Test-ManagedSkillName {
 function Get-ExpectedSkillSource {
     param([string]$Skill)
 
-    if ($Skill -ceq "code-review" -or (Test-SkillInList $Skill $MATTPOCOCK_SKILLS)) {
+    if ($Skill -ceq "code-review" -or
+        (Test-SkillInList $Skill $MATTPOCOCK_SKILLS) -or
+        (Test-SkillInList $Skill $MATTPOCOCK_LEGACY_SKILLS)) {
         return "mattpocock/skills"
     }
     if ($Skill -ceq "karpathy-guidelines") {
@@ -1653,6 +1661,55 @@ function Confirm-EmptySkillRemoval {
     return (Confirm-Action "Remove $Count previously installer-managed skill(s)?")
 }
 
+function Test-InstalledSkillNames {
+    param([string[]]$SkillNames)
+
+    $missing = @()
+    foreach ($skill in $SkillNames) {
+        $canonicalSkill = Join-Path $AGENTS_SKILLS_DIR "$skill/SKILL.md"
+        $codexSkill = Join-Path $CODEX_DIR "skills/$skill/SKILL.md"
+        if (-not (Test-Path -LiteralPath $canonicalSkill -PathType Leaf) -and
+            -not (Test-Path -LiteralPath $codexSkill -PathType Leaf)) {
+            $missing += $skill
+        }
+    }
+
+    if ($missing.Count -gt 0) {
+        Write-Warn "npx skills returned success but did not install: $($missing -join ', ')"
+        return $false
+    }
+    return $true
+}
+
+function Remove-MattPocockSkillLockEntries {
+    param([string[]]$SkillNames)
+
+    if (-not (Test-Path -LiteralPath $GLOBAL_SKILL_LOCK_FILE -PathType Leaf)) {
+        return $true
+    }
+    try {
+        $lock = Get-Content -LiteralPath $GLOBAL_SKILL_LOCK_FILE -Raw | ConvertFrom-Json
+        foreach ($skill in $SkillNames) {
+            $property = $lock.skills.PSObject.Properties[$skill]
+            if ($property -and $property.Value.source -ceq "mattpocock/skills") {
+                $lock.skills.PSObject.Properties.Remove($skill)
+            }
+        }
+        $tempLock = "$GLOBAL_SKILL_LOCK_FILE.tmp.$PID"
+        $encoding = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText(
+            $tempLock,
+            (($lock | ConvertTo-Json -Depth 20) + [Environment]::NewLine),
+            $encoding
+        )
+        Move-Item -LiteralPath $tempLock -Destination $GLOBAL_SKILL_LOCK_FILE -Force
+        return $true
+    } catch {
+        Remove-Item -LiteralPath "$GLOBAL_SKILL_LOCK_FILE.tmp.$PID" -Force -ErrorAction SilentlyContinue
+        return $false
+    }
+}
+
 function Install-NpxSkillNames {
     param([string]$Repo, [string[]]$SkillNames)
 
@@ -1675,7 +1732,7 @@ function Install-NpxSkillNames {
     try {
         & npx @npxArgs 2>&1 | ForEach-Object { Write-Host $_ }
         $exitCode = $LASTEXITCODE
-        if ($exitCode -eq 0) {
+        if ($exitCode -eq 0 -and (Test-InstalledSkillNames $SkillNames)) {
             Add-ManagedSkillOwnership $SkillNames
             return $true
         }
@@ -1686,6 +1743,74 @@ function Install-NpxSkillNames {
         } else {
             $env:DO_NOT_TRACK = $oldDoNotTrack
         }
+    }
+}
+
+function Install-MattPocockSkillNames {
+    param([string[]]$SkillNames)
+
+    if (-not (Remove-LegacyMattPocockSkills)) {
+        return $false
+    }
+
+    if ($DryRun) {
+        Write-Info "Would install Matt Pocock $($script:MATTPOCOCK_VERSION) from commit $($script:MATTPOCOCK_COMMIT): $($SkillNames -join ', ')"
+        return $true
+    }
+
+    $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("mattpocock-skills." + [guid]::NewGuid().ToString("N"))
+    $archive = Join-Path $tempDir "source.tar.gz"
+    New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+
+    try {
+        $archiveUrl = "https://github.com/mattpocock/skills/archive/$($script:MATTPOCOCK_COMMIT).tar.gz"
+        Invoke-WebRequest -Uri $archiveUrl -OutFile $archive -UseBasicParsing
+        tar -xzf $archive -C $tempDir
+        if ($LASTEXITCODE -ne 0) {
+            throw "tar extraction failed with exit code $LASTEXITCODE"
+        }
+
+        $sourceDir = Get-ChildItem -LiteralPath $tempDir -Directory | Select-Object -First 1
+        if (-not $sourceDir) {
+            throw "pinned archive did not contain a repository root"
+        }
+
+        foreach ($skill in $SkillNames) {
+            $matches = @(Get-ChildItem -LiteralPath (Join-Path $sourceDir.FullName "skills") `
+                -Recurse -Filter "SKILL.md" -File | Where-Object { $_.Directory.Name -ceq $skill })
+            if ($matches.Count -eq 0) {
+                throw "pinned archive is missing requested skill: $skill"
+            }
+        }
+
+        if (-not (Install-NpxSkillNames $sourceDir.FullName $SkillNames)) {
+            return $false
+        }
+
+        foreach ($skill in $SkillNames) {
+            $sourceSkill = @(Get-ChildItem -LiteralPath (Join-Path $sourceDir.FullName "skills") `
+                -Recurse -Filter "SKILL.md" -File | Where-Object { $_.Directory.Name -ceq $skill })[0].Directory.FullName
+            $targetSkill = Join-Path $AGENTS_SKILLS_DIR $skill
+            if (-not (Test-Path -LiteralPath $targetSkill -PathType Container)) {
+                $targetSkill = Join-Path $CODEX_DIR "skills/$skill"
+            }
+            if (-not (Test-DirectoryTreeEqual $sourceSkill $targetSkill)) {
+                Write-Warn "Installed Matt Pocock skill does not match pinned snapshot: $skill"
+                Remove-ManagedSkillOwnership $SkillNames
+                return $false
+            }
+        }
+        if (-not (Remove-MattPocockSkillLockEntries $SkillNames)) {
+            Write-Warn "Could not retire remote Matt Pocock lock entries after pinned installation"
+            Remove-ManagedSkillOwnership $SkillNames
+            return $false
+        }
+        return $true
+    } catch {
+        Write-Warn "Could not install Matt Pocock $($script:MATTPOCOCK_VERSION): $($_.Exception.Message)"
+        return $false
+    } finally {
+        Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -1760,6 +1885,69 @@ function Remove-NpxSkillNames {
     }
 }
 
+function Test-LockedSkillSource {
+    param([string]$Skill, [string]$ExpectedSource)
+
+    if (-not (Test-Path -LiteralPath $GLOBAL_SKILL_LOCK_FILE -PathType Leaf)) {
+        return $false
+    }
+    try {
+        $lock = Get-Content -LiteralPath $GLOBAL_SKILL_LOCK_FILE -Raw | ConvertFrom-Json
+        $property = $lock.skills.PSObject.Properties[$Skill]
+        return ($property -and $property.Value.source -ceq $ExpectedSource)
+    } catch {
+        return $false
+    }
+}
+
+function Remove-LegacyMattPocockSkills {
+    Initialize-ManagedSkillOwnership
+
+    $removable = @()
+    foreach ($skill in $MATTPOCOCK_LEGACY_SKILLS) {
+        if ($script:OwnedManagedSkills.Contains($skill) -or
+            (Test-LockedSkillSource $skill "mattpocock/skills")) {
+            $removable += $skill
+        }
+    }
+    if ($removable.Count -eq 0) { return $true }
+
+    if ($DryRun) {
+        Write-Info "Would remove retired Matt Pocock skills from all agent associations: $($removable -join ', ')"
+        return $true
+    }
+
+    if (-not (Get-Command "npx" -ErrorAction SilentlyContinue)) {
+        Write-Warn "npx not found; cannot safely migrate retired Matt Pocock skills: $($removable -join ', ')"
+        return $false
+    }
+
+    $npxArgs = @("-y", "skills@latest", "remove") + $removable + @("--global", "--agent", "*", "--yes")
+    $oldDoNotTrack = $env:DO_NOT_TRACK
+    $env:DO_NOT_TRACK = "1"
+    try {
+        & npx @npxArgs 2>&1 | ForEach-Object { Write-Host $_ }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn "npx skills could not migrate retired Matt Pocock skills: $($removable -join ', ')"
+            return $false
+        }
+    } finally {
+        if ($null -eq $oldDoNotTrack) {
+            Remove-Item Env:DO_NOT_TRACK -ErrorAction SilentlyContinue
+        } else {
+            $env:DO_NOT_TRACK = $oldDoNotTrack
+        }
+    }
+
+    foreach ($skill in $removable) {
+        Remove-Item -LiteralPath (Join-Path $AGENTS_SKILLS_DIR $skill) -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath (Join-Path $CODEX_DIR "skills/$skill") -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    Remove-ManagedSkillOwnership $removable
+    Write-Ok "Removed retired Matt Pocock skills: $($removable -join ', ')"
+    return $true
+}
+
 function Remove-SuperpowersFallback {
     if (-not (Test-SuperpowersFallbackOwned)) {
         if ((Test-Path $SUPERPOWERS_LINK) -or (Test-Path $SUPERPOWERS_DIR)) {
@@ -1807,8 +1995,12 @@ function Sync-InteractiveSkills {
     $stale = @()
 
     Initialize-ManagedSkillOwnership
+    if (-not (Remove-LegacyMattPocockSkills)) {
+        Write-Warn "Retired Matt Pocock skills were preserved because migration cleanup failed"
+    }
 
     foreach ($skill in @($script:OwnedManagedSkills)) {
+        if (Test-SkillInList $skill $MATTPOCOCK_LEGACY_SKILLS) { continue }
         if ($desired -contains $skill) { continue }
         $stale += $skill
     }
@@ -2071,7 +2263,7 @@ function Install-Skills {
     Write-Info "Installing skills (group: $SkillGroup)..."
 
     if ($SkillGroup -eq "core" -or $SkillGroup -eq "all") {
-        if (-not (Install-NpxSkillNames "mattpocock/skills" @("code-review"))) {
+        if (-not (Install-MattPocockSkillNames @("code-review"))) {
             Skip-UnsupportedItem "code-review" "npx skills install failed; use Codex /review as the native fallback"
         }
 
@@ -2081,7 +2273,7 @@ function Install-Skills {
 
         Install-Superpowers
 
-        if (Install-NpxSkillNames "mattpocock/skills" $MATTPOCOCK_SKILLS) {
+        if (Install-MattPocockSkillNames $MATTPOCOCK_SKILLS) {
             $script:MattPocockQuickstartReady = $true
         } else {
             Skip-UnsupportedItem "mattpocock/skills" "npx skills install failed"

@@ -16,6 +16,40 @@ printf '%s\n' "$*" >> "$NPX_LOG"
 if [[ "${NPX_FAIL:-false}" == "true" ]]; then
   exit 1
 fi
+
+if [[ " $* " == *" add "* ]]; then
+  while [[ $# -gt 0 ]]; do
+    if [[ "$1" == "--skill" && $# -ge 2 ]]; then
+      skill="$2"
+      if [[ "$skill" != "${NPX_SKIP_SKILL:-}" ]]; then
+        mkdir -p "$HOME/.agents/skills/$skill"
+        printf '%s\n' '---' "name: $skill" '---' > "$HOME/.agents/skills/$skill/SKILL.md"
+      fi
+      shift 2
+      continue
+    fi
+    shift
+  done
+fi
+
+if [[ " $* " == *" remove "* ]]; then
+  remove_all_agents=false
+  [[ " $* " == *" --agent * --yes "* ]] && remove_all_agents=true
+  removing=false
+  for arg in "$@"; do
+    if [[ "$arg" == "remove" ]]; then
+      removing=true
+      continue
+    fi
+    $removing || continue
+    [[ "$arg" == --* ]] && break
+    rm -rf "$HOME/.codex/skills/$arg"
+    if $remove_all_agents; then
+      rm -rf "$HOME/.agents/skills/$arg" "$HOME/.claude/skills/$arg" \
+        "$HOME/.openclaw/skills/$arg"
+    fi
+  done
+fi
 SH
 chmod +x "$TMP/bin/npx"
 export PATH="$TMP/bin:$PATH"
@@ -102,6 +136,20 @@ sort -u "$reachable_file" -o "$reachable_file"
 for managed_skill in "${MANAGED_SKILLS[@]}"; do
   grep -Fxq "$managed_skill" "$reachable_file" || \
     fail "managed skill is unreachable from every selection: $managed_skill"
+done
+
+# The Matt Pocock selection follows the pinned v1.1 workflow vocabulary.
+clear_skill_selections
+SELECT_SKILL_MATTPOCOCK=true
+mattpocock_selection="$(selected_managed_skill_names)"
+for skill in to-spec to-tickets wayfinder; do
+  grep -Fxq "$skill" <<< "$mattpocock_selection" || \
+    fail "Matt Pocock selection is missing v1.1 skill: $skill"
+done
+for skill in to-prd to-issues decision-mapping review; do
+  if grep -Fxq "$skill" <<< "$mattpocock_selection"; then
+    fail "Matt Pocock selection still exposes retired skill: $skill"
+  fi
 done
 
 clear_skill_selections
@@ -225,6 +273,21 @@ grep -Fxq humanizer "$MANAGED_SKILLS_STATE_FILE" || fail "local install did not 
 install_npx_skill_names zarazhangrui/frontend-slides frontend-slides
 grep -Fxq frontend-slides "$MANAGED_SKILLS_STATE_FILE" || fail "npx install did not record ownership"
 
+# A zero exit from npx is insufficient when it silently skips a requested
+# skill. The installer must verify every requested directory before recording
+# ownership or reporting success.
+reset_ownership_discovery
+rm -rf "$AGENTS_SKILLS_DIR/to-spec" "$AGENTS_SKILLS_DIR/to-tickets"
+if NPX_SKIP_SKILL=to-tickets install_npx_skill_names mattpocock/skills to-spec to-tickets; then
+  fail "partial npx install was reported as successful"
+fi
+if [[ -f "$MANAGED_SKILLS_STATE_FILE" ]]; then
+  grep -Fxq to-spec "$MANAGED_SKILLS_STATE_FILE" && \
+    fail "partial npx install recorded ownership"
+  grep -Fxq to-tickets "$MANAGED_SKILLS_STATE_FILE" && \
+    fail "missing npx skill recorded ownership"
+fi
+
 # Empty skill selections require a second confirmation before bulk removal.
 mkdir -p "$CODEX_DIR/skills/pua"
 write_owned_skills pua
@@ -245,7 +308,8 @@ assert_exists "$noninteractive_home/.codex/skills/pua"
 clear_skill_selections
 SELECT_SKILL_MATTPOCOCK=true
 MATTPOCOCK_QUICKSTART_READY=false
-install_npx_skill_names() { return 0; }
+real_install_mattpocock_skill_names="$(declare -f install_mattpocock_skill_names)"
+install_mattpocock_skill_names() { return 0; }
 install_selected_recommended_skills >/dev/null
 $MATTPOCOCK_QUICKSTART_READY || fail "successful Matt Pocock install did not enable the quickstart"
 quickstart_output="$(show_mattpocock_quickstart)"
@@ -257,7 +321,7 @@ quickstart_output="$(show_mattpocock_quickstart)"
 
 MATTPOCOCK_QUICKSTART_READY=false
 SKIPPED_COMPONENTS=()
-install_npx_skill_names() { return 1; }
+install_mattpocock_skill_names() { return 1; }
 install_selected_recommended_skills >/dev/null 2>&1
 $MATTPOCOCK_QUICKSTART_READY && fail "failed Matt Pocock install enabled the quickstart"
 
@@ -265,5 +329,86 @@ MATTPOCOCK_QUICKSTART_READY=true
 DRY_RUN=true
 [[ -z "$(show_mattpocock_quickstart)" ]] || fail "dry-run displayed the installed quickstart"
 DRY_RUN=false
+eval "$real_install_mattpocock_skill_names"
+
+# Retired Matt Pocock names are removed from the shared canonical directory
+# only when ownership/provenance is known, and their ownership records are
+# retired with them.
+reset_ownership_discovery
+mkdir -p "$AGENTS_SKILLS_DIR/to-prd" "$AGENTS_SKILLS_DIR/to-issues"
+printf '%s\n' legacy > "$AGENTS_SKILLS_DIR/to-prd/SKILL.md"
+printf '%s\n' legacy > "$AGENTS_SKILLS_DIR/to-issues/SKILL.md"
+write_owned_skills to-prd to-issues
+: > "$NPX_LOG"
+remove_legacy_mattpocock_skills || fail "legacy Matt Pocock cleanup failed"
+assert_missing "$AGENTS_SKILLS_DIR/to-prd"
+assert_missing "$AGENTS_SKILLS_DIR/to-issues"
+grep -Fq -- '--agent * --yes' "$NPX_LOG" || \
+  fail "legacy Matt Pocock cleanup did not remove all shared-agent associations"
+if [[ -f "$MANAGED_SKILLS_STATE_FILE" ]]; then
+  grep -Fxq to-prd "$MANAGED_SKILLS_STATE_FILE" && \
+    fail "retired to-prd ownership survived migration"
+  grep -Fxq to-issues "$MANAGED_SKILLS_STATE_FILE" && \
+    fail "retired to-issues ownership survived migration"
+fi
+
+reset_ownership_discovery
+mkdir -p "$AGENTS_SKILLS_DIR/review" "$(dirname "$GLOBAL_SKILL_LOCK_FILE")"
+printf '%s\n' custom > "$AGENTS_SKILLS_DIR/review/SKILL.md"
+printf '%s\n' '{"version":3,"skills":{"review":{"source":"user/custom-skills"}}}' > \
+  "$GLOBAL_SKILL_LOCK_FILE"
+remove_legacy_mattpocock_skills || fail "custom-name provenance check failed"
+assert_exists "$AGENTS_SKILLS_DIR/review"
+
+# Matt Pocock installs use an immutable source snapshot. The skills CLI
+# currently ignores remote tag/commit suffixes, so the installer downloads the
+# pinned archive first and then installs from that local directory.
+pinned_fixture="$TMP/pinned-mattpocock/skills-test"
+mkdir -p "$pinned_fixture/skills/engineering/ask-matt" \
+  "$pinned_fixture/skills/engineering/to-spec"
+printf '%s\n' '---' 'name: ask-matt' '---' > \
+  "$pinned_fixture/skills/engineering/ask-matt/SKILL.md"
+printf '%s\n' '---' 'name: to-spec' '---' > \
+  "$pinned_fixture/skills/engineering/to-spec/SKILL.md"
+fixture_archive="$TMP/pinned-mattpocock.tar.gz"
+tar -czf "$fixture_archive" -C "$TMP/pinned-mattpocock" skills-test
+download_log="$TMP/mattpocock-download.log"
+download_archive() {
+  printf '%s\n' "$1" > "$download_log"
+  cp "$fixture_archive" "$2"
+}
+
+reset_ownership_discovery
+mkdir -p "$AGENTS_SKILLS_DIR/to-spec"
+printf '%s\n' stale > "$AGENTS_SKILLS_DIR/to-spec/SKILL.md"
+if NPX_SKIP_SKILL=to-spec TMPDIR="$TMP" \
+  install_mattpocock_skill_names ask-matt to-spec; then
+  fail "stale Matt Pocock content was accepted as the pinned snapshot"
+fi
+rm -rf "$AGENTS_SKILLS_DIR/ask-matt" "$AGENTS_SKILLS_DIR/to-spec"
+mkdir -p "$(dirname "$GLOBAL_SKILL_LOCK_FILE")"
+printf '%s\n' '{"version":3,"skills":{"ask-matt":{"source":"mattpocock/skills"},"to-spec":{"source":"mattpocock/skills"},"custom-skill":{"source":"user/custom-skills"}}}' > \
+  "$GLOBAL_SKILL_LOCK_FILE"
+: > "$NPX_LOG"
+TMPDIR="$TMP" install_mattpocock_skill_names ask-matt to-spec || \
+  fail "pinned Matt Pocock snapshot install failed"
+grep -Fq "$MATTPOCOCK_COMMIT" "$download_log" || \
+  fail "Matt Pocock archive URL was not pinned to the release commit"
+grep -Fq "$TMP/mattpocock-skills." "$NPX_LOG" || \
+  fail "Matt Pocock skills were not installed from the local pinned snapshot"
+if grep -Fq 'add mattpocock/skills ' "$NPX_LOG"; then
+  fail "Matt Pocock install still passed the mutable remote source to npx"
+fi
+python3 - "$GLOBAL_SKILL_LOCK_FILE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as fh:
+    skills = json.load(fh)["skills"]
+if "ask-matt" in skills or "to-spec" in skills:
+    raise SystemExit("remote Matt Pocock lock entries survived pinned installation")
+if skills.get("custom-skill", {}).get("source") != "user/custom-skills":
+    raise SystemExit("unrelated skill lock entry changed during pinned installation")
+PY
 
 printf '%s\n' "Codex skill reconciliation checks passed"

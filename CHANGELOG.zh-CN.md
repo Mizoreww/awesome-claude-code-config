@@ -3,6 +3,8 @@
 ## [Unreleased] - 2026-07-10
 
 ### 新功能
+- 托管的 Matt Pocock 工作流升级到 v1.1.0：用 `to-spec`/`to-tickets` 替换 `to-prd`/`to-issues`，新增 `wayfinder`，并把已退役的 `decision-mapping`/`review` 降为仅迁移清理项。
+- Bash 与 PowerShell 都会下载 release commit `d574778f94cf620fcc8ce741584093bc650a61d3` 的本地快照来实现可复现安装；新增逐 skill 内容验证、匹配远程 lock 条目退役，以及基于来源校验的共享 agent 关联清理。
 - 将 Claude main 的最新安装分类迁移到 Codex 分支，并用 Codex-native 分组呈现：Review、Workflow、Development Tools、Design & Content、Lifestyle、Academic Research、Slides、MCP Servers。
 - 对兼容的上游 skill 包优先使用 `npx skills@latest add ... --agent codex --copy --yes --full-depth` 安装；按路径安装的包仍保留 Python `skill-installer` 作为 fallback。
 - Codex 模板默认设置为 `model = "gpt-5.6-sol"`、`model_reasoning_effort = "max"`、`approval_policy = "never"`、`sandbox_mode = "danger-full-access"`；`[tui].status_line` 统一显示模型、推理强度、项目、分支、上下文用量、5 小时配额和每周配额。
@@ -17,15 +19,17 @@
 - Bash、PowerShell 安装器与静态 `config.toml` 模板现在都能安全启动 Playwright MCP：固定 `@playwright/mcp@0.0.78`，主机 Node.js 低于 20 时使用隔离的 Node.js 24 launcher，并在 MCP `initialize` 没有返回结果时拒绝写入坏配置。
 
 ### 设计理由
+- `skills@latest` 返回成功并不代表每个请求名称都已安装，而且远程 tag/commit 后缀当前可能解析不一致。预验证的不可变本地快照配合显式目录检查，可以阻止部分安装和混合版本。
 - Codex 没有 Claude Code 的同款 plugin runtime，所以迁移目标是保留用户可识别的分类，同时把能力映射到 Codex skills、MCP server 或明确跳过的项目。
 - `npx skills` 是安装包含有效 `SKILL.md` 的跨 agent skill 仓库的直接路径；既有 Python installer 继续作为嵌套路径安装的回退方案。
 - Codex 的 `/statusline` 会把 footer 字段保存到 `[tui]`；把 `status_line` 追加到顶层可能因为 TOML table 作用域而悄悄落进前一个表。
 - Codex 安装器现在优先保持可选项干净；只会警告或需要很重手动配置的项目不再为了迁移对齐而展示。
-- 清理范围受经过校验的 ownership 文件约束，目录名本身不再代表删除权限。安装器先通过 `npx skills remove --global --agent codex` 更新 Codex/全局元数据，再只对 Codex 本地目录做 fallback 清理；不会扫描或删除普通的 `~/.agents/skills` 子目录。
+- 清理范围受经过校验的 ownership 文件约束，目录名本身不再代表删除权限。安装器先通过 `npx skills remove --global --agent codex` 更新 Codex/全局元数据，再只对 Codex 本地目录做 fallback 清理；除显式且来源已验证的退役项迁移外，不会扫描或删除普通的 `~/.agents/skills` 子目录。
 - 当前 `skills@latest` 即使指定 `--agent codex --copy`，全局 Codex skill 也可能安装到规范化的共享目录 `~/.agents/skills`；Codex 会发现该目录，而根 `/` 菜单仍是命令菜单，已安装 skills 通过 `/skills` 或 `@` 进入。
 - `codex mcp add` 只能证明配置已写入，不能证明 stdio 进程能完成初始化。安装前向实际 launcher 发送 JSON-RPC `initialize` 请求，可以阻止不兼容的 Node.js/Playwright 组合被误报为成功；固定 MCP 版本则避免后续 `latest` 发布悄悄改变已验证命令。
 
 ### 注意事项
+- Matt Pocock 旧名称只有在 installer ownership 或匹配的 `mattpocock/skills` lock 来源证明其归属时，才会移除全部 agent 关联；来源不明的同名自定义 skill 会被保留。
 - `github` 和 `lark-mcp` 仍需要真实凭据；GitHub 使用 `GITHUB_PERSONAL_ACCESS_TOKEN`，lark-mcp 因需要 app credentials 仍保持手动配置。
 - Slides 分组目前只安装 `frontend-slides`；`ppt-master` 因安装路径过重，已从该安装器移除。
 - YOLO 自主默认值只适合可信仓库。

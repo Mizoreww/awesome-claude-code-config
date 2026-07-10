@@ -3,6 +3,8 @@
 ## [Unreleased] - 2026-07-10
 
 ### Features
+- Upgraded the managed Matt Pocock workflow set to v1.1.0: `to-prd`/`to-issues` are replaced by `to-spec`/`to-tickets`, `wayfinder` is added, and the retired `decision-mapping`/`review` names are migration-only cleanup entries.
+- Made Matt Pocock installs reproducible in both Bash and PowerShell by downloading release commit `d574778f94cf620fcc8ce741584093bc650a61d3` and installing from the local snapshot; added per-skill content verification, retirement of matching remote lock entries, and provenance-gated cleanup across shared agent associations.
 - Migrated the latest Claude main installer categories into the Codex branch as Codex-native groups: Review, Workflow, Development Tools, Design & Content, Lifestyle, Academic Research, Slides, and MCP Servers.
 - Added `npx skills@latest add ... --agent codex --copy --yes --full-depth` as the first-choice installer path for compatible upstream skill packs, with the Python `skill-installer` kept as fallback for path-based packs.
 - Set the Codex template defaults to `model = "gpt-5.6-sol"`, `model_reasoning_effort = "max"`, `approval_policy = "never"`, `sandbox_mode = "danger-full-access"`, and a `[tui].status_line` footer showing model, reasoning, project, branch, context use, five-hour quota, and weekly quota.
@@ -17,15 +19,17 @@
 - Made Playwright MCP runtime-safe across both installers and the static `config.toml` template: pin `@playwright/mcp@0.0.78`, use an isolated Node.js 24 launcher when the host Node.js is older than 20, and refuse to register the server unless it returns an MCP `initialize` result.
 
 ### Design Rationale
+- A successful `skills@latest` exit does not prove that every requested name was installed, and remote tag/commit suffixes currently resolve inconsistently. A prevalidated immutable local snapshot plus explicit directory checks prevents partial or mixed-version installs.
 - Codex does not have Claude Code's plugin runtime, so the migration preserves user-facing categories while mapping installable capabilities to Codex skills, MCP servers, or explicit skipped items.
 - `npx skills` is the most direct cross-agent skill installer for repositories that expose valid `SKILL.md` entries, while the existing Python installer remains useful as a fallback for nested path installs.
 - Codex's `/statusline` command persists footer fields under `[tui]`; writing a top-level `status_line` can silently land inside the previous TOML table when appended to an existing config.
 - The Codex installer now favors a clean selectable surface over migration parity for items that would only warn or require heavy manual setup.
-- A validated ownership file bounds reconciliation so a generic catalogue name is never treated as deletion authority by itself. `npx skills remove --global --agent codex` updates Codex/global metadata before Codex-local fallback cleanup, and generic `~/.agents/skills` children are never scanned or deleted.
+- A validated ownership file bounds reconciliation so a generic catalogue name is never treated as deletion authority by itself. `npx skills remove --global --agent codex` updates Codex/global metadata before Codex-local fallback cleanup, and generic `~/.agents/skills` children are never scanned or deleted except by an explicit provenance-verified retired-source migration.
 - Current `skills@latest` global Codex installs can use the canonical shared `~/.agents/skills` directory even with `--agent codex --copy`; Codex discovers that directory, while its root `/` menu remains a command menu and exposes installed skills through `/skills` or `@`.
 - `codex mcp add` proves that configuration was written, not that the stdio process can initialize. Sending the exact launcher a JSON-RPC `initialize` request first prevents an incompatible Node.js/Playwright combination from being reported as a successful install, while pinning the MCP version prevents a later `latest` release from silently changing a validated command.
 
 ### Notes & Caveats
+- Matt Pocock legacy cleanup removes all agent associations only when installer ownership or a matching `mattpocock/skills` lock source proves provenance; unknown same-name skills are preserved.
 - `github` and `lark-mcp` remain credential-gated; GitHub uses `GITHUB_PERSONAL_ACCESS_TOKEN`, while lark-mcp stays manual because it needs app credentials.
 - The Slides group currently installs `frontend-slides` only; `ppt-master` is intentionally omitted because its setup path is too heavy for this installer.
 - The autonomous YOLO defaults should only be used in trusted repositories.

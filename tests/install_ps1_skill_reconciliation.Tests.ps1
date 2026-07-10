@@ -56,8 +56,14 @@ foreach ($name in @(
     "Add-ManagedSkillOwnership",
     "Remove-ManagedSkillOwnership",
     "Confirm-EmptySkillRemoval",
+    "Test-InstalledSkillNames",
+    "Remove-MattPocockSkillLockEntries",
+    "Install-NpxSkillNames",
+    "Install-MattPocockSkillNames",
     "Get-SelectedManagedSkills",
     "Remove-NpxSkillNames",
+    "Test-LockedSkillSource",
+    "Remove-LegacyMattPocockSkills",
     "Remove-SuperpowersFallback",
     "Sync-InteractiveSkills",
     "Show-MattPocockQuickstart"
@@ -71,13 +77,25 @@ function Write-Info { param($Message) }
 function Write-Ok { param($Message) }
 function Write-Warn { param($Message) }
 
-$MANAGED_SKILLS = @("humanizer", "humanizer-zh", "handoff", "pua", "brainstorming", "frontend-slides")
+$MANAGED_SKILLS = @(
+    "humanizer", "humanizer-zh", "handoff", "pua", "brainstorming", "frontend-slides",
+    "ask-matt", "diagnosing-bugs", "grill-with-docs", "triage", "implement",
+    "improve-codebase-architecture", "setup-matt-pocock-skills", "tdd",
+    "to-spec", "to-tickets", "wayfinder", "prototype", "domain-modeling",
+    "codebase-design", "grill-me", "grilling", "research", "teach", "writing-great-skills"
+)
 $SUPERPOWERS_SKILLS = @("brainstorming")
-$MATTPOCOCK_SKILLS = @("ask-matt")
+$MATTPOCOCK_SKILLS = @(
+    "ask-matt", "diagnosing-bugs", "grill-with-docs", "triage", "implement",
+    "improve-codebase-architecture", "setup-matt-pocock-skills", "tdd",
+    "to-spec", "to-tickets", "wayfinder", "prototype", "domain-modeling",
+    "codebase-design", "grill-me", "grilling", "research", "teach", "writing-great-skills"
+)
+$MATTPOCOCK_LEGACY_SKILLS = @("to-issues", "to-prd", "decision-mapping", "review")
 $PUA_SKILLS = @("pua", "pua-en", "pua-ja")
 $LOCAL_MANAGED_SKILLS = @("humanizer", "humanizer-zh", "handoff")
 $LEGACY_CLEANUP_SKILLS = @()
-$OWNERSHIP_SKILLS = @($MANAGED_SKILLS)
+$OWNERSHIP_SKILLS = @($MANAGED_SKILLS) + @($MATTPOCOCK_LEGACY_SKILLS)
 $script:SKIPPED_COMPONENTS = @()
 $script:SCRIPT_DIR = $repoRoot
 $script:MattPocockQuickstartReady = $true
@@ -107,6 +125,15 @@ $script:SelectSkillPaperReading = $false
 $script:SelectSkillHumanizer = $true
 $script:SelectSkillHumanizerZh = $false
 $script:SelectSkillHandoff = $false
+$script:SelectSkillMattPocock = $true
+$selected = @(Get-SelectedManagedSkills)
+foreach ($skill in @("to-spec", "to-tickets", "wayfinder")) {
+    Assert-True ($selected -contains $skill) "Matt Pocock selection is missing v1.1 skill: $skill"
+}
+foreach ($skill in $MATTPOCOCK_LEGACY_SKILLS) {
+    Assert-True (-not ($selected -contains $skill)) "Matt Pocock selection still exposes retired skill: $skill"
+}
+$script:SelectSkillMattPocock = $false
 $script:SelectSkillAdversarialReview = $false
 $script:SelectSkillUpdate = $false
 $script:SelectAiTokenization = $false
@@ -142,6 +169,28 @@ $script:NpxCalls = @()
 
 function npx {
     $script:NpxCalls += ,@($args)
+    $isAdd = $args -contains "add"
+    $isRemove = $args -contains "remove"
+    if ($isAdd) {
+        for ($i = 0; $i -lt $args.Count - 1; $i++) {
+            if ($args[$i] -ceq "--skill") {
+                $skill = $args[$i + 1]
+                if ($skill -cne $script:NpxSkipSkill) {
+                    $skillDir = Join-Path $AGENTS_SKILLS_DIR $skill
+                    New-Item -ItemType Directory -Path $skillDir -Force | Out-Null
+                    Set-Content -LiteralPath (Join-Path $skillDir "SKILL.md") -Value "name: $skill"
+                }
+            }
+        }
+    }
+    if ($isRemove -and $args -contains "*") {
+        $removeIndex = [Array]::IndexOf($args, "remove")
+        for ($i = $removeIndex + 1; $i -lt $args.Count; $i++) {
+            if ($args[$i].StartsWith("--")) { break }
+            Remove-Item -LiteralPath (Join-Path $AGENTS_SKILLS_DIR $args[$i]) `
+                -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
     $global:LASTEXITCODE = 0
 }
 
@@ -189,6 +238,38 @@ try {
     $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
     Initialize-ManagedSkillOwnership
     Assert-True ($script:OwnedManagedSkills.Contains("frontend-slides")) "matching lock/canonical copy should be adopted"
+
+    # A successful npx exit must not hide a missing requested skill.
+    Remove-Item -Force $MANAGED_SKILLS_STATE_FILE -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $AGENTS_SKILLS_DIR "to-spec") -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $AGENTS_SKILLS_DIR "to-tickets") -Recurse -Force -ErrorAction SilentlyContinue
+    $script:ManagedSkillOwnershipLoaded = $false
+    $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
+    $script:NpxSkipSkill = "to-tickets"
+    $partialResult = Install-NpxSkillNames "mattpocock/skills" @("to-spec", "to-tickets")
+    Assert-True (-not $partialResult) "partial npx install should not report success"
+    Assert-True (-not $script:OwnedManagedSkills.Contains("to-spec")) "partial install should not record ownership"
+    Assert-True (-not $script:OwnedManagedSkills.Contains("to-tickets")) "missing skill should not record ownership"
+    $script:NpxSkipSkill = $null
+
+    # Retired Matt Pocock names are removed from the canonical shared path and
+    # from ownership using all-agent cleanup.
+    [System.IO.File]::WriteAllLines($MANAGED_SKILLS_STATE_FILE, @("to-prd", "to-issues"))
+    $script:ManagedSkillOwnershipLoaded = $false
+    $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
+    foreach ($skill in @("to-prd", "to-issues")) {
+        $skillDir = Join-Path $AGENTS_SKILLS_DIR $skill
+        New-Item -ItemType Directory -Path $skillDir -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $skillDir "SKILL.md") -Value "legacy"
+    }
+    $legacyResult = Remove-LegacyMattPocockSkills
+    Assert-True $legacyResult "legacy Matt Pocock cleanup should succeed"
+    Assert-True (-not (Test-Path (Join-Path $AGENTS_SKILLS_DIR "to-prd"))) "to-prd should be removed"
+    Assert-True (-not (Test-Path (Join-Path $AGENTS_SKILLS_DIR "to-issues"))) "to-issues should be removed"
+    Assert-True (-not $script:OwnedManagedSkills.Contains("to-prd")) "to-prd ownership should be removed"
+    Assert-True (-not $script:OwnedManagedSkills.Contains("to-issues")) "to-issues ownership should be removed"
+    $lastNpxCall = $script:NpxCalls[-1]
+    Assert-True ($lastNpxCall -contains "*") "legacy cleanup should remove all agent associations"
 } finally {
     $env:PATH = $oldPath
     Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue
