@@ -127,8 +127,8 @@ assert_file_not_contains "install.ps1" 'SelectSkillCodingFoundations'
 assert_file_not_contains "install.ps1" 'Join-Path $AGENTS_SKILLS_DIR $skill'
 assert_file_contains "install.ps1" "Resolve-PythonCommand"
 
-assert_file_not_contains "install.sh" "affaan-m/everything-claude-code"
-assert_file_not_contains "install.ps1" "affaan-m/everything-claude-code"
+assert_file_contains "install.sh" "affaan-m/everything-claude-code"
+assert_file_contains "install.ps1" "affaan-m/everything-claude-code"
 assert_file_not_contains "README.md" "Claude-only plugin command workflows"
 assert_file_not_contains "README.zh-CN.md" "Claude-only plugin command 工作流"
 
@@ -211,6 +211,12 @@ unreachable_legacy = {
 bash = open(sys.argv[1], encoding="utf-8").read()
 ps = open(sys.argv[2], encoding="utf-8").read()
 
+legacy_source = "affaan-m/everything-claude-code"
+if bash.count(legacy_source) != 1 or ps.count(legacy_source) != 1:
+    raise SystemExit(
+        "retired coding-foundations source must appear only as legacy ownership provenance"
+    )
+
 bash_match = re.search(r"MANAGED_SKILLS=\(\n(?P<body>.*?)\n\)", bash, re.S)
 if not bash_match:
     raise SystemExit("could not locate Bash MANAGED_SKILLS")
@@ -220,6 +226,27 @@ ps_match = re.search(r"\$MANAGED_SKILLS = @\(\n(?P<body>.*?)\n\)", ps, re.S)
 if not ps_match:
     raise SystemExit("could not locate PowerShell MANAGED_SKILLS")
 ps_skills = set(re.findall(r'"([^"]+)"', ps_match.group("body")))
+
+bash_legacy_match = re.search(
+    r"LEGACY_CLEANUP_SKILLS=\(\n(?P<body>.*?)\n\)",
+    bash,
+    re.S,
+)
+ps_legacy_match = re.search(
+    r"\$LEGACY_CLEANUP_SKILLS = @\(\n(?P<body>.*?)\n\)",
+    ps,
+    re.S,
+)
+if not bash_legacy_match or not ps_legacy_match:
+    raise SystemExit("could not locate legacy cleanup catalogues")
+bash_legacy_skills = set(bash_legacy_match.group("body").split())
+ps_legacy_skills = set(re.findall(r'"([^"]+)"', ps_legacy_match.group("body")))
+if bash_legacy_skills != unreachable_legacy or ps_legacy_skills != unreachable_legacy:
+    raise SystemExit(
+        "legacy cleanup catalogues must contain exactly the retired coding-foundations skills"
+    )
+if bash_skills & bash_legacy_skills or ps_skills & ps_legacy_skills:
+    raise SystemExit("current managed and legacy cleanup catalogues must be disjoint")
 
 for label, skills in (("install.sh", bash_skills), ("install.ps1", ps_skills)):
     leaked = sorted(removed & skills)
@@ -269,6 +296,23 @@ if bash.count("reconcile_interactive_skills") != 2:
 if ps.count("Sync-InteractiveSkills") != 2:
     raise SystemExit("PowerShell reconciliation should have exactly one definition and one interactive call")
 
+bash_reconcile = re.search(
+    r"reconcile_interactive_skills\(\) \{(?P<body>.*?)\n\}",
+    bash,
+    re.S,
+)
+ps_reconcile = re.search(
+    r"function Sync-InteractiveSkills \{(?P<body>.*?)\n\}",
+    ps,
+    re.S,
+)
+if not bash_reconcile or not ps_reconcile:
+    raise SystemExit("could not locate both reconciliation function bodies")
+if "AGENTS_SKILLS_DIR" in bash_reconcile.group("body"):
+    raise SystemExit("Bash reconciliation must not scan shared ~/.agents/skills")
+if "AGENTS_SKILLS_DIR" in ps_reconcile.group("body"):
+    raise SystemExit("PowerShell reconciliation must not scan shared ~/.agents/skills")
+
 bash_mapper = re.search(
     r"selected_managed_skill_names\(\) \{(?P<body>.*?)\n\}",
     bash,
@@ -297,6 +341,31 @@ ps_mapper = re.search(
 )
 if not ps_mapper:
     raise SystemExit("could not locate Get-SelectedManagedSkills")
+ps_reachable_skills = set()
+for literal_body in re.findall(
+    r"Add-Names\s+\$script:\w+\s+@\(([^)]*)\)",
+    ps_mapper.group("body"),
+):
+    ps_reachable_skills.update(re.findall(r'"([^"]+)"', literal_body))
+for array_name in re.findall(
+    r"Add-Names\s+\$script:\w+\s+\$(\w+_SKILLS)\s*$",
+    ps_mapper.group("body"),
+    re.M,
+):
+    array_match = re.search(
+        rf"(?m)^\${array_name}\s*=\s*@\((?P<body>.*?)\)",
+        ps,
+        re.S,
+    )
+    if not array_match:
+        raise SystemExit(f"could not locate PowerShell mapper array {array_name}")
+    ps_reachable_skills.update(re.findall(r'"([^"]+)"', array_match.group("body")))
+unreachable_ps_skills = sorted(ps_skills - ps_reachable_skills)
+if unreachable_ps_skills:
+    raise SystemExit(
+        "PowerShell managed skills are unreachable from every selection: "
+        + ", ".join(unreachable_ps_skills)
+    )
 ps_menu_vars = set(re.findall(r'StateVar\s*=\s*"(Select(?:Skill|Ai)\w+)"', ps))
 for variable in set(re.findall(r"\$script:(Select(?:Skill|Ai)\w+)", ps_mapper.group("body"))):
     if variable not in ps_menu_vars:
@@ -378,6 +447,10 @@ expected = [
 with open(sys.argv[1], "rb") as fh:
     data = tomllib.load(fh)
 
+if data.get("model") != "gpt-5.5":
+    raise SystemExit("existing model was overwritten during statusline reconciliation")
+if data.get("model_reasoning_effort") != "xhigh":
+    raise SystemExit("existing model_reasoning_effort was overwritten during statusline reconciliation")
 if data.get("status_line") is not None:
     raise SystemExit("status_line must not be written at the top level")
 if data.get("tui", {}).get("status_line") != expected:
@@ -399,9 +472,18 @@ import tomllib
 with open(sys.argv[1], "rb") as fh:
     data = tomllib.load(fh)
 
-for required in ("model", "model_reasoning_effort", "approval_policy", "sandbox_mode"):
-    if required not in data:
-        raise SystemExit(f"missing required template field after statusline ensure: {required}")
+expected_defaults = {
+    "model": "gpt-5.6-sol",
+    "model_reasoning_effort": "max",
+    "approval_policy": "never",
+    "sandbox_mode": "danger-full-access",
+}
+for key, expected in expected_defaults.items():
+    if data.get(key) != expected:
+        raise SystemExit(
+            f"unexpected fresh config default for {key}: "
+            f"expected {expected!r}, got {data.get(key)!r}"
+        )
 PY
 
 multiline_home="$(mktemp -d)"

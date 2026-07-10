@@ -7,7 +7,7 @@
 - 对兼容的上游 skill 包优先使用 `npx skills@latest add ... --agent codex --copy --yes --full-depth` 安装；按路径安装的包仍保留 Python `skill-installer` 作为 fallback。
 - Codex 模板默认设置为 `model = "gpt-5.6-sol"`、`model_reasoning_effort = "max"`、`approval_policy = "never"`、`sandbox_mode = "danger-full-access"`；`[tui].status_line` 统一显示模型、推理强度、项目、分支、上下文用量、5 小时配额和每周配额。
 - Bash 和 PowerShell 的重复交互安装现在都以本次菜单选择为准：未勾选的 owned skill 会被移除；空 skill 选择在批量删除前需要二次确认。
-- 新增持久化的 managed-skill ownership state，并安全接管来源匹配的旧 lock 条目、未改动的内置副本及来源已验证的 `obra/superpowers` fallback；`handoff` 恢复为 Workflow 中可见且默认开启的选项。
+- 新增持久化的 managed-skill ownership state；旧 lock 条目只有在来源匹配且 Codex/canonical 副本内容一致时才会被安全接管，此外也支持未改动的内置副本及来源已验证的 `obra/superpowers` fallback；已退役的 `coding-foundations` 名称保留为 provenance-gated cleanup-only 条目，`handoff` 恢复为 Workflow 中可见且默认开启的选项。
 - 两个安装器都会把 statusline 写入 `[tui]`，并在合并现有配置时清理误写到顶层或 project 表里的 `status_line`。
 - 移除没有实际 Codex 安装目标的安装器选项，包括 Claude-only command workflow 插件、`ppt-master`、`claude-mem` 和 `claude-health`。
 - GitHub MCP 菜单项默认开启；安装时如果存在 `GITHUB_PERSONAL_ACCESS_TOKEN` 就使用它配置 GitHub MCP，如果没有则跳过且不写入占位 token。

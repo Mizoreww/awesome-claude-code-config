@@ -70,11 +70,13 @@ function Write-Info { param($Message) }
 function Write-Ok { param($Message) }
 function Write-Warn { param($Message) }
 
-$MANAGED_SKILLS = @("humanizer", "humanizer-zh", "handoff", "pua", "brainstorming")
+$MANAGED_SKILLS = @("humanizer", "humanizer-zh", "handoff", "pua", "brainstorming", "frontend-slides")
 $SUPERPOWERS_SKILLS = @("brainstorming")
 $MATTPOCOCK_SKILLS = @("ask-matt")
 $PUA_SKILLS = @("pua", "pua-en", "pua-ja")
 $LOCAL_MANAGED_SKILLS = @("humanizer", "humanizer-zh", "handoff")
+$LEGACY_CLEANUP_SKILLS = @()
+$OWNERSHIP_SKILLS = @($MANAGED_SKILLS)
 $script:SKIPPED_COMPONENTS = @()
 $script:SCRIPT_DIR = $repoRoot
 
@@ -150,6 +152,29 @@ try {
     Assert-True ($script:NpxCalls.Count -eq 1) "reconciliation should invoke npx once"
     Assert-True ($script:NpxCalls[0] -contains "--global") "npx removal should be global"
     Assert-True ($script:NpxCalls[0] -contains "codex") "npx removal should be Codex-scoped"
+
+    # Legacy lock provenance alone is insufficient: the Codex copy must match
+    # the canonical copy before ownership is adopted.
+    Remove-Item -Force $MANAGED_SKILLS_STATE_FILE -ErrorAction SilentlyContinue
+    $script:ManagedSkillOwnershipLoaded = $false
+    $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
+    $canonical = Join-Path $AGENTS_SKILLS_DIR "frontend-slides"
+    $codexCopy = Join-Path $CODEX_DIR "skills/frontend-slides"
+    New-Item -ItemType Directory -Path $canonical, $codexCopy -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $canonical "SKILL.md") -Value "upstream"
+    Set-Content -LiteralPath (Join-Path $codexCopy "SKILL.md") -Value "custom"
+    New-Item -ItemType Directory -Path (Split-Path $GLOBAL_SKILL_LOCK_FILE -Parent) -Force | Out-Null
+    Set-Content -LiteralPath $GLOBAL_SKILL_LOCK_FILE -Value '{"version":3,"skills":{"frontend-slides":{"source":"zarazhangrui/frontend-slides"}}}'
+    Initialize-ManagedSkillOwnership
+    Assert-True (-not $script:OwnedManagedSkills.Contains("frontend-slides")) "mismatched same-name copy should not be adopted"
+
+    Remove-Item -Force $MANAGED_SKILLS_STATE_FILE -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force $codexCopy
+    Copy-Item -Recurse $canonical $codexCopy
+    $script:ManagedSkillOwnershipLoaded = $false
+    $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
+    Initialize-ManagedSkillOwnership
+    Assert-True ($script:OwnedManagedSkills.Contains("frontend-slides")) "matching lock/canonical copy should be adopted"
 } finally {
     $env:PATH = $oldPath
     Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue

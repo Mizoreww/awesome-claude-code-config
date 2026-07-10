@@ -76,9 +76,32 @@ reset_ownership_discovery() {
   OWNED_MANAGED_SKILLS=()
 }
 
-for managed_skill in "${MANAGED_SKILLS[@]}"; do
+for managed_skill in "${OWNERSHIP_SKILLS[@]}"; do
   [[ -n "$(expected_source_for_skill "$managed_skill")" ]] || \
-    fail "managed skill has no ownership source mapping: $managed_skill"
+    fail "ownership skill has no source mapping: $managed_skill"
+done
+
+selection_vars=(
+  SELECT_SKILL_CODE_REVIEW SELECT_SKILL_KARPATHY SELECT_SKILL_SUPERPOWERS
+  SELECT_SKILL_MATTPOCOCK SELECT_SKILL_DOCUMENTS SELECT_SKILL_EXAMPLES
+  SELECT_SKILL_FRONTEND_DESIGN SELECT_SKILL_PUA SELECT_SKILL_FRONTEND_SLIDES
+  SELECT_SKILL_PAPER_READING SELECT_SKILL_HUMANIZER SELECT_SKILL_HUMANIZER_ZH
+  SELECT_SKILL_HANDOFF SELECT_SKILL_ADVERSARIAL_REVIEW SELECT_SKILL_UPDATE
+  SELECT_AI_TOKENIZATION SELECT_AI_FINE_TUNING SELECT_AI_POST_TRAINING
+  SELECT_AI_DISTRIBUTED_TRAINING SELECT_AI_INFERENCE_SERVING
+  SELECT_AI_OPTIMIZATION SELECT_AI_DEEPXIV
+)
+reachable_file="$TMP/reachable-managed-skills"
+: > "$reachable_file"
+for selection_var in "${selection_vars[@]}"; do
+  clear_skill_selections
+  printf -v "$selection_var" '%s' true
+  selected_managed_skill_names >> "$reachable_file"
+done
+sort -u "$reachable_file" -o "$reachable_file"
+for managed_skill in "${MANAGED_SKILLS[@]}"; do
+  grep -Fxq "$managed_skill" "$reachable_file" || \
+    fail "managed skill is unreachable from every selection: $managed_skill"
 done
 
 clear_skill_selections
@@ -131,10 +154,32 @@ reconcile_interactive_skills
 assert_exists "$CODEX_DIR/skills/research"
 
 reset_ownership_discovery
-mkdir -p "$CODEX_DIR/skills/frontend-slides" "$HOME/.agents"
+mkdir -p "$CODEX_DIR/skills/frontend-slides" "$AGENTS_SKILLS_DIR/frontend-slides" "$HOME/.agents"
+printf '%s\n' custom > "$CODEX_DIR/skills/frontend-slides/SKILL.md"
+printf '%s\n' upstream > "$AGENTS_SKILLS_DIR/frontend-slides/SKILL.md"
+printf '%s\n' '{"version":3,"skills":{"frontend-slides":{"source":"zarazhangrui/frontend-slides"}}}' > "$HOME/.agents/.skill-lock.json"
+reconcile_interactive_skills
+assert_exists "$CODEX_DIR/skills/frontend-slides"
+assert_exists "$AGENTS_SKILLS_DIR/frontend-slides"
+
+reset_ownership_discovery
+rm -rf "$CODEX_DIR/skills/frontend-slides"
+cp -R "$AGENTS_SKILLS_DIR/frontend-slides" "$CODEX_DIR/skills/frontend-slides"
 printf '%s\n' '{"version":3,"skills":{"frontend-slides":{"source":"zarazhangrui/frontend-slides"}}}' > "$HOME/.agents/.skill-lock.json"
 reconcile_interactive_skills
 assert_missing "$CODEX_DIR/skills/frontend-slides"
+assert_exists "$AGENTS_SKILLS_DIR/frontend-slides"
+
+# Retired coding-foundations names remain cleanup-only: they cannot be selected
+# or installed, but a verified legacy copy is removed on the first upgrade.
+reset_ownership_discovery
+mkdir -p "$CODEX_DIR/skills/python-patterns" "$AGENTS_SKILLS_DIR/python-patterns" "$HOME/.agents"
+printf '%s\n' legacy > "$AGENTS_SKILLS_DIR/python-patterns/SKILL.md"
+cp "$AGENTS_SKILLS_DIR/python-patterns/SKILL.md" "$CODEX_DIR/skills/python-patterns/SKILL.md"
+printf '%s\n' '{"version":3,"skills":{"python-patterns":{"source":"affaan-m/everything-claude-code"}}}' > "$HOME/.agents/.skill-lock.json"
+reconcile_interactive_skills
+assert_missing "$CODEX_DIR/skills/python-patterns"
+assert_exists "$AGENTS_SKILLS_DIR/python-patterns"
 
 clear_skill_selections
 mkdir -p "$SUPERPOWERS_DIR/skills" "$SUPERPOWERS_DIR/.git"

@@ -132,6 +132,16 @@ MANAGED_SKILLS=(
   pua pua-en pua-ja
 )
 
+LEGACY_CLEANUP_SKILLS=(
+  python-patterns python-testing golang-patterns golang-testing frontend-patterns
+  security-review tdd-workflow verification-loop api-design database-migrations
+)
+
+OWNERSHIP_SKILLS=(
+  "${MANAGED_SKILLS[@]}"
+  "${LEGACY_CLEANUP_SKILLS[@]}"
+)
+
 LEGACY_SUPERPOWERS_SKILLS=(
   using-superpowers
   systematic-debugging
@@ -269,7 +279,7 @@ Options:
   --uninstall [COMP...] Uninstall managed files. COMP: --core --mcp --skills
   --version             Show source / installed / remote versions
   --dry-run             Preview changes without applying
-  --force               Skip uninstall confirmation
+  --force               Skip destructive confirmations
   -h, --help            Show help
 
 Examples:
@@ -816,7 +826,7 @@ skill_in_array() {
 }
 
 managed_skill_name_is_valid() {
-  skill_in_array "$1" "${MANAGED_SKILLS[@]}"
+  skill_in_array "$1" "${OWNERSHIP_SKILLS[@]}"
 }
 
 expected_source_for_skill() {
@@ -838,6 +848,8 @@ expected_source_for_skill() {
     printf '%s\n' "zechenzhangAGI/AI-research-SKILLs"
   elif [[ "$skill" =~ ^(deepxiv-cli|deepxiv-baseline-table|deepxiv-trending-digest)$ ]]; then
     printf '%s\n' "DeepXiv/deepxiv_sdk"
+  elif skill_in_array "$skill" "${LEGACY_CLEANUP_SKILLS[@]}"; then
+    printf '%s\n' "affaan-m/everything-claude-code"
   elif skill_in_array "$skill" "${LOCAL_MANAGED_SKILLS[@]}"; then
     printf 'local:%s\n' "$skill"
   fi
@@ -875,7 +887,7 @@ save_managed_skill_ownership() {
   local tmp="${MANAGED_SKILLS_STATE_FILE}.tmp.$$"
   local skill
   if ! {
-    for skill in "${MANAGED_SKILLS[@]}"; do
+    for skill in "${OWNERSHIP_SKILLS[@]}"; do
       if owned_managed_skill_contains "$skill"; then
         printf '%s\n' "$skill"
       fi
@@ -892,13 +904,17 @@ save_managed_skill_ownership() {
   return 0
 }
 
-legacy_local_skill_is_owned() {
-  local skill="$1"
-  local source="$SCRIPT_DIR/skills/$skill"
-  local target="$CODEX_DIR/skills/$skill"
+managed_directory_trees_equal() {
+  local source="$1"
+  local target="$2"
   [[ -d "$source" && -d "$target" ]] || return 1
   command -v diff >/dev/null 2>&1 || return 1
   diff -qr "$source" "$target" >/dev/null 2>&1
+}
+
+legacy_local_skill_is_owned() {
+  local skill="$1"
+  managed_directory_trees_equal "$SCRIPT_DIR/skills/$skill" "$CODEX_DIR/skills/$skill"
 }
 
 legacy_locked_skill_pairs() {
@@ -977,7 +993,8 @@ initialize_managed_skill_ownership() {
   while IFS=$'\t' read -r locked_name locked_source; do
     managed_skill_name_is_valid "$locked_name" || continue
     expected=$(expected_source_for_skill "$locked_name")
-    if [[ -n "$expected" && "$expected" != local:* && "$locked_source" == "$expected" ]]; then
+    if [[ -n "$expected" && "$expected" != local:* && "$locked_source" == "$expected" ]] &&
+       managed_directory_trees_equal "$AGENTS_SKILLS_DIR/$locked_name" "$CODEX_DIR/skills/$locked_name"; then
       append_managed_skill_ownership "$locked_name"
     fi
   done < <(legacy_locked_skill_pairs)

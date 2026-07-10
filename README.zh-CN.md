@@ -62,7 +62,7 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 - PowerShell 的纯无参运行在可用控制台 I/O 下会进入交互模式；如果无法使用控制台，就会警告并回退到非交互式全量安装。
 - Bash 的 `--dry-run` 会以非交互式方式预览完整安装。
 - PowerShell 的 `-DryRun` 单独使用时，会以非交互式方式预览完整安装。
-- 交互菜单对安装器拥有的 skills 具有最终决定权：重复安装时，之前已安装但本次未勾选的 owned skill 会被移除；未被安装器拥有的自定义 skill 即使与清单条目同名也会保留。所有权记录在 `~/.codex/.awesome-claude-code-config-managed-skills`；首次升级只接管来源可验证或与仓库内置副本一致的旧 skill。
+- 交互菜单对安装器拥有的 skills 具有最终决定权：重复安装时，之前已安装但本次未勾选的 owned skill 会被移除；未被安装器拥有的自定义 skill 即使与清单条目同名也会保留。所有权记录在 `~/.codex/.awesome-claude-code-config-managed-skills`；首次升级只接管未改动的内置副本、与 canonical 副本内容一致且 lock 来源匹配的旧副本，或来源已验证的 superpowers fallback。已退役 `coding-foundations` 包中来源可验证的残留属于 cleanup-only，因为菜单已无对应选项，会被清理。
 - 如果没有选择任何 skill 且存在待删除的 owned skill，安装器会先二次确认；它不会删除 `.system`、共享 agent 或自定义 skill、Core 文件及 MCP 配置。
 - 显式非交互参数（`--all`、`--core`、`--mcp`、`--skills` 及其 PowerShell 对应参数）仍是增量安装，不会按本次选择清理既有 skill。
 
@@ -92,6 +92,7 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 ./install.sh --version               # 查看 source/installed/remote 版本
 ./install.sh --uninstall --skills    # 仅卸载受管技能
 ./install.sh --dry-run               # 非交互式完整预览
+./install.sh --force                 # 跳过卸载 / 空 skill 批量删除确认
 ```
 
 ## 核心特性

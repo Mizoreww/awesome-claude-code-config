@@ -37,7 +37,7 @@ The percentages and repository state remain live session values; only the displa
 
 Use ownership-bounded selection-set reconciliation during interactive installs.
 
-Both installers derive the union of skill names produced by selected menu items, but removal candidates come only from the installer's persisted ownership state (`~/.codex/.awesome-claude-code-config-managed-skills`). Successful local, npx, Python-fallback, and superpowers installs record ownership. A first upgrade adopts only legacy entries whose provenance can be verified: an expected source in `~/.agents/.skill-lock.json`, an unchanged bundled local directory, or an `obra/superpowers` fallback repository.
+Both installers derive the union of skill names produced by selected menu items, but removal candidates come only from the installer's persisted ownership state (`~/.codex/.awesome-claude-code-config-managed-skills`). Successful local, npx, Python-fallback, and superpowers installs record ownership. A first upgrade adopts only legacy entries whose provenance can be verified: an expected source in `~/.agents/.skill-lock.json` whose Codex copy matches the canonical copy, an unchanged bundled local directory, or an `obra/superpowers` fallback repository.
 
 Alternatives rejected:
 
@@ -67,7 +67,7 @@ This prevents automation and targeted repair commands from becoming destructive.
 
 The removal candidate set is the intersection of persisted/verified ownership and `MANAGED_SKILLS`. A directory such as `~/.codex/skills/my-private-skill` is preserved because it is outside the catalogue; a custom directory that happens to be named `research` is also preserved unless this installer previously recorded ownership.
 
-The catalogue is an allowlist for state validation, not proof of ownership. Unreachable legacy names are excluded, and tests require every selection mapper variable to have a real menu entry.
+The current catalogue is an allowlist for state validation, not proof of ownership. Retired `coding-foundations` names live in a separate provenance-gated cleanup-only catalogue; they cannot be selected or newly installed. Tests require every current selection mapper variable to have a real menu entry.
 
 ## Selection Mapping
 

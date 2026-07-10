@@ -34,7 +34,7 @@
   Preview changes without applying
 
 .PARAMETER Force
-  Skip uninstall confirmation
+  Skip destructive confirmations
 
 .EXAMPLE
   .\install.ps1
@@ -162,6 +162,13 @@ $MANAGED_SKILLS = @(
     "grill-me", "grilling", "research", "teach", "writing-great-skills",
     "pua", "pua-en", "pua-ja"
 )
+
+$LEGACY_CLEANUP_SKILLS = @(
+    "python-patterns", "python-testing", "golang-patterns", "golang-testing", "frontend-patterns",
+    "security-review", "tdd-workflow", "verification-loop", "api-design", "database-migrations"
+)
+
+$OWNERSHIP_SKILLS = @($MANAGED_SKILLS) + @($LEGACY_CLEANUP_SKILLS)
 
 $LEGACY_SUPERPOWERS_SKILLS = @(
     "using-superpowers",
@@ -329,7 +336,7 @@ Options:
                              Uninstall managed files (all components if none specified)
   -Version                   Show source / installed / remote versions
   -DryRun                    Preview changes without applying
-  -Force                     Skip uninstall confirmation
+  -Force                     Skip destructive confirmations
   -Help                      Show help
 
 Examples:
@@ -1360,7 +1367,7 @@ function Test-SkillInList {
 
 function Test-ManagedSkillName {
     param([string]$Skill)
-    return (Test-SkillInList $Skill $MANAGED_SKILLS)
+    return (Test-SkillInList $Skill $OWNERSHIP_SKILLS)
 }
 
 function Get-ExpectedSkillSource {
@@ -1389,6 +1396,9 @@ function Get-ExpectedSkillSource {
     }
     if ($Skill -cmatch '^(deepxiv-cli|deepxiv-baseline-table|deepxiv-trending-digest)$') {
         return "DeepXiv/deepxiv_sdk"
+    }
+    if (Test-SkillInList $Skill $LEGACY_CLEANUP_SKILLS) {
+        return "affaan-m/everything-claude-code"
     }
     if (Test-SkillInList $Skill $LOCAL_MANAGED_SKILLS) {
         return "local:$Skill"
@@ -1460,7 +1470,7 @@ function Save-ManagedSkillOwnership {
     try {
         New-Item -ItemType Directory -Path $CODEX_DIR -Force | Out-Null
         $lines = @()
-        foreach ($skill in $MANAGED_SKILLS) {
+        foreach ($skill in $OWNERSHIP_SKILLS) {
             if ($script:OwnedManagedSkills.Contains($skill)) { $lines += $skill }
         }
         $encoding = New-Object System.Text.UTF8Encoding($false)
@@ -1502,8 +1512,11 @@ function Initialize-ManagedSkillOwnership {
                 $name = $property.Name
                 $source = $property.Value.source
                 $expected = Get-ExpectedSkillSource $name
+                $canonicalPath = Join-Path $AGENTS_SKILLS_DIR $name
+                $codexPath = Join-Path $CODEX_DIR "skills/$name"
                 if ((Test-ManagedSkillName $name) -and $expected -and
-                    -not $expected.StartsWith("local:") -and $source -ceq $expected) {
+                    -not $expected.StartsWith("local:") -and $source -ceq $expected -and
+                    (Test-DirectoryTreeEqual $canonicalPath $codexPath)) {
                     [void]$script:OwnedManagedSkills.Add($name)
                 }
             }
