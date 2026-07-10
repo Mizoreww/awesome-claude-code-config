@@ -147,6 +147,12 @@ MATTPOCOCK_SKILLS=(
 )
 
 PUA_SKILLS=(pua pua-en pua-ja)
+SUPERPOWERS_SKILLS=(
+  brainstorming dispatching-parallel-agents executing-plans finishing-a-development-branch
+  receiving-code-review requesting-code-review subagent-driven-development systematic-debugging
+  test-driven-development using-git-worktrees using-superpowers verification-before-completion
+  writing-plans writing-skills
+)
 CODEX_STATUS_LINE='status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 CODEX_STATUS_LINE_USE_COLORS='status_line_use_colors = true'
 
@@ -819,6 +825,124 @@ install_npx_skill_names() {
   DO_NOT_TRACK=1 npx "${args[@]}" </dev/null
 }
 
+selected_managed_skill_names() {
+  $SELECT_SKILL_CODE_REVIEW && printf '%s\n' code-review
+  $SELECT_SKILL_KARPATHY && printf '%s\n' karpathy-guidelines
+  $SELECT_SKILL_SUPERPOWERS && printf '%s\n' "${SUPERPOWERS_SKILLS[@]}"
+  $SELECT_SKILL_MATTPOCOCK && printf '%s\n' "${MATTPOCOCK_SKILLS[@]}"
+  $SELECT_SKILL_DOCUMENTS && printf '%s\n' pdf docx pptx xlsx
+  $SELECT_SKILL_EXAMPLES && printf '%s\n' canvas-design algorithmic-art mcp-builder
+  $SELECT_SKILL_FRONTEND_DESIGN && printf '%s\n' frontend-design
+  $SELECT_SKILL_PUA && printf '%s\n' "${PUA_SKILLS[@]}"
+  $SELECT_SKILL_FRONTEND_SLIDES && printf '%s\n' frontend-slides
+  $SELECT_SKILL_PAPER_READING && printf '%s\n' paper-reading
+  $SELECT_SKILL_HUMANIZER && printf '%s\n' humanizer
+  $SELECT_SKILL_HUMANIZER_ZH && printf '%s\n' humanizer-zh
+  $SELECT_SKILL_HANDOFF && printf '%s\n' handoff
+  $SELECT_SKILL_ADVERSARIAL_REVIEW && printf '%s\n' adversarial-review
+  $SELECT_SKILL_UPDATE && printf '%s\n' update
+  $SELECT_AI_TOKENIZATION && printf '%s\n' huggingface-tokenizers sentencepiece
+  $SELECT_AI_FINE_TUNING && printf '%s\n' axolotl llama-factory peft unsloth
+  $SELECT_AI_POST_TRAINING && printf '%s\n' grpo-rl-training openrlhf simpo trl-fine-tuning verl
+  $SELECT_AI_DISTRIBUTED_TRAINING && printf '%s\n' deepspeed pytorch-fsdp2 megatron-core ray-train
+  $SELECT_AI_INFERENCE_SERVING && printf '%s\n' vllm sglang tensorrt-llm llama-cpp
+  $SELECT_AI_OPTIMIZATION && printf '%s\n' awq gptq gguf flash-attention bitsandbytes
+  $SELECT_AI_DEEPXIV && printf '%s\n' deepxiv-cli deepxiv-baseline-table deepxiv-trending-digest
+  return 0
+}
+
+remove_npx_skill_names() {
+  [[ $# -gt 0 ]] || return 0
+
+  if $DRY_RUN; then
+    info "Would remove via npx skills for Codex: $*"
+    return 0
+  fi
+
+  if ! command -v npx >/dev/null 2>&1; then
+    warn "npx not found; shared/global Codex skill associations could not be removed: $*"
+    SKIPPED_COMPONENTS+=("unselected managed skills (npx unavailable): $*")
+    return 0
+  fi
+
+  local -a args=(-y skills@latest remove "$@" --global --agent codex --yes)
+  if ! DO_NOT_TRACK=1 npx "${args[@]}" </dev/null; then
+    warn "npx skills could not remove these Codex skills: $*"
+    SKIPPED_COMPONENTS+=("unselected managed skills (npx removal failed): $*")
+  fi
+}
+
+remove_superpowers_fallback() {
+  if $DRY_RUN; then
+    if [[ -L "$SUPERPOWERS_LINK" || -e "$SUPERPOWERS_LINK" ]]; then
+      info "Would remove superpowers link: $SUPERPOWERS_LINK"
+    fi
+    if [[ -e "$SUPERPOWERS_DIR" ]]; then
+      info "Would remove superpowers repository: $SUPERPOWERS_DIR"
+    fi
+    return 0
+  fi
+
+  if [[ -L "$SUPERPOWERS_LINK" ]]; then
+    rm -f "$SUPERPOWERS_LINK"
+    ok "Removed superpowers link"
+  elif [[ -e "$SUPERPOWERS_LINK" ]]; then
+    warn "$SUPERPOWERS_LINK is not a symlink; preserving it"
+    SKIPPED_COMPONENTS+=("superpowers link cleanup ($SUPERPOWERS_LINK is not a symlink)")
+  fi
+
+  if [[ -e "$SUPERPOWERS_DIR" ]]; then
+    rm -rf "$SUPERPOWERS_DIR"
+    ok "Removed superpowers repository"
+  fi
+}
+
+reconcile_interactive_skills() {
+  local -a desired=()
+  local -a stale=()
+  local skill wanted selected
+
+  while IFS= read -r skill; do
+    [[ -n "$skill" ]] && desired+=("$skill")
+  done < <(selected_managed_skill_names)
+
+  for skill in "${MANAGED_SKILLS[@]}"; do
+    wanted=false
+    if [[ ${#desired[@]} -gt 0 ]]; then
+      for selected in "${desired[@]}"; do
+        if [[ "$selected" == "$skill" ]]; then
+          wanted=true
+          break
+        fi
+      done
+    fi
+    $wanted && continue
+
+    if [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ||
+          -e "$AGENTS_SKILLS_DIR/$skill" || -L "$AGENTS_SKILLS_DIR/$skill" ]]; then
+      stale+=("$skill")
+    fi
+  done
+
+  if [[ ${#stale[@]} -gt 0 ]]; then
+    remove_npx_skill_names "${stale[@]}"
+    for skill in "${stale[@]}"; do
+      if $DRY_RUN; then
+        if [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ]]; then
+          info "Would remove unselected managed skill: $CODEX_DIR/skills/$skill"
+        fi
+      elif [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ]]; then
+        rm -rf "$CODEX_DIR/skills/$skill"
+        ok "Removed unselected managed skill: $skill"
+      fi
+    done
+  fi
+
+  if ! $SELECT_SKILL_SUPERPOWERS; then
+    remove_superpowers_fallback
+  fi
+}
+
 install_skill_paths_fallback() {
   local repo="$1"
   shift
@@ -920,11 +1044,7 @@ install_superpowers() {
     return 0
   fi
 
-  if install_npx_skill_names obra/superpowers \
-    brainstorming dispatching-parallel-agents executing-plans finishing-a-development-branch \
-    receiving-code-review requesting-code-review subagent-driven-development systematic-debugging \
-    test-driven-development using-git-worktrees using-superpowers verification-before-completion \
-    writing-plans writing-skills; then
+  if install_npx_skill_names obra/superpowers "${SUPERPOWERS_SKILLS[@]}"; then
     ok "Installed superpowers via npx skills"
     remove_legacy_superpowers_skills
     return 0
@@ -1112,15 +1232,7 @@ install_skills() {
     install_selected_recommended_skills
     install_selected_ai_skills
     install_local_skills
-    if $SELECT_SKILL_PAPER_READING || $SELECT_SKILL_HUMANIZER || \
-       $SELECT_SKILL_HUMANIZER_ZH || $SELECT_SKILL_HANDOFF || \
-       $SELECT_SKILL_ADVERSARIAL_REVIEW || $SELECT_SKILL_UPDATE || \
-       $SELECT_SKILL_SUPERPOWERS || $SELECT_SKILL_DOCUMENTS || \
-       $SELECT_SKILL_EXAMPLES || $SELECT_SKILL_CODING_FOUNDATIONS || \
-       $SELECT_AI_TOKENIZATION || $SELECT_AI_FINE_TUNING || \
-       $SELECT_AI_POST_TRAINING || $SELECT_AI_DISTRIBUTED_TRAINING || \
-       $SELECT_AI_INFERENCE_SERVING || $SELECT_AI_OPTIMIZATION || \
-       $SELECT_AI_DEEPXIV; then
+    if [[ -n "$(selected_managed_skill_names)" ]]; then
       ok "Selected skills processed"
     else
       info "No selected skills to install"
@@ -1577,10 +1689,7 @@ deepxiv|DeepXiv research workflow skills|0|ai-deepxiv")
   done
 
   if ! $core_selected && ! $skills_selected && ! $mcp_selected; then
-    # Match the PowerShell behavior: an empty submission is a no-op and must
-    # not fall through to the version stamp ("installed" with nothing done).
-    info "No items selected. Nothing to do."
-    cleanup_and_exit 0
+    info "No items selected. Existing installer-managed skills will be removed."
   fi
 
   INSTALL_CORE=$core_selected
@@ -1731,6 +1840,9 @@ main() {
   # Explicit component flags and --all remain non-interactive flows.
   if $INTERACTIVE_MODE; then
     interactive_menu
+    if $INTERACTIVE_MODE; then
+      reconcile_interactive_skills
+    fi
   fi
 
   if $INSTALL_ALL; then

@@ -95,6 +95,11 @@ assert_file_not_contains "install.ps1" "GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB
 assert_file_contains "install.sh" "npx -y skills@latest add"
 assert_file_contains "install.sh" "--agent codex"
 assert_file_contains "install.sh" "--full-depth"
+assert_file_contains "install.sh" "selected_managed_skill_names"
+assert_file_contains "install.sh" "reconcile_interactive_skills"
+assert_file_contains "install.sh" "skills@latest remove"
+assert_file_contains "install.sh" "--global --agent codex --yes"
+assert_file_not_contains "install.sh" "SELECT_SKILL_CODING_FOUNDATIONS"
 assert_file_contains "install.sh" "install-skill-from-github.py"
 assert_file_contains "install.ps1" "skills@latest"
 assert_file_contains "install.ps1" "--agent"
@@ -187,6 +192,14 @@ for label, skills in (("install.sh", bash_skills), ("install.ps1", ps_skills)):
     leaked = sorted(removed & skills)
     if leaked:
         raise SystemExit(f"{label} MANAGED_SKILLS still contains removed claude-mem/claude-health skills: {', '.join(leaked)}")
+
+if bash_skills != ps_skills:
+    only_bash = sorted(bash_skills - ps_skills)
+    only_ps = sorted(ps_skills - bash_skills)
+    raise SystemExit(
+        "managed skill catalogues differ: "
+        f"Bash-only={only_bash}, PowerShell-only={only_ps}"
+    )
 
 bash_ordered = bash_match.group("body").split()
 ps_ordered = re.findall(r'"([^"]+)"', ps_match.group("body"))

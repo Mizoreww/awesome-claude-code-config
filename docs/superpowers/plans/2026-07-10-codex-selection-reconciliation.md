@@ -193,6 +193,7 @@ grep -Fq -- 'frontend-slides' "$NPX_LOG" || fail "stale npx skill was not reques
 
 clear_skill_selections
 SELECT_SKILL_MATTPOCOCK=true
+SELECT_SKILL_HANDOFF=true
 mkdir -p "$CODEX_DIR/skills/handoff"
 reconcile_interactive_skills
 assert_exists "$CODEX_DIR/skills/handoff"
@@ -417,16 +418,16 @@ Assert-True ($selected -contains "humanizer") "selected local skill should be de
 Assert-True (-not ($selected -contains "humanizer-zh")) "unselected local skill should be stale"
 
 $script:SelectSkillHumanizer = $false
-$script:SelectSkillMattPocock = $true
+$script:SelectSkillHandoff = $true
 $selected = @(Get-SelectedManagedSkills)
-Assert-True ($selected -contains "handoff") "mattpocock pack should retain overlapping handoff"
+Assert-True ($selected -contains "handoff") "an explicitly selected handoff source should be retained"
 ```
 
 For filesystem behavior, use a temporary HOME, set `$DryRun = $true`, create managed `pua` and unmanaged `private-skill`, invoke `Sync-InteractiveSkills`, and assert both remain. Then set `$DryRun = $false` with `npx` unavailable in the test PATH, invoke again, and assert `pua` is removed while `private-skill` remains. Restore HOME and PATH in `finally`.
 
 - [ ] **Step 3: Implement the PowerShell desired-set mapper**
 
-Add `$SUPERPOWERS_SKILLS` identical to the Bash list. Set the hidden, non-menu `$script:SelectSkillHandoff` initial/reset value to `$false`; the visible mattpocock pack still contributes `handoff`.
+Add `$SUPERPOWERS_SKILLS` identical to the Bash list. Set the hidden, non-menu `$script:SelectSkillHandoff` initial/reset value to `$false` so PowerShell does not silently retain a skill that the menu cannot select.
 
 Implement:
 
