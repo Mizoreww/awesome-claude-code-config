@@ -62,8 +62,8 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 - PowerShell 的纯无参运行在可用控制台 I/O 下会进入交互模式；如果无法使用控制台，就会警告并回退到非交互式全量安装。
 - Bash 的 `--dry-run` 会以非交互式方式预览完整安装。
 - PowerShell 的 `-DryRun` 单独使用时，会以非交互式方式预览完整安装。
-- 交互菜单对安装器托管的 skills 具有最终决定权：重复安装时，之前已安装但本次未勾选的托管 skill 会被移除，自定义或非托管 skill 会保留。
-- 空的交互提交会移除托管清单中的所有既有 skill，但不会删除 `.system`、自定义 skill、Core 文件或 MCP 配置。
+- 交互菜单对安装器拥有的 skills 具有最终决定权：重复安装时，之前已安装但本次未勾选的 owned skill 会被移除；未被安装器拥有的自定义 skill 即使与清单条目同名也会保留。所有权记录在 `~/.codex/.awesome-claude-code-config-managed-skills`；首次升级只接管来源可验证或与仓库内置副本一致的旧 skill。
+- 如果没有选择任何 skill 且存在待删除的 owned skill，安装器会先二次确认；它不会删除 `.system`、共享 agent 或自定义 skill、Core 文件及 MCP 配置。
 - 显式非交互参数（`--all`、`--core`、`--mcp`、`--skills` 及其 PowerShell 对应参数）仍是增量安装，不会按本次选择清理既有 skill。
 
 ### Codex 菜单分组与默认值
@@ -72,7 +72,7 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 |------|------|--------|
 | Core | `AGENTS.md`、`config.toml`、`StatusLine`、`lessons.md`、`explorer`、`reviewer`、`docs-researcher` | 开启 |
 | Review | `code-review`、`adversarial-review` | 开启 |
-| Workflow | `andrej-karpathy-skills`、`superpowers`、`mattpocock/skills`、`update-config` | `andrej-karpathy-skills`、`mattpocock/skills`、`update-config` 开启；`superpowers` 默认关闭 |
+| Workflow | `andrej-karpathy-skills`、`superpowers`、`mattpocock/skills`、`handoff`、`update-config` | 除 `superpowers` 外均开启 |
 | Development Tools | `context7`、`github`、`playwright`、`openaiDeveloperDocs` | 开启；`github` 需要 `GITHUB_PERSONAL_ACCESS_TOKEN` |
 | Design & Content | `document-skills`、`example-skills`、`frontend-design`、`humanizer`、`humanizer-zh` | 除 `humanizer-zh` 外开启 |
 | Lifestyle | `PUA` | 关闭 |

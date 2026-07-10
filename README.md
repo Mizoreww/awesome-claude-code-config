@@ -62,8 +62,8 @@ Behavior notes:
 - PowerShell plain no-arg runs are interactive when console I/O is available; if it cannot use the console, it warns and falls back to a non-interactive full install.
 - In Bash, `--dry-run` previews the full install non-interactively.
 - In PowerShell, `-DryRun` alone previews the full install non-interactively.
-- Interactive selections are authoritative for installer-managed skills: on a repeat install, managed skills left unchecked are removed, while unmanaged/custom skills are preserved.
-- An empty interactive submission removes all previously installed skills in the managed catalog; it does not delete `.system`, custom skills, core files, or MCP configuration.
+- Interactive selections are authoritative for installer-owned skills: on a repeat install, owned skills left unchecked are removed, while unowned/custom skills are preserved even if a custom skill has the same name as a catalog entry. Ownership is recorded in `~/.codex/.awesome-claude-code-config-managed-skills`; the first upgraded run adopts only legacy skills with verified source or unchanged bundled content.
+- If no skills are selected and owned skills would be removed, the installer asks for confirmation before clearing them. It does not delete `.system`, shared-agent or custom skills, core files, or MCP configuration.
 - Explicit non-interactive component flags (`--all`, `--core`, `--mcp`, `--skills` and their PowerShell equivalents) remain additive and do not reconcile prior skill selections.
 
 ### Codex menu groups and defaults
@@ -72,7 +72,7 @@ Behavior notes:
 |-------|-------|---------|
 | Core | `AGENTS.md`, `config.toml`, `StatusLine`, `lessons.md`, `explorer`, `reviewer`, `docs-researcher` | On |
 | Review | `code-review`, `adversarial-review` | On |
-| Workflow | `andrej-karpathy-skills`, `superpowers`, `mattpocock/skills`, `update-config` | On for `andrej-karpathy-skills`, `mattpocock/skills`, and `update-config`; `superpowers` off by default |
+| Workflow | `andrej-karpathy-skills`, `superpowers`, `mattpocock/skills`, `handoff`, `update-config` | On except `superpowers` |
 | Development Tools | `context7`, `github`, `playwright`, `openaiDeveloperDocs` | On; `github` requires `GITHUB_PERSONAL_ACCESS_TOKEN` |
 | Design & Content | `document-skills`, `example-skills`, `frontend-design`, `humanizer`, `humanizer-zh` | On except `humanizer-zh` |
 | Lifestyle | `PUA` | Off |

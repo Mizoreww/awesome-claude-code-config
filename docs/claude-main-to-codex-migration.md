@@ -24,7 +24,7 @@ This document explains how concepts from the repository's `main` branch map to t
 - Codex `[tui].status_line` configured to show model, reasoning, project name, git branch, context used, five-hour quota, and weekly quota in one consistent footer
 - The installer writes statusline settings under `[tui]` and removes misplaced top-level or project-scoped `status_line` entries when ensuring the footer
 - Codex defaults set to `model = "gpt-5.6-sol"`, `model_reasoning_effort = "max"`, `approval_policy = "never"`, and `sandbox_mode = "danger-full-access"` for trusted-repo autonomous runs
-- Repeat interactive installs treat the menu as authoritative for the installer's managed skill catalog: unchecked managed skills are removed, while custom skills and non-interactive component installs remain untouched
+- Repeat interactive installs treat the menu as authoritative for installer-owned skills: unchecked owned skills are removed, while ownership state, same-name custom skills, shared-agent skills, and non-interactive component installs remain untouched; clearing all owned skills requires confirmation
 
 ## What does **not** migrate 1:1
 

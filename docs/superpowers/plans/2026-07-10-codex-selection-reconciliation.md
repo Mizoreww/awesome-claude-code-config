@@ -4,7 +4,9 @@
 
 **Goal:** Make interactive reinstalls remove installer-managed Codex skills that are no longer selected, and change fresh-install defaults to `gpt-5.6-sol`, `max`, and the requested rate-limit footer.
 
-**Architecture:** The interactive menu produces a desired set of concrete skill names. Before additive installation begins, each installer compares that set with the bounded `MANAGED_SKILLS` catalogue, invokes agent-scoped `npx skills remove` for stale global entries, directly clears stale legacy copies under `~/.codex/skills`, and handles the superpowers fallback link/repository separately. Explicit non-interactive flags remain additive and never trigger reconciliation.
+**Architecture:** The interactive menu produces a desired set of concrete skill names. Before additive installation begins, each installer compares that set with persisted or safely adopted ownership, invokes agent-scoped `npx skills remove` for stale Codex entries, directly clears only owned stale copies under `~/.codex/skills`, and handles a provenance-verified superpowers fallback separately. Explicit non-interactive flags remain additive and never trigger reconciliation.
+
+> **Adversarial-review amendment (authoritative over older task snippets below):** Name membership in `MANAGED_SKILLS` is an allowlist, not ownership proof. Both installers persist `~/.codex/.awesome-claude-code-config-managed-skills`; first-run migration adopts only expected `skills` lock sources, unchanged bundled copies, or an `obra/superpowers` repository. Reconciliation never scans generic `~/.agents/skills` children. Empty desired skill sets require confirmation before bulk removal. Ten unreachable legacy names were removed, and `handoff` was restored as a visible default-on Workflow choice. The original no-manifest/name-scan snippets in Tasks 2–4 are retained only as execution history and must not be reintroduced.
 
 **Tech Stack:** Bash 3.2-compatible shell, Windows PowerShell 5.1-compatible script, TOML, Python 3 standard library for structural test assertions, Markdown documentation.
 
@@ -13,7 +15,7 @@
 - Develop and commit only on `codex-dev`; push only `codex-dev` for user testing.
 - Do not advance or push `codex` until the user explicitly confirms the `codex-dev` install test passed.
 - Reconciliation runs only after a real interactive menu submission.
-- Delete only names in `MANAGED_SKILLS`; preserve `.system`, catalogue-external skills, Core files, and MCP entries.
+- Delete only names both validated by `MANAGED_SKILLS` and recorded or safely adopted as installer-owned; preserve `.system`, unowned/custom skills (including same-name collisions), Core files, and MCP entries.
 - Use `npx skills remove --global --agent codex` for global/lock-aware cleanup; never recursively delete `~/.agents/skills`.
 - Preserve an existing `config.toml` model and reasoning choice; new defaults apply when the template is created.
 - Keep Bash and PowerShell behavior parallel.

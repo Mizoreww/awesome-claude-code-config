@@ -104,7 +104,7 @@ $script:SelectCoreStatusLine = $true
 $script:SelectAgentExplorer = $true
 $script:SelectAgentReviewer = $true
 $script:SelectAgentDocsResearcher = $true
-$script:SelectSkillSuperpowers = $true
+$script:SelectSkillSuperpowers = $false
 $script:SelectSkillDocumentSkills = $true
 $script:SelectSkillExampleSkills = $true
 $script:SelectSkillFrontendDesign = $true
@@ -116,7 +116,7 @@ $script:SelectSkillFrontendSlides = $false
 $script:SelectSkillPaperReading = $true
 $script:SelectSkillHumanizer = $true
 $script:SelectSkillHumanizerZh = $false
-$script:SelectSkillHandoff = $false
+$script:SelectSkillHandoff = $true
 $script:SelectSkillAdversarialReview = $true
 $script:SelectSkillUpdate = $true
 $script:SelectAiTokenization = $false
@@ -134,8 +134,6 @@ $script:SelectMcpLark = $false
 
 $MANAGED_SKILLS = @(
     "frontend-design", "pdf", "docx", "pptx", "xlsx", "canvas-design", "algorithmic-art", "mcp-builder",
-    "python-patterns", "python-testing", "golang-patterns", "golang-testing", "frontend-patterns",
-    "security-review", "tdd-workflow", "verification-loop", "api-design", "database-migrations",
     "using-superpowers", "systematic-debugging", "writing-plans", "test-driven-development",
     "huggingface-tokenizers", "sentencepiece",
     "axolotl", "llama-factory", "peft", "unsloth",
@@ -186,6 +184,11 @@ $SUPERPOWERS_SKILLS = @(
     "test-driven-development", "using-git-worktrees", "using-superpowers", "verification-before-completion",
     "writing-plans", "writing-skills"
 )
+$LOCAL_MANAGED_SKILLS = @("paper-reading", "humanizer", "humanizer-zh", "handoff", "adversarial-review", "update")
+$MANAGED_SKILLS_STATE_FILE = Join-Path $CODEX_DIR ".awesome-claude-code-config-managed-skills"
+$GLOBAL_SKILL_LOCK_FILE = Join-Path $HOME ".agents/.skill-lock.json"
+$script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
+$script:ManagedSkillOwnershipLoaded = $false
 $script:CODEX_STATUS_LINE = 'status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 $script:CODEX_STATUS_LINE_USE_COLORS = 'status_line_use_colors = true'
 
@@ -414,16 +417,23 @@ function Reset-InteractiveSelections {
     $script:SelectCoreAgentsMd = $true
     $script:SelectCoreConfig = $true
     $script:SelectCoreLessons = $true
+    $script:SelectCoreStatusLine = $true
     $script:SelectAgentExplorer = $true
     $script:SelectAgentReviewer = $true
     $script:SelectAgentDocsResearcher = $true
-    $script:SelectSkillSuperpowers = $true
+    $script:SelectSkillSuperpowers = $false
     $script:SelectSkillDocumentSkills = $true
     $script:SelectSkillExampleSkills = $true
+    $script:SelectSkillFrontendDesign = $true
+    $script:SelectSkillKarpathy = $true
+    $script:SelectSkillMattPocock = $true
+    $script:SelectSkillCodeReview = $true
+    $script:SelectSkillPUA = $false
+    $script:SelectSkillFrontendSlides = $false
     $script:SelectSkillPaperReading = $true
     $script:SelectSkillHumanizer = $true
     $script:SelectSkillHumanizerZh = $false
-    $script:SelectSkillHandoff = $false
+    $script:SelectSkillHandoff = $true
     $script:SelectSkillAdversarialReview = $true
     $script:SelectSkillUpdate = $true
     $script:SelectAiTokenization = $false
@@ -497,6 +507,10 @@ function Copy-SelectedDirectory {
             Remove-Item -Recurse -Force $Target
         }
         Copy-Item $Source $Target -Recurse -Force
+        $skillName = Split-Path $Target -Leaf
+        if (Test-ManagedSkillName $skillName) {
+            Add-ManagedSkillOwnership @($skillName)
+        }
         Write-Ok "$Label installed"
     }
 }
@@ -915,6 +929,7 @@ function Show-InteractiveMenu {
                 [pscustomobject]@{ Label = "andrej-karpathy-skills"; Description = "Karpathy coding guidelines"; Default = $true; StateVar = "SelectSkillKarpathy" },
                 [pscustomobject]@{ Label = "superpowers"; Description = "Planning, brainstorming, TDD, debugging"; Default = $false; StateVar = "SelectSkillSuperpowers" },
                 [pscustomobject]@{ Label = "mattpocock/skills"; Description = "Agent workflows via npx skills"; Default = $true; StateVar = "SelectSkillMattPocock" },
+                [pscustomobject]@{ Label = "handoff"; Description = "Conversation handoff skill"; Default = $true; StateVar = "SelectSkillHandoff" },
                 [pscustomobject]@{ Label = "update-config"; Description = "Update Codex config branch install"; Default = $true; StateVar = "SelectSkillUpdate" }
             )
         },
@@ -1335,6 +1350,208 @@ function Get-SkillNameFromPath {
     return (Split-Path $Path -Leaf)
 }
 
+function Test-SkillInList {
+    param([string]$Skill, [string[]]$Skills)
+    foreach ($candidate in $Skills) {
+        if ($candidate -ceq $Skill) { return $true }
+    }
+    return $false
+}
+
+function Test-ManagedSkillName {
+    param([string]$Skill)
+    return (Test-SkillInList $Skill $MANAGED_SKILLS)
+}
+
+function Get-ExpectedSkillSource {
+    param([string]$Skill)
+
+    if ($Skill -ceq "code-review" -or (Test-SkillInList $Skill $MATTPOCOCK_SKILLS)) {
+        return "mattpocock/skills"
+    }
+    if ($Skill -ceq "karpathy-guidelines") {
+        return "forrestchang/andrej-karpathy-skills"
+    }
+    if (Test-SkillInList $Skill $SUPERPOWERS_SKILLS) {
+        return "obra/superpowers"
+    }
+    if ($Skill -cmatch '^(frontend-design|pdf|docx|pptx|xlsx|canvas-design|algorithmic-art|mcp-builder)$') {
+        return "anthropics/skills"
+    }
+    if (Test-SkillInList $Skill $PUA_SKILLS) {
+        return "tanweai/pua"
+    }
+    if ($Skill -ceq "frontend-slides") {
+        return "zarazhangrui/frontend-slides"
+    }
+    if ($Skill -cmatch '^(huggingface-tokenizers|sentencepiece|axolotl|llama-factory|peft|unsloth|grpo-rl-training|openrlhf|simpo|trl-fine-tuning|verl|deepspeed|pytorch-fsdp2|megatron-core|ray-train|awq|gptq|gguf|flash-attention|bitsandbytes|vllm|sglang|tensorrt-llm|llama-cpp)$') {
+        return "zechenzhangAGI/AI-research-SKILLs"
+    }
+    if ($Skill -cmatch '^(deepxiv-cli|deepxiv-baseline-table|deepxiv-trending-digest)$') {
+        return "DeepXiv/deepxiv_sdk"
+    }
+    if (Test-SkillInList $Skill $LOCAL_MANAGED_SKILLS) {
+        return "local:$Skill"
+    }
+    return $null
+}
+
+function Test-DirectoryTreeEqual {
+    param([string]$Source, [string]$Target)
+    if (-not (Test-Path -LiteralPath $Source -PathType Container) -or
+        -not (Test-Path -LiteralPath $Target -PathType Container)) {
+        return $false
+    }
+
+    $trimChars = [char[]]@([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
+    $sourceRoot = (Resolve-Path -LiteralPath $Source).Path.TrimEnd($trimChars)
+    $targetRoot = (Resolve-Path -LiteralPath $Target).Path.TrimEnd($trimChars)
+    $sourceFiles = @(Get-ChildItem -LiteralPath $sourceRoot -Recurse -File | Sort-Object FullName)
+    $targetFiles = @(Get-ChildItem -LiteralPath $targetRoot -Recurse -File | Sort-Object FullName)
+    if ($sourceFiles.Count -ne $targetFiles.Count) { return $false }
+
+    $targetByRelativePath = @{}
+    foreach ($file in $targetFiles) {
+        $relative = $file.FullName.Substring($targetRoot.Length).TrimStart($trimChars)
+        $targetByRelativePath[$relative] = $file.FullName
+    }
+    foreach ($file in $sourceFiles) {
+        $relative = $file.FullName.Substring($sourceRoot.Length).TrimStart($trimChars)
+        if (-not $targetByRelativePath.ContainsKey($relative)) { return $false }
+        $sourceHash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
+        $targetHash = (Get-FileHash -LiteralPath $targetByRelativePath[$relative] -Algorithm SHA256).Hash
+        if ($sourceHash -cne $targetHash) { return $false }
+    }
+    return $true
+}
+
+function Test-SuperpowersFallbackOwned {
+    $gitConfig = Join-Path $SUPERPOWERS_DIR ".git/config"
+    if (-not (Test-Path -LiteralPath $gitConfig -PathType Leaf)) { return $false }
+
+    $remote = $null
+    if (Get-Command "git" -ErrorAction SilentlyContinue) {
+        $remote = (& git config --file $gitConfig --get remote.origin.url 2>$null | Select-Object -First 1)
+    }
+    if (-not $remote) {
+        $configText = Get-Content -LiteralPath $gitConfig -Raw
+        $match = [regex]::Match($configText, '(?ims)^\[remote\s+"origin"\]\s*$.*?^\s*url\s*=\s*(?<url>[^\r\n]+)')
+        if ($match.Success) { $remote = $match.Groups['url'].Value.Trim() }
+    }
+
+    return $remote -cin @(
+        "https://github.com/obra/superpowers",
+        "https://github.com/obra/superpowers.git",
+        "git@github.com:obra/superpowers.git",
+        "git://github.com/obra/superpowers.git"
+    )
+}
+
+function Test-SuperpowersOwnershipRecorded {
+    foreach ($skill in $SUPERPOWERS_SKILLS) {
+        if ($script:OwnedManagedSkills.Contains($skill)) { return $true }
+    }
+    return $false
+}
+
+function Save-ManagedSkillOwnership {
+    if ($DryRun) { return }
+    $tempState = "$MANAGED_SKILLS_STATE_FILE.tmp.$PID"
+    try {
+        New-Item -ItemType Directory -Path $CODEX_DIR -Force | Out-Null
+        $lines = @()
+        foreach ($skill in $MANAGED_SKILLS) {
+            if ($script:OwnedManagedSkills.Contains($skill)) { $lines += $skill }
+        }
+        $encoding = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllLines($tempState, [string[]]$lines, $encoding)
+        Move-Item -LiteralPath $tempState -Destination $MANAGED_SKILLS_STATE_FILE -Force
+    } catch {
+        Remove-Item -LiteralPath $tempState -Force -ErrorAction SilentlyContinue
+        Write-Warn "Could not save managed skill ownership to ${MANAGED_SKILLS_STATE_FILE}: $($_.Exception.Message)"
+        $script:SKIPPED_COMPONENTS += "managed skill ownership state (write failed)"
+    }
+}
+
+function Initialize-ManagedSkillOwnership {
+    if ($script:ManagedSkillOwnershipLoaded) { return }
+    $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
+
+    if (Test-Path -LiteralPath $MANAGED_SKILLS_STATE_FILE -PathType Leaf) {
+        foreach ($recorded in @(Get-Content -LiteralPath $MANAGED_SKILLS_STATE_FILE)) {
+            if ((Test-ManagedSkillName $recorded)) {
+                [void]$script:OwnedManagedSkills.Add($recorded)
+            }
+        }
+        $script:ManagedSkillOwnershipLoaded = $true
+        return
+    }
+
+    foreach ($skill in $LOCAL_MANAGED_SKILLS) {
+        $source = Join-Path $script:SCRIPT_DIR "skills/$skill"
+        $target = Join-Path $CODEX_DIR "skills/$skill"
+        if (Test-DirectoryTreeEqual $source $target) {
+            [void]$script:OwnedManagedSkills.Add($skill)
+        }
+    }
+
+    if (Test-Path -LiteralPath $GLOBAL_SKILL_LOCK_FILE -PathType Leaf) {
+        try {
+            $lock = Get-Content -LiteralPath $GLOBAL_SKILL_LOCK_FILE -Raw | ConvertFrom-Json
+            foreach ($property in @($lock.skills.PSObject.Properties)) {
+                $name = $property.Name
+                $source = $property.Value.source
+                $expected = Get-ExpectedSkillSource $name
+                if ((Test-ManagedSkillName $name) -and $expected -and
+                    -not $expected.StartsWith("local:") -and $source -ceq $expected) {
+                    [void]$script:OwnedManagedSkills.Add($name)
+                }
+            }
+        } catch {
+            Write-Warn "Could not parse $GLOBAL_SKILL_LOCK_FILE; preserving untracked legacy skills"
+        }
+    }
+
+    if (Test-SuperpowersFallbackOwned) {
+        foreach ($skill in $SUPERPOWERS_SKILLS) {
+            [void]$script:OwnedManagedSkills.Add($skill)
+        }
+    }
+
+    $script:ManagedSkillOwnershipLoaded = $true
+    Save-ManagedSkillOwnership
+}
+
+function Add-ManagedSkillOwnership {
+    param([string[]]$SkillNames)
+    Initialize-ManagedSkillOwnership
+    foreach ($skill in $SkillNames) {
+        if (Test-ManagedSkillName $skill) {
+            [void]$script:OwnedManagedSkills.Add($skill)
+        }
+    }
+    Save-ManagedSkillOwnership
+}
+
+function Remove-ManagedSkillOwnership {
+    param([string[]]$SkillNames)
+    Initialize-ManagedSkillOwnership
+    foreach ($skill in $SkillNames) {
+        [void]$script:OwnedManagedSkills.Remove($skill)
+    }
+    Save-ManagedSkillOwnership
+}
+
+function Confirm-EmptySkillRemoval {
+    param([int]$Count)
+    if ($Force) { return $true }
+    if ([Console]::IsInputRedirected) {
+        Write-Warn "Cannot confirm removal without an interactive console; preserving existing managed skills"
+        return $false
+    }
+    return (Confirm-Action "Remove $Count previously installer-managed skill(s)?")
+}
+
 function Install-NpxSkillNames {
     param([string]$Repo, [string[]]$SkillNames)
 
@@ -1357,7 +1574,11 @@ function Install-NpxSkillNames {
     try {
         & npx @npxArgs 2>&1 | ForEach-Object { Write-Host $_ }
         $exitCode = $LASTEXITCODE
-        return ($exitCode -eq 0)
+        if ($exitCode -eq 0) {
+            Add-ManagedSkillOwnership $SkillNames
+            return $true
+        }
+        return $false
     } finally {
         if ($null -eq $oldDoNotTrack) {
             Remove-Item Env:DO_NOT_TRACK -ErrorAction SilentlyContinue
@@ -1439,6 +1660,14 @@ function Remove-NpxSkillNames {
 }
 
 function Remove-SuperpowersFallback {
+    if (-not (Test-SuperpowersFallbackOwned)) {
+        if ((Test-Path $SUPERPOWERS_LINK) -or (Test-Path $SUPERPOWERS_DIR)) {
+            Write-Warn "Preserving unrecognized superpowers fallback paths; expected obra/superpowers provenance"
+            $script:SKIPPED_COMPONENTS += "superpowers fallback cleanup (ownership could not be verified)"
+        }
+        return
+    }
+
     $linkItem = Get-Item -LiteralPath $SUPERPOWERS_LINK -Force -ErrorAction SilentlyContinue
     if ($DryRun) {
         if ($linkItem) {
@@ -1454,7 +1683,12 @@ function Remove-SuperpowersFallback {
         $isReparsePoint = ($linkItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0
         if ($isReparsePoint) {
             cmd /c rmdir "$SUPERPOWERS_LINK" | Out-Null
-            Write-Ok "Removed superpowers link"
+            if ($LASTEXITCODE -eq 0) {
+                Write-Ok "Removed superpowers link"
+            } else {
+                Write-Warn "Failed to remove superpowers junction: $SUPERPOWERS_LINK"
+                $script:SKIPPED_COMPONENTS += "superpowers link cleanup (rmdir failed)"
+            }
         } else {
             Write-Warn "$SUPERPOWERS_LINK is not a junction/symlink; preserving it"
             $script:SKIPPED_COMPONENTS += "superpowers link cleanup ($SUPERPOWERS_LINK is not a junction/symlink)"
@@ -1471,18 +1705,30 @@ function Sync-InteractiveSkills {
     $desired = @(Get-SelectedManagedSkills)
     $stale = @()
 
-    foreach ($skill in $MANAGED_SKILLS) {
-        if ($desired -contains $skill) { continue }
+    Initialize-ManagedSkillOwnership
 
-        $codexPath = Join-Path $CODEX_DIR "skills/$skill"
-        $sharedPath = Join-Path $AGENTS_SKILLS_DIR $skill
-        if ((Test-Path $codexPath) -or (Test-Path $sharedPath)) {
-            $stale += $skill
-        }
+    foreach ($skill in @($script:OwnedManagedSkills)) {
+        if ($desired -contains $skill) { continue }
+        $stale += $skill
     }
 
     if ($stale.Count -gt 0) {
-        Remove-NpxSkillNames $stale
+        if ($desired.Count -eq 0 -and -not $DryRun) {
+            if (-not (Confirm-EmptySkillRemoval $stale.Count)) {
+                Write-Info "Managed skill removal cancelled; existing managed skills were preserved"
+                return
+            }
+        }
+
+        $installedStale = @()
+        foreach ($skill in $stale) {
+            $codexPath = Join-Path $CODEX_DIR "skills/$skill"
+            if (Test-Path $codexPath) { $installedStale += $skill }
+        }
+        if ($installedStale.Count -gt 0) {
+            Remove-NpxSkillNames $installedStale
+        }
+
         foreach ($skill in $stale) {
             $codexPath = Join-Path $CODEX_DIR "skills/$skill"
             if ($DryRun) {
@@ -1496,8 +1742,12 @@ function Sync-InteractiveSkills {
         }
     }
 
-    if (-not $script:SelectSkillSuperpowers) {
+    if (-not $script:SelectSkillSuperpowers -and (Test-SuperpowersOwnershipRecorded)) {
         Remove-SuperpowersFallback
+    }
+
+    if ($stale.Count -gt 0 -and -not $DryRun) {
+        Remove-ManagedSkillOwnership $stale
     }
 }
 
@@ -1526,7 +1776,13 @@ function Install-SkillPathsFallback {
     if ($LASTEXITCODE -ne 0) {
         Write-Warn "Skill install from $Repo returned non-zero (possibly already installed)"
         $script:SKIPPED_COMPONENTS += "skill pack from $Repo (fallback installer returned non-zero)"
+        return
     }
+    $installedNames = @()
+    foreach ($path in $Paths) {
+        $installedNames += Get-SkillNameFromPath $path
+    }
+    Add-ManagedSkillOwnership $installedNames
 }
 
 function Install-SkillPaths {
@@ -1671,6 +1927,7 @@ function Install-Superpowers {
         Write-Warn "Failed to create junction at $SUPERPOWERS_LINK"
         $script:SKIPPED_COMPONENTS += "superpowers skills link (junction creation failed)"
     } else {
+        Add-ManagedSkillOwnership $SUPERPOWERS_SKILLS
         Write-Ok "Linked superpowers skills into $SUPERPOWERS_LINK"
     }
 
@@ -1690,6 +1947,7 @@ function Install-LocalSkills {
             New-Item -ItemType Directory -Path (Join-Path $CODEX_DIR "skills") -Force | Out-Null
             if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
             Copy-Item -Recurse $_.FullName $dest
+            Add-ManagedSkillOwnership @($skill)
             Write-Ok "Installed local skill: $skill"
         }
     }
@@ -1789,6 +2047,7 @@ function Invoke-Uninstall {
             }
             "skills" {
                 Write-Host "  - Managed skills under $CODEX_DIR\skills"
+                Write-Host "  - $MANAGED_SKILLS_STATE_FILE"
                 Write-Host "  - $SUPERPOWERS_DIR"
                 Write-Host "  - $SUPERPOWERS_LINK"
             }
@@ -1850,6 +2109,7 @@ function Invoke-Uninstall {
                     }
                 }
                 Remove-Item -Recurse -Force $SUPERPOWERS_DIR -ErrorAction SilentlyContinue
+                Remove-Item -Force $MANAGED_SKILLS_STATE_FILE -ErrorAction SilentlyContinue
                 Write-Ok "Removed managed skills"
             }
         }

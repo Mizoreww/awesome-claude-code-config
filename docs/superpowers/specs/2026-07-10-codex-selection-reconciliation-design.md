@@ -1,8 +1,8 @@
 # Codex Selection Reconciliation and Default Footer Design
 
 Date: 2026-07-10
-Branch: `codex`
-Status: User-approved for implementation planning
+Branch: `codex-dev` (promote to `codex` only after user testing)
+Status: Implemented with adversarial-review safety amendment
 
 ## Goal
 
@@ -31,17 +31,17 @@ The percentages and repository state remain live session values; only the displa
 - Do not add management for Codex plugins that this branch does not install.
 - Do not change non-interactive flag semantics. In particular, `--core`, `--mcp`, `--skills`, `--all`, and their PowerShell equivalents do not interpret omitted menu items as removal requests.
 - Do not overwrite an existing user's `model` or `model_reasoning_effort` values. The new model defaults apply when the installer creates a new `config.toml`.
-- Do not add a new persistent installer manifest solely for this change.
+- Do not infer installer ownership from a directory name alone.
 
 ## Chosen Approach
 
-Use selection-set reconciliation during interactive installs.
+Use ownership-bounded selection-set reconciliation during interactive installs.
 
-Both installers already have a bounded `MANAGED_SKILLS` catalogue and explicit booleans for every menu item. They will derive the union of skill names produced by all selected items, then remove every installed catalogue entry not present in that union. This works immediately for installations created by older versions, which have no selection manifest.
+Both installers derive the union of skill names produced by selected menu items, but removal candidates come only from the installer's persisted ownership state (`~/.codex/.awesome-claude-code-config-managed-skills`). Successful local, npx, Python-fallback, and superpowers installs record ownership. A first upgrade adopts only legacy entries whose provenance can be verified: an expected source in `~/.agents/.skill-lock.json`, an unchanged bundled local directory, or an `obra/superpowers` fallback repository.
 
 Alternatives rejected:
 
-- A new ownership manifest would improve provenance for future installs but could not clean up pre-manifest installations on the first upgrade without an additional adoption rule.
+- Treating every `MANAGED_SKILLS` name found on disk as installer-owned can delete a user's custom skill with the same generic name.
 - Per-menu-item removal branches would duplicate the installation mappings and make Bash and PowerShell drift likely.
 
 ## Reconciliation Boundary
@@ -50,7 +50,7 @@ Alternatives rejected:
 
 Only a submitted interactive menu performs selection reconciliation. This includes a submission with no skill items selected.
 
-An entirely empty interactive selection is no longer automatically treated as a no-op if managed skills are present. It is a request to remove all installer-managed Codex skills. Core and MCP state remain unchanged.
+An entirely empty skill selection is a request to remove all installer-owned Codex skills. If any owned skills would be removed, the installer asks for a second confirmation. Core and MCP state remain unchanged.
 
 ### Runs that do not reconcile
 
@@ -65,9 +65,9 @@ This prevents automation and targeted repair commands from becoming destructive.
 
 ### Managed names only
 
-The removal candidate set is always bounded by `MANAGED_SKILLS`. A directory such as `~/.codex/skills/my-private-skill` is preserved because it is outside the catalogue.
+The removal candidate set is the intersection of persisted/verified ownership and `MANAGED_SKILLS`. A directory such as `~/.codex/skills/my-private-skill` is preserved because it is outside the catalogue; a custom directory that happens to be named `research` is also preserved unless this installer previously recorded ownership.
 
-If a user independently installed a skill whose name is in `MANAGED_SKILLS`, the interactive selector owns that name for Codex and the current selection determines whether it remains available. This is consistent with the existing full skill-uninstall behavior.
+The catalogue is an allowlist for state validation, not proof of ownership. Unreachable legacy names are excluded, and tests require every selection mapper variable to have a real menu entry.
 
 ## Selection Mapping
 
@@ -92,19 +92,19 @@ For bundled skills copied directly into `~/.codex/skills`, remove an unselected 
 
 ### Skills installed through `npx skills`
 
-The `skills` CLI maintains global canonical entries and agent associations, including `~/.agents/.skill-lock.json`. For stale names installed through that CLI, use an agent-scoped command equivalent to:
+The `skills` CLI maintains global source metadata and agent installations, including `~/.agents/.skill-lock.json`. For stale owned names present in Codex's global skill directory, use an agent-scoped command equivalent to:
 
 ```bash
 npx -y skills@latest remove --global --agent codex --yes <skill names...>
 ```
 
-This lets the upstream CLI update its lock and remove the Codex association while preserving associations it tracks for other agents. The installer must not delete the entire `~/.agents/skills` directory.
+This lets the upstream CLI update its lock and remove the Codex installation while preserving other agent targets. Reconciliation never scans generic children of `~/.agents/skills` and never deletes that shared tree directly.
 
 After the agent-aware removal attempt, directly remove stale paths under `~/.codex/skills` so legacy or fallback copies do not linger. A missing or failed `npx` command produces a visible warning and increments the install warning/skip summary rather than silently claiming convergence.
 
 ### Superpowers fallback
 
-When `superpowers` is unselected, also remove the installer-managed fallback repository and its link or junction:
+When `superpowers` is unselected, also remove the fallback repository and its link or junction only after the repository origin is verified as `obra/superpowers`:
 
 - `~/.codex/superpowers`
 - `~/.agents/skills/superpowers`
@@ -116,9 +116,9 @@ Only the known link/junction is removed as a link. The installer must not recurs
 For an interactive install:
 
 1. Read the final menu state.
-2. Build the desired managed-skill set.
-3. Reconcile stale managed skills.
-4. Run the existing component installation sequence, installing or refreshing only selected items.
+2. Load persisted ownership, or safely adopt verified legacy ownership on the first run.
+3. Build the desired managed-skill set and reconcile owned entries that are now stale.
+4. Run the existing component installation sequence, installing or refreshing only selected items and recording successful ownership.
 5. Report installation and cleanup warnings.
 
 This ensures a selected skill shared by two packs is not removed and that old unselected copies disappear during the same run.
@@ -128,9 +128,9 @@ This ensures a selected skill shared by two packs is not removed and that old un
 The menu's submit action must distinguish between "nothing selected to install" and "nothing to reconcile." If no Core, skill, or MCP items are selected:
 
 - run the managed-skill reconciliation with an empty desired set;
-- remove all currently installed names in `MANAGED_SKILLS` from Codex scope;
+- ask for confirmation, then remove all currently installer-owned names from Codex scope;
 - remove the superpowers fallback assets;
-- preserve Core files, MCP entries, `.system` skills, and catalogue-external skills;
+- preserve Core files, MCP entries, `.system` skills, shared-agent state, and unowned/custom skills (including same-name collisions);
 - exit successfully after reporting what was removed.
 
 If no managed skill is currently installed, the same submission remains an effective no-op.
@@ -159,6 +159,8 @@ The exact item identifiers `five-hour-limit` and `weekly-limit` are supported by
 - A failed stale-skill removal is reported with the affected names.
 - Failure to run `npx skills remove` does not authorize deleting the shared `~/.agents/skills` tree directly.
 - Direct cleanup remains limited to named children of `~/.codex/skills`.
+- State-file entries are validated against `MANAGED_SKILLS`; arbitrary names or paths cannot expand the deletion boundary.
+- Ambiguous legacy entries are preserved rather than adopted by name.
 - Missing paths are treated as already clean.
 - Dry-run paths perform no deletion and make both direct and agent-aware cleanup visible.
 - One failed removal does not prevent unrelated selected items from being installed, but the final summary must not describe the failed item as removed.
@@ -169,6 +171,7 @@ The exact item identifiers `five-hour-limit` and `weekly-limit` are supported by
 
 - the same managed catalogue;
 - the same menu-item-to-skill mapping;
+- the same ownership-state and safe legacy-adoption rules;
 - the same interactive-only reconciliation trigger;
 - the same empty-selection cleanup behavior;
 - the same npx agent-scoped removal;
@@ -197,9 +200,12 @@ Use an isolated temporary HOME and source the installer functions without invoki
 - an unselected managed local skill is removed;
 - a selected managed skill is retained;
 - a catalogue-external skill is retained;
+- a custom skill with a managed-catalogue name but no ownership record is retained;
+- matching legacy lock provenance and unchanged bundled copies are safely adopted;
+- shared `~/.agents/skills` entries are retained;
 - an unselected npx-managed skill invokes an agent-scoped global removal;
 - overlapping selected packs retain their shared skill;
-- an empty desired set removes all installed managed skills;
+- an empty desired set requires confirmation and removes all owned managed skills;
 - dry-run reports removals without changing files;
 - non-interactive install paths do not call reconciliation.
 
@@ -227,8 +233,9 @@ Run PowerShell syntax/Pester checks when `pwsh` is available. Exercise the exist
 Update `README.md` and `README.zh-CN.md` to document:
 
 - interactive reinstall selections are authoritative for installer-managed Codex skills;
-- unselected managed skills are removed;
-- catalogue-external skills, Core, and MCP state are preserved;
+- unselected installer-owned managed skills are removed;
+- ownership state, same-name custom skills, shared-agent skills, Core, and MCP state are preserved;
+- empty skill selections require confirmation before bulk removal;
 - non-interactive component flags remain non-destructive;
 - the new model, reasoning, and footer defaults.
 
@@ -237,7 +244,7 @@ Update both changelogs' current Unreleased sections. This is a version-level ins
 ## Acceptance Criteria
 
 1. Re-running the interactive installer and deselecting a previously installed managed skill removes it from Codex scope.
-2. Submitting with all skills unselected removes all installed managed skills without deleting Core, MCP, `.system`, or catalogue-external skill state.
+2. Submitting with all skills unselected asks for confirmation, then removes all installer-owned managed skills without deleting Core, MCP, `.system`, shared-agent, or unowned/custom skill state.
 3. A skill supplied by any still-selected menu item remains installed.
 4. Explicit non-interactive component flags do not remove omitted skill groups.
 5. Fresh installs default to `gpt-5.6-sol` and `max`.

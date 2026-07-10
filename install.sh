@@ -63,6 +63,8 @@ UNINSTALL_COMPONENTS=()
 SKIPPED_COMPONENTS=()
 MCP_FAILED_SERVERS=()
 LESSONS_SEEDED=false
+OWNED_MANAGED_SKILLS=()
+MANAGED_SKILLS_OWNERSHIP_LOADED=false
 
 SELECT_CORE_AGENTS_MD=false
 SELECT_CORE_CONFIG=false
@@ -101,8 +103,6 @@ SELECT_MCP_LARK=false
 
 MANAGED_SKILLS=(
   frontend-design pdf docx pptx xlsx canvas-design algorithmic-art mcp-builder
-  python-patterns python-testing golang-patterns golang-testing frontend-patterns
-  security-review tdd-workflow verification-loop api-design database-migrations
   using-superpowers systematic-debugging writing-plans test-driven-development
   huggingface-tokenizers sentencepiece
   axolotl llama-factory peft unsloth
@@ -153,6 +153,9 @@ SUPERPOWERS_SKILLS=(
   test-driven-development using-git-worktrees using-superpowers verification-before-completion
   writing-plans writing-skills
 )
+LOCAL_MANAGED_SKILLS=(paper-reading humanizer humanizer-zh handoff adversarial-review update)
+MANAGED_SKILLS_STATE_FILE="$CODEX_DIR/.awesome-claude-code-config-managed-skills"
+GLOBAL_SKILL_LOCK_FILE="$HOME/.agents/.skill-lock.json"
 CODEX_STATUS_LINE='status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 CODEX_STATUS_LINE_USE_COLORS='status_line_use_colors = true'
 
@@ -802,9 +805,248 @@ skill_name_from_path() {
   basename "$1"
 }
 
+skill_in_array() {
+  local needle="$1"
+  shift
+  local item
+  for item in "$@"; do
+    [[ "$item" == "$needle" ]] && return 0
+  done
+  return 1
+}
+
+managed_skill_name_is_valid() {
+  skill_in_array "$1" "${MANAGED_SKILLS[@]}"
+}
+
+expected_source_for_skill() {
+  local skill="$1"
+
+  if [[ "$skill" == "code-review" ]] || skill_in_array "$skill" "${MATTPOCOCK_SKILLS[@]}"; then
+    printf '%s\n' "mattpocock/skills"
+  elif [[ "$skill" == "karpathy-guidelines" ]]; then
+    printf '%s\n' "forrestchang/andrej-karpathy-skills"
+  elif skill_in_array "$skill" "${SUPERPOWERS_SKILLS[@]}"; then
+    printf '%s\n' "obra/superpowers"
+  elif [[ "$skill" =~ ^(frontend-design|pdf|docx|pptx|xlsx|canvas-design|algorithmic-art|mcp-builder)$ ]]; then
+    printf '%s\n' "anthropics/skills"
+  elif skill_in_array "$skill" "${PUA_SKILLS[@]}"; then
+    printf '%s\n' "tanweai/pua"
+  elif [[ "$skill" == "frontend-slides" ]]; then
+    printf '%s\n' "zarazhangrui/frontend-slides"
+  elif [[ "$skill" =~ ^(huggingface-tokenizers|sentencepiece|axolotl|llama-factory|peft|unsloth|grpo-rl-training|openrlhf|simpo|trl-fine-tuning|verl|deepspeed|pytorch-fsdp2|megatron-core|ray-train|awq|gptq|gguf|flash-attention|bitsandbytes|vllm|sglang|tensorrt-llm|llama-cpp)$ ]]; then
+    printf '%s\n' "zechenzhangAGI/AI-research-SKILLs"
+  elif [[ "$skill" =~ ^(deepxiv-cli|deepxiv-baseline-table|deepxiv-trending-digest)$ ]]; then
+    printf '%s\n' "DeepXiv/deepxiv_sdk"
+  elif skill_in_array "$skill" "${LOCAL_MANAGED_SKILLS[@]}"; then
+    printf 'local:%s\n' "$skill"
+  fi
+  return 0
+}
+
+owned_managed_skill_contains() {
+  [[ ${#OWNED_MANAGED_SKILLS[@]} -gt 0 ]] || return 1
+  skill_in_array "$1" "${OWNED_MANAGED_SKILLS[@]}"
+}
+
+superpowers_ownership_is_recorded() {
+  local skill
+  for skill in "${SUPERPOWERS_SKILLS[@]}"; do
+    owned_managed_skill_contains "$skill" && return 0
+  done
+  return 1
+}
+
+append_managed_skill_ownership() {
+  local skill="$1"
+  managed_skill_name_is_valid "$skill" || return 0
+  owned_managed_skill_contains "$skill" && return 0
+  OWNED_MANAGED_SKILLS+=("$skill")
+}
+
+save_managed_skill_ownership() {
+  $DRY_RUN && return 0
+
+  if ! mkdir -p "$CODEX_DIR"; then
+    warn "Could not create $CODEX_DIR; managed skill ownership was not saved"
+    return 0
+  fi
+
+  local tmp="${MANAGED_SKILLS_STATE_FILE}.tmp.$$"
+  local skill
+  if ! {
+    for skill in "${MANAGED_SKILLS[@]}"; do
+      if owned_managed_skill_contains "$skill"; then
+        printf '%s\n' "$skill"
+      fi
+    done
+  } > "$tmp"; then
+    rm -f "$tmp"
+    warn "Could not write managed skill ownership to $MANAGED_SKILLS_STATE_FILE"
+    return 0
+  fi
+  if ! mv "$tmp" "$MANAGED_SKILLS_STATE_FILE"; then
+    rm -f "$tmp"
+    warn "Could not save managed skill ownership to $MANAGED_SKILLS_STATE_FILE"
+  fi
+  return 0
+}
+
+legacy_local_skill_is_owned() {
+  local skill="$1"
+  local source="$SCRIPT_DIR/skills/$skill"
+  local target="$CODEX_DIR/skills/$skill"
+  [[ -d "$source" && -d "$target" ]] || return 1
+  command -v diff >/dev/null 2>&1 || return 1
+  diff -qr "$source" "$target" >/dev/null 2>&1
+}
+
+legacy_locked_skill_pairs() {
+  [[ -f "$GLOBAL_SKILL_LOCK_FILE" ]] || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+
+  python3 - "$GLOBAL_SKILL_LOCK_FILE" <<'PY'
+import json
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as fh:
+        data = json.load(fh)
+except (OSError, ValueError):
+    raise SystemExit(0)
+
+skills = data.get("skills", {})
+if not isinstance(skills, dict):
+    raise SystemExit(0)
+for name, metadata in skills.items():
+    if isinstance(name, str) and isinstance(metadata, dict):
+        source = metadata.get("source")
+        if isinstance(source, str) and "\t" not in name and "\t" not in source:
+            print(f"{name}\t{source}")
+PY
+}
+
+superpowers_fallback_is_owned() {
+  local git_config="$SUPERPOWERS_DIR/.git/config"
+  [[ -f "$git_config" ]] || return 1
+
+  local remote=""
+  if command -v git >/dev/null 2>&1; then
+    remote=$(git config --file "$git_config" --get remote.origin.url 2>/dev/null || true)
+  fi
+  if [[ -z "$remote" ]]; then
+    remote=$(awk '
+      /^\[remote "origin"\]/ { in_origin=1; next }
+      /^\[/ { in_origin=0 }
+      in_origin && /^[[:space:]]*url[[:space:]]*=/ {
+        sub(/^[^=]*=[[:space:]]*/, "")
+        print
+        exit
+      }
+    ' "$git_config")
+  fi
+
+  case "$remote" in
+    https://github.com/obra/superpowers|https://github.com/obra/superpowers.git|git@github.com:obra/superpowers.git|git://github.com/obra/superpowers.git)
+      return 0
+      ;;
+  esac
+  return 1
+}
+
+initialize_managed_skill_ownership() {
+  $MANAGED_SKILLS_OWNERSHIP_LOADED && return 0
+  OWNED_MANAGED_SKILLS=()
+
+  if [[ -f "$MANAGED_SKILLS_STATE_FILE" ]]; then
+    local recorded
+    while IFS= read -r recorded || [[ -n "$recorded" ]]; do
+      append_managed_skill_ownership "$recorded"
+    done < "$MANAGED_SKILLS_STATE_FILE"
+    MANAGED_SKILLS_OWNERSHIP_LOADED=true
+    return 0
+  fi
+
+  local skill expected locked_name locked_source
+  for skill in "${LOCAL_MANAGED_SKILLS[@]}"; do
+    if legacy_local_skill_is_owned "$skill"; then
+      append_managed_skill_ownership "$skill"
+    fi
+  done
+
+  while IFS=$'\t' read -r locked_name locked_source; do
+    managed_skill_name_is_valid "$locked_name" || continue
+    expected=$(expected_source_for_skill "$locked_name")
+    if [[ -n "$expected" && "$expected" != local:* && "$locked_source" == "$expected" ]]; then
+      append_managed_skill_ownership "$locked_name"
+    fi
+  done < <(legacy_locked_skill_pairs)
+
+  if superpowers_fallback_is_owned; then
+    for skill in "${SUPERPOWERS_SKILLS[@]}"; do
+      append_managed_skill_ownership "$skill"
+    done
+  fi
+
+  MANAGED_SKILLS_OWNERSHIP_LOADED=true
+  save_managed_skill_ownership
+}
+
+add_managed_skill_ownership() {
+  initialize_managed_skill_ownership
+  local skill
+  for skill in "$@"; do
+    append_managed_skill_ownership "$skill"
+  done
+  save_managed_skill_ownership
+}
+
+remove_managed_skill_ownership() {
+  initialize_managed_skill_ownership
+  local -a kept=()
+  local owned remove candidate
+  if [[ ${#OWNED_MANAGED_SKILLS[@]} -gt 0 ]]; then
+    for owned in "${OWNED_MANAGED_SKILLS[@]}"; do
+      remove=false
+      for candidate in "$@"; do
+        if [[ "$owned" == "$candidate" ]]; then
+          remove=true
+          break
+        fi
+      done
+      $remove || kept+=("$owned")
+    done
+  fi
+  OWNED_MANAGED_SKILLS=()
+  if [[ ${#kept[@]} -gt 0 ]]; then
+    OWNED_MANAGED_SKILLS=("${kept[@]}")
+  fi
+  save_managed_skill_ownership
+}
+
+confirm_empty_skill_removal() {
+  local count="$1"
+  $FORCE && return 0
+
+  local answer=""
+  if [[ -t 0 ]]; then
+    printf '%b' "${YELLOW}Remove $count previously installer-managed skill(s)? [y/N] ${NC}"
+    read -r answer
+  elif exec 4</dev/tty 2>/dev/null; then
+    printf '%b' "${YELLOW}Remove $count previously installer-managed skill(s)? [y/N] ${NC}" >/dev/tty
+    read -r answer <&4
+    exec 4<&-
+  else
+    warn "Cannot confirm removal without a terminal; preserving existing managed skills"
+    return 1
+  fi
+  [[ "$answer" =~ ^[Yy]$ ]]
+}
+
 install_npx_skill_names() {
   local repo="$1"
   shift
+  local -a skill_names=("$@")
 
   if $DRY_RUN; then
     info "Would install via npx skills: $repo -> $*"
@@ -822,7 +1064,11 @@ install_npx_skill_names() {
     args+=(--skill "$skill")
   done
 
-  DO_NOT_TRACK=1 npx "${args[@]}" </dev/null
+  if DO_NOT_TRACK=1 npx "${args[@]}" </dev/null; then
+    add_managed_skill_ownership "${skill_names[@]}"
+    return 0
+  fi
+  return 1
 }
 
 selected_managed_skill_names() {
@@ -873,6 +1119,14 @@ remove_npx_skill_names() {
 }
 
 remove_superpowers_fallback() {
+  if ! superpowers_fallback_is_owned; then
+    if [[ -L "$SUPERPOWERS_LINK" || -e "$SUPERPOWERS_LINK" || -e "$SUPERPOWERS_DIR" ]]; then
+      warn "Preserving unrecognized superpowers fallback paths; expected obra/superpowers provenance"
+      SKIPPED_COMPONENTS+=("superpowers fallback cleanup (ownership could not be verified)")
+    fi
+    return 0
+  fi
+
   if $DRY_RUN; then
     if [[ -L "$SUPERPOWERS_LINK" || -e "$SUPERPOWERS_LINK" ]]; then
       info "Would remove superpowers link: $SUPERPOWERS_LINK"
@@ -884,8 +1138,15 @@ remove_superpowers_fallback() {
   fi
 
   if [[ -L "$SUPERPOWERS_LINK" ]]; then
-    rm -f "$SUPERPOWERS_LINK"
-    ok "Removed superpowers link"
+    local link_target
+    link_target=$(readlink "$SUPERPOWERS_LINK" 2>/dev/null || true)
+    if [[ "$link_target" == "$SUPERPOWERS_DIR/skills" ]]; then
+      rm -f "$SUPERPOWERS_LINK"
+      ok "Removed superpowers link"
+    else
+      warn "$SUPERPOWERS_LINK does not target the managed superpowers repository; preserving it"
+      SKIPPED_COMPONENTS+=("superpowers link cleanup (target ownership could not be verified)")
+    fi
   elif [[ -e "$SUPERPOWERS_LINK" ]]; then
     warn "$SUPERPOWERS_LINK is not a symlink; preserving it"
     SKIPPED_COMPONENTS+=("superpowers link cleanup ($SUPERPOWERS_LINK is not a symlink)")
@@ -902,30 +1163,47 @@ reconcile_interactive_skills() {
   local -a stale=()
   local skill wanted selected
 
+  initialize_managed_skill_ownership
+
   while IFS= read -r skill; do
     [[ -n "$skill" ]] && desired+=("$skill")
   done < <(selected_managed_skill_names)
 
-  for skill in "${MANAGED_SKILLS[@]}"; do
-    wanted=false
-    if [[ ${#desired[@]} -gt 0 ]]; then
-      for selected in "${desired[@]}"; do
-        if [[ "$selected" == "$skill" ]]; then
-          wanted=true
-          break
-        fi
-      done
-    fi
-    $wanted && continue
+  if [[ ${#OWNED_MANAGED_SKILLS[@]} -gt 0 ]]; then
+    for skill in "${OWNED_MANAGED_SKILLS[@]}"; do
+      wanted=false
+      if [[ ${#desired[@]} -gt 0 ]]; then
+        for selected in "${desired[@]}"; do
+          if [[ "$selected" == "$skill" ]]; then
+            wanted=true
+            break
+          fi
+        done
+      fi
+      $wanted && continue
 
-    if [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ||
-          -e "$AGENTS_SKILLS_DIR/$skill" || -L "$AGENTS_SKILLS_DIR/$skill" ]]; then
       stale+=("$skill")
-    fi
-  done
+    done
+  fi
 
   if [[ ${#stale[@]} -gt 0 ]]; then
-    remove_npx_skill_names "${stale[@]}"
+    if [[ ${#desired[@]} -eq 0 ]] && ! $DRY_RUN; then
+      if ! confirm_empty_skill_removal "${#stale[@]}"; then
+        info "Managed skill removal cancelled; existing managed skills were preserved"
+        return 0
+      fi
+    fi
+
+    local -a installed_stale=()
+    for skill in "${stale[@]}"; do
+      if [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ]]; then
+        installed_stale+=("$skill")
+      fi
+    done
+    if [[ ${#installed_stale[@]} -gt 0 ]]; then
+      remove_npx_skill_names "${installed_stale[@]}"
+    fi
+
     for skill in "${stale[@]}"; do
       if $DRY_RUN; then
         if [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ]]; then
@@ -938,8 +1216,12 @@ reconcile_interactive_skills() {
     done
   fi
 
-  if ! $SELECT_SKILL_SUPERPOWERS; then
+  if ! $SELECT_SKILL_SUPERPOWERS && superpowers_ownership_is_recorded; then
     remove_superpowers_fallback
+  fi
+
+  if [[ ${#stale[@]} -gt 0 ]] && ! $DRY_RUN; then
+    remove_managed_skill_ownership "${stale[@]}"
   fi
 }
 
@@ -956,7 +1238,15 @@ install_skill_paths_fallback() {
   if ! python3 "$INSTALLER" --repo "$repo" --path "$@"; then
     warn "Skill install from $repo returned non-zero (possibly already installed)"
     SKIPPED_COMPONENTS+=("skill pack from $repo (fallback installer returned non-zero)")
+    return 0
   fi
+
+  local -a installed_names=()
+  local path
+  for path in "$@"; do
+    installed_names+=("$(skill_name_from_path "$path")")
+  done
+  add_managed_skill_ownership "${installed_names[@]}"
 }
 
 install_skill_paths() {
@@ -1087,6 +1377,7 @@ install_superpowers() {
   fi
   ln -s "$superpowers_skills_dir" "$SUPERPOWERS_LINK"
   ok "Linked superpowers skills into $SUPERPOWERS_LINK"
+  add_managed_skill_ownership "${SUPERPOWERS_SKILLS[@]}"
 
   remove_legacy_superpowers_skills
 }
@@ -1118,6 +1409,7 @@ copy_local_skill() {
     mkdir -p "$CODEX_DIR/skills"
     rm -rf "$target"
     cp -r "$source" "$target"
+    add_managed_skill_ownership "$skill"
     ok "Installed local skill: $skill"
   fi
 }
@@ -1323,9 +1615,10 @@ adversarial-review|Cross-model adversarial review|1|skill-adversarial-review")
 
   GROUP_LABELS+=("Workflow")
   GROUP_HINTS+=("planning, iteration, code quality, meta-config")
-  GROUP_ITEMS+=("andrej-karpathy-skills|Karpathy coding guidelines|1|skill-karpathy
+GROUP_ITEMS+=("andrej-karpathy-skills|Karpathy coding guidelines|1|skill-karpathy
 superpowers|Planning, brainstorming, TDD, debugging|0|skill-superpowers
 mattpocock/skills|Agent workflows via npx skills|1|skill-mattpocock
+handoff|Conversation handoff skill|1|skill-handoff
 update-config|Update Codex config branch install|1|skill-update")
 
   GROUP_LABELS+=("Development Tools")
@@ -1745,6 +2038,7 @@ uninstall() {
         ;;
       skills)
         echo "  - Managed skills under $CODEX_DIR/skills"
+        echo "  - $MANAGED_SKILLS_STATE_FILE"
         echo "  - $SUPERPOWERS_DIR"
         echo "  - $SUPERPOWERS_LINK"
         ;;
@@ -1796,6 +2090,7 @@ uninstall() {
         done
         rm -f "$SUPERPOWERS_LINK"
         rm -rf "$SUPERPOWERS_DIR"
+        rm -f "$MANAGED_SKILLS_STATE_FILE"
         ok "Removed managed skills"
         ;;
     esac

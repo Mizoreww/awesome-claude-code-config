@@ -45,6 +45,17 @@ function Get-FunctionText {
 }
 
 foreach ($name in @(
+    "Test-SkillInList",
+    "Test-ManagedSkillName",
+    "Get-ExpectedSkillSource",
+    "Test-DirectoryTreeEqual",
+    "Test-SuperpowersFallbackOwned",
+    "Test-SuperpowersOwnershipRecorded",
+    "Save-ManagedSkillOwnership",
+    "Initialize-ManagedSkillOwnership",
+    "Add-ManagedSkillOwnership",
+    "Remove-ManagedSkillOwnership",
+    "Confirm-EmptySkillRemoval",
     "Get-SelectedManagedSkills",
     "Remove-NpxSkillNames",
     "Remove-SuperpowersFallback",
@@ -59,11 +70,13 @@ function Write-Info { param($Message) }
 function Write-Ok { param($Message) }
 function Write-Warn { param($Message) }
 
-$MANAGED_SKILLS = @("humanizer", "humanizer-zh", "handoff", "pua")
+$MANAGED_SKILLS = @("humanizer", "humanizer-zh", "handoff", "pua", "brainstorming")
 $SUPERPOWERS_SKILLS = @("brainstorming")
 $MATTPOCOCK_SKILLS = @("ask-matt")
 $PUA_SKILLS = @("pua", "pua-en", "pua-ja")
+$LOCAL_MANAGED_SKILLS = @("humanizer", "humanizer-zh", "handoff")
 $script:SKIPPED_COMPONENTS = @()
+$script:SCRIPT_DIR = $repoRoot
 
 $script:SelectSkillSuperpowers = $false
 $script:SelectSkillDocumentSkills = $false
@@ -103,11 +116,25 @@ $CODEX_DIR = Join-Path $tempDir ".codex"
 $AGENTS_SKILLS_DIR = Join-Path $tempDir ".agents/skills"
 $SUPERPOWERS_DIR = Join-Path $CODEX_DIR "superpowers"
 $SUPERPOWERS_LINK = Join-Path $AGENTS_SKILLS_DIR "superpowers"
+$MANAGED_SKILLS_STATE_FILE = Join-Path $CODEX_DIR ".awesome-claude-code-config-managed-skills"
+$GLOBAL_SKILL_LOCK_FILE = Join-Path $tempDir ".agents/.skill-lock.json"
+$script:ManagedSkillOwnershipLoaded = $false
+$script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
+$Force = $true
 $oldPath = $env:PATH
+$script:NpxCalls = @()
+
+function npx {
+    $script:NpxCalls += ,@($args)
+    $global:LASTEXITCODE = 0
+}
 
 try {
     New-Item -ItemType Directory -Path (Join-Path $CODEX_DIR "skills/pua") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $CODEX_DIR "skills/handoff") -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $CODEX_DIR "skills/private-skill") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $AGENTS_SKILLS_DIR "pua") -Force | Out-Null
+    [System.IO.File]::WriteAllLines($MANAGED_SKILLS_STATE_FILE, @("pua"))
 
     $DryRun = $true
     Sync-InteractiveSkills
@@ -115,10 +142,14 @@ try {
     Assert-True (Test-Path (Join-Path $CODEX_DIR "skills/private-skill")) "dry-run should preserve an unmanaged skill"
 
     $DryRun = $false
-    $env:PATH = $tempDir
     Sync-InteractiveSkills
     Assert-True (-not (Test-Path (Join-Path $CODEX_DIR "skills/pua"))) "reconciliation should remove a stale managed skill"
+    Assert-True (Test-Path (Join-Path $CODEX_DIR "skills/handoff")) "a same-name skill without installer ownership should be preserved"
     Assert-True (Test-Path (Join-Path $CODEX_DIR "skills/private-skill")) "reconciliation should preserve an unmanaged skill"
+    Assert-True (Test-Path (Join-Path $AGENTS_SKILLS_DIR "pua")) "reconciliation should preserve shared agent skills"
+    Assert-True ($script:NpxCalls.Count -eq 1) "reconciliation should invoke npx once"
+    Assert-True ($script:NpxCalls[0] -contains "--global") "npx removal should be global"
+    Assert-True ($script:NpxCalls[0] -contains "codex") "npx removal should be Codex-scoped"
 } finally {
     $env:PATH = $oldPath
     Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue

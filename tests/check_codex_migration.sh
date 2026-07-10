@@ -97,9 +97,16 @@ assert_file_contains "install.sh" "--agent codex"
 assert_file_contains "install.sh" "--full-depth"
 assert_file_contains "install.sh" "selected_managed_skill_names"
 assert_file_contains "install.sh" "reconcile_interactive_skills"
+assert_file_contains "install.sh" "initialize_managed_skill_ownership"
+assert_file_contains "install.sh" "add_managed_skill_ownership"
+assert_file_contains "install.sh" "remove_managed_skill_ownership"
+assert_file_contains "install.sh" "confirm_empty_skill_removal"
+assert_file_contains "install.sh" "superpowers_ownership_is_recorded"
 assert_file_contains "install.sh" "skills@latest remove"
 assert_file_contains "install.sh" "--global --agent codex --yes"
 assert_file_not_contains "install.sh" "SELECT_SKILL_CODING_FOUNDATIONS"
+assert_file_contains "install.sh" "handoff|Conversation handoff skill|1|skill-handoff"
+assert_file_not_contains "install.sh" '-e "$AGENTS_SKILLS_DIR/$skill"'
 assert_file_contains "install.sh" "install-skill-from-github.py"
 assert_file_contains "install.ps1" "skills@latest"
 assert_file_contains "install.ps1" "--agent"
@@ -109,9 +116,15 @@ assert_file_contains "install.ps1" "function Get-SelectedManagedSkills"
 assert_file_contains "install.ps1" "function Remove-NpxSkillNames"
 assert_file_contains "install.ps1" "function Remove-SuperpowersFallback"
 assert_file_contains "install.ps1" "function Sync-InteractiveSkills"
+assert_file_contains "install.ps1" "function Initialize-ManagedSkillOwnership"
+assert_file_contains "install.ps1" "function Add-ManagedSkillOwnership"
+assert_file_contains "install.ps1" "function Remove-ManagedSkillOwnership"
+assert_file_contains "install.ps1" "function Confirm-EmptySkillRemoval"
+assert_file_contains "install.ps1" "function Test-SuperpowersOwnershipRecorded"
 assert_file_contains "install.ps1" '"--global", "--agent", "codex", "--yes"'
-assert_file_not_contains "install.ps1" '$script:SelectSkillHandoff = $true'
+assert_file_contains "install.ps1" 'Label = "handoff"; Description = "Conversation handoff skill"; Default = $true; StateVar = "SelectSkillHandoff"'
 assert_file_not_contains "install.ps1" 'SelectSkillCodingFoundations'
+assert_file_not_contains "install.ps1" 'Join-Path $AGENTS_SKILLS_DIR $skill'
 assert_file_contains "install.ps1" "Resolve-PythonCommand"
 
 assert_file_not_contains "install.sh" "affaan-m/everything-claude-code"
@@ -182,6 +195,19 @@ removed = {
     "write",
 }
 
+unreachable_legacy = {
+    "python-patterns",
+    "python-testing",
+    "golang-patterns",
+    "golang-testing",
+    "frontend-patterns",
+    "security-review",
+    "tdd-workflow",
+    "verification-loop",
+    "api-design",
+    "database-migrations",
+}
+
 bash = open(sys.argv[1], encoding="utf-8").read()
 ps = open(sys.argv[2], encoding="utf-8").read()
 
@@ -199,6 +225,12 @@ for label, skills in (("install.sh", bash_skills), ("install.ps1", ps_skills)):
     leaked = sorted(removed & skills)
     if leaked:
         raise SystemExit(f"{label} MANAGED_SKILLS still contains removed claude-mem/claude-health skills: {', '.join(leaked)}")
+    unreachable = sorted(unreachable_legacy & skills)
+    if unreachable:
+        raise SystemExit(
+            f"{label} MANAGED_SKILLS contains names no current selection can own: "
+            f"{', '.join(unreachable)}"
+        )
 
 if bash_skills != ps_skills:
     only_bash = sorted(bash_skills - ps_skills)
@@ -236,6 +268,71 @@ if bash.count("reconcile_interactive_skills") != 2:
     raise SystemExit("Bash reconciliation should have exactly one definition and one interactive call")
 if ps.count("Sync-InteractiveSkills") != 2:
     raise SystemExit("PowerShell reconciliation should have exactly one definition and one interactive call")
+
+bash_mapper = re.search(
+    r"selected_managed_skill_names\(\) \{(?P<body>.*?)\n\}",
+    bash,
+    re.S,
+)
+if not bash_mapper:
+    raise SystemExit("could not locate selected_managed_skill_names")
+bash_menu_ids = set(re.findall(r"\|([a-z0-9-]+)(?:\n|\")", bash))
+bash_selection_ids = {
+    variable: item_id
+    for item_id, variable in re.findall(
+        r"^\s*([a-z0-9-]+)\)\s+(SELECT_(?:SKILL|AI)_[A-Z0-9_]+)=",
+        bash,
+        re.M,
+    )
+}
+for variable in set(re.findall(r"\$(SELECT_(?:SKILL|AI)_[A-Z0-9_]+)", bash_mapper.group("body"))):
+    item_id = bash_selection_ids.get(variable)
+    if not item_id or item_id not in bash_menu_ids:
+        raise SystemExit(f"Bash selection mapper variable is not reachable from the menu: {variable}")
+
+ps_mapper = re.search(
+    r"function Get-SelectedManagedSkills \{(?P<body>.*?)\n\}",
+    ps,
+    re.S,
+)
+if not ps_mapper:
+    raise SystemExit("could not locate Get-SelectedManagedSkills")
+ps_menu_vars = set(re.findall(r'StateVar\s*=\s*"(Select(?:Skill|Ai)\w+)"', ps))
+for variable in set(re.findall(r"\$script:(Select(?:Skill|Ai)\w+)", ps_mapper.group("body"))):
+    if variable not in ps_menu_vars:
+        raise SystemExit(f"PowerShell selection mapper variable is not reachable from the menu: {variable}")
+
+reset_match = re.search(
+    r"function Reset-InteractiveSelections \{(?P<body>.*?)\n\}",
+    ps,
+    re.S,
+)
+if not reset_match:
+    raise SystemExit("could not locate Reset-InteractiveSelections")
+reset_defaults = {
+    name: value == "true"
+    for name, value in re.findall(
+        r"\$script:(\w+)\s*=\s*\$(true|false)",
+        reset_match.group("body"),
+        re.I,
+    )
+}
+menu_defaults = {
+    name: value == "true"
+    for value, name in re.findall(
+        r"Default\s*=\s*\$(true|false);\s*StateVar\s*=\s*\"([^\"]+)\"",
+        ps,
+        re.I,
+    )
+}
+for name, expected_default in menu_defaults.items():
+    if name not in reset_defaults:
+        raise SystemExit(f"Reset-InteractiveSelections does not reset {name}")
+    if reset_defaults[name] != expected_default:
+        raise SystemExit(
+            f"PowerShell reset default differs from menu for {name}: "
+            f"reset={reset_defaults[name]}, menu={expected_default}"
+        )
 
 bash_ordered = bash_match.group("body").split()
 ps_ordered = re.findall(r'"([^"]+)"', ps_match.group("body"))
