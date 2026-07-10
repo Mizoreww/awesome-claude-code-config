@@ -1,7 +1,8 @@
 # Playwright MCP Startup TDD Evidence
 
-Date: 2026-07-10  
-Branch: `codex-dev`  
+Date: 2026-07-10
+
+Branch: `codex-dev`
 Source plan: the explicit session plan tracked the reproducer, environment audit, installer audit, TDD fix, end-to-end verification, and two-axis review; no standalone plan file was supplied.
 
 ## User journeys
