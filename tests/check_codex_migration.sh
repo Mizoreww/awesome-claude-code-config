@@ -105,6 +105,13 @@ assert_file_contains "install.ps1" "skills@latest"
 assert_file_contains "install.ps1" "--agent"
 assert_file_contains "install.ps1" "codex"
 assert_file_contains "install.ps1" "--full-depth"
+assert_file_contains "install.ps1" "function Get-SelectedManagedSkills"
+assert_file_contains "install.ps1" "function Remove-NpxSkillNames"
+assert_file_contains "install.ps1" "function Remove-SuperpowersFallback"
+assert_file_contains "install.ps1" "function Sync-InteractiveSkills"
+assert_file_contains "install.ps1" '"--global", "--agent", "codex", "--yes"'
+assert_file_not_contains "install.ps1" '$script:SelectSkillHandoff = $true'
+assert_file_not_contains "install.ps1" 'SelectSkillCodingFoundations'
 assert_file_contains "install.ps1" "Resolve-PythonCommand"
 
 assert_file_not_contains "install.sh" "affaan-m/everything-claude-code"
@@ -200,6 +207,35 @@ if bash_skills != ps_skills:
         "managed skill catalogues differ: "
         f"Bash-only={only_bash}, PowerShell-only={only_ps}"
     )
+
+for array_name in ("SUPERPOWERS_SKILLS", "MATTPOCOCK_SKILLS", "PUA_SKILLS"):
+    bash_array = re.search(
+        rf"(?m)^{array_name}=\((?P<body>.*?)\)",
+        bash,
+        re.S,
+    )
+    ps_array = re.search(
+        rf"(?m)^\${array_name} = @\((?P<body>.*?)\)",
+        ps,
+        re.S,
+    )
+    if not bash_array or not ps_array:
+        raise SystemExit(f"could not locate {array_name} in both installers")
+    bash_values = bash_array.group("body").split()
+    ps_values = re.findall(r'"([^"]+)"', ps_array.group("body"))
+    if bash_values != ps_values:
+        raise SystemExit(
+            f"{array_name} differs between installers: "
+            f"Bash={bash_values}, PowerShell={ps_values}"
+        )
+    missing = sorted(set(bash_values) - bash_skills)
+    if missing:
+        raise SystemExit(f"{array_name} contains unmanaged skills: {', '.join(missing)}")
+
+if bash.count("reconcile_interactive_skills") != 2:
+    raise SystemExit("Bash reconciliation should have exactly one definition and one interactive call")
+if ps.count("Sync-InteractiveSkills") != 2:
+    raise SystemExit("PowerShell reconciliation should have exactly one definition and one interactive call")
 
 bash_ordered = bash_match.group("body").split()
 ps_ordered = re.findall(r'"([^"]+)"', ps_match.group("body"))

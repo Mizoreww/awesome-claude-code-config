@@ -116,7 +116,7 @@ $script:SelectSkillFrontendSlides = $false
 $script:SelectSkillPaperReading = $true
 $script:SelectSkillHumanizer = $true
 $script:SelectSkillHumanizerZh = $false
-$script:SelectSkillHandoff = $true
+$script:SelectSkillHandoff = $false
 $script:SelectSkillAdversarialReview = $true
 $script:SelectSkillUpdate = $true
 $script:SelectAiTokenization = $false
@@ -180,6 +180,12 @@ $MATTPOCOCK_SKILLS = @(
 )
 
 $PUA_SKILLS = @("pua", "pua-en", "pua-ja")
+$SUPERPOWERS_SKILLS = @(
+    "brainstorming", "dispatching-parallel-agents", "executing-plans", "finishing-a-development-branch",
+    "receiving-code-review", "requesting-code-review", "subagent-driven-development", "systematic-debugging",
+    "test-driven-development", "using-git-worktrees", "using-superpowers", "verification-before-completion",
+    "writing-plans", "writing-skills"
+)
 $script:CODEX_STATUS_LINE = 'status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 $script:CODEX_STATUS_LINE_USE_COLORS = 'status_line_use_colors = true'
 
@@ -414,11 +420,10 @@ function Reset-InteractiveSelections {
     $script:SelectSkillSuperpowers = $true
     $script:SelectSkillDocumentSkills = $true
     $script:SelectSkillExampleSkills = $true
-    $script:SelectSkillCodingFoundations = $true
     $script:SelectSkillPaperReading = $true
     $script:SelectSkillHumanizer = $true
     $script:SelectSkillHumanizerZh = $false
-    $script:SelectSkillHandoff = $true
+    $script:SelectSkillHandoff = $false
     $script:SelectSkillAdversarialReview = $true
     $script:SelectSkillUpdate = $true
     $script:SelectAiTokenization = $false
@@ -1244,8 +1249,7 @@ function Show-InteractiveMenu {
 
     $script:InteractiveSelectionHasAny = ($coreSelected -or $skillsSelected -or $mcpSelected)
     if (-not $script:InteractiveSelectionHasAny) {
-        Write-Info "No items selected. Nothing to do."
-        return
+        Write-Info "No items selected. Existing installer-managed skills will be removed."
     }
 
     $script:InteractiveMode = $true
@@ -1363,6 +1367,140 @@ function Install-NpxSkillNames {
     }
 }
 
+function Get-SelectedManagedSkills {
+    $selected = New-Object 'System.Collections.Generic.HashSet[string]'
+
+    function Add-Names {
+        param([bool]$Enabled, [string[]]$Names)
+        if ($Enabled) {
+            foreach ($name in $Names) {
+                [void]$selected.Add($name)
+            }
+        }
+    }
+
+    Add-Names $script:SelectSkillCodeReview @("code-review")
+    Add-Names $script:SelectSkillKarpathy @("karpathy-guidelines")
+    Add-Names $script:SelectSkillSuperpowers $SUPERPOWERS_SKILLS
+    Add-Names $script:SelectSkillMattPocock $MATTPOCOCK_SKILLS
+    Add-Names $script:SelectSkillDocumentSkills @("pdf", "docx", "pptx", "xlsx")
+    Add-Names $script:SelectSkillExampleSkills @("canvas-design", "algorithmic-art", "mcp-builder")
+    Add-Names $script:SelectSkillFrontendDesign @("frontend-design")
+    Add-Names $script:SelectSkillPUA $PUA_SKILLS
+    Add-Names $script:SelectSkillFrontendSlides @("frontend-slides")
+    Add-Names $script:SelectSkillPaperReading @("paper-reading")
+    Add-Names $script:SelectSkillHumanizer @("humanizer")
+    Add-Names $script:SelectSkillHumanizerZh @("humanizer-zh")
+    Add-Names $script:SelectSkillHandoff @("handoff")
+    Add-Names $script:SelectSkillAdversarialReview @("adversarial-review")
+    Add-Names $script:SelectSkillUpdate @("update")
+    Add-Names $script:SelectAiTokenization @("huggingface-tokenizers", "sentencepiece")
+    Add-Names $script:SelectAiFineTuning @("axolotl", "llama-factory", "peft", "unsloth")
+    Add-Names $script:SelectAiPostTraining @("grpo-rl-training", "openrlhf", "simpo", "trl-fine-tuning", "verl")
+    Add-Names $script:SelectAiDistributedTraining @("deepspeed", "pytorch-fsdp2", "megatron-core", "ray-train")
+    Add-Names $script:SelectAiInferenceServing @("vllm", "sglang", "tensorrt-llm", "llama-cpp")
+    Add-Names $script:SelectAiOptimization @("awq", "gptq", "gguf", "flash-attention", "bitsandbytes")
+    Add-Names $script:SelectAiDeepXiv @("deepxiv-cli", "deepxiv-baseline-table", "deepxiv-trending-digest")
+
+    return @($selected | Sort-Object)
+}
+
+function Remove-NpxSkillNames {
+    param([string[]]$SkillNames)
+    if ($SkillNames.Count -eq 0) { return }
+
+    if ($DryRun) {
+        Write-Info "Would remove via npx skills for Codex: $($SkillNames -join ', ')"
+        return
+    }
+
+    if (-not (Get-Command "npx" -ErrorAction SilentlyContinue)) {
+        Write-Warn "npx not found; shared/global Codex skill associations could not be removed: $($SkillNames -join ', ')"
+        $script:SKIPPED_COMPONENTS += "unselected managed skills (npx unavailable): $($SkillNames -join ', ')"
+        return
+    }
+
+    $npxArgs = @("-y", "skills@latest", "remove") + $SkillNames + @("--global", "--agent", "codex", "--yes")
+    $oldDoNotTrack = $env:DO_NOT_TRACK
+    $env:DO_NOT_TRACK = "1"
+    try {
+        & npx @npxArgs 2>&1 | ForEach-Object { Write-Host $_ }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn "npx skills could not remove these Codex skills: $($SkillNames -join ', ')"
+            $script:SKIPPED_COMPONENTS += "unselected managed skills (npx removal failed): $($SkillNames -join ', ')"
+        }
+    } finally {
+        if ($null -eq $oldDoNotTrack) {
+            Remove-Item Env:DO_NOT_TRACK -ErrorAction SilentlyContinue
+        } else {
+            $env:DO_NOT_TRACK = $oldDoNotTrack
+        }
+    }
+}
+
+function Remove-SuperpowersFallback {
+    $linkItem = Get-Item -LiteralPath $SUPERPOWERS_LINK -Force -ErrorAction SilentlyContinue
+    if ($DryRun) {
+        if ($linkItem) {
+            Write-Info "Would remove superpowers link: $SUPERPOWERS_LINK"
+        }
+        if (Test-Path $SUPERPOWERS_DIR) {
+            Write-Info "Would remove superpowers repository: $SUPERPOWERS_DIR"
+        }
+        return
+    }
+
+    if ($linkItem) {
+        $isReparsePoint = ($linkItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0
+        if ($isReparsePoint) {
+            cmd /c rmdir "$SUPERPOWERS_LINK" | Out-Null
+            Write-Ok "Removed superpowers link"
+        } else {
+            Write-Warn "$SUPERPOWERS_LINK is not a junction/symlink; preserving it"
+            $script:SKIPPED_COMPONENTS += "superpowers link cleanup ($SUPERPOWERS_LINK is not a junction/symlink)"
+        }
+    }
+
+    if (Test-Path $SUPERPOWERS_DIR) {
+        Remove-Item -Recurse -Force $SUPERPOWERS_DIR
+        Write-Ok "Removed superpowers repository"
+    }
+}
+
+function Sync-InteractiveSkills {
+    $desired = @(Get-SelectedManagedSkills)
+    $stale = @()
+
+    foreach ($skill in $MANAGED_SKILLS) {
+        if ($desired -contains $skill) { continue }
+
+        $codexPath = Join-Path $CODEX_DIR "skills/$skill"
+        $sharedPath = Join-Path $AGENTS_SKILLS_DIR $skill
+        if ((Test-Path $codexPath) -or (Test-Path $sharedPath)) {
+            $stale += $skill
+        }
+    }
+
+    if ($stale.Count -gt 0) {
+        Remove-NpxSkillNames $stale
+        foreach ($skill in $stale) {
+            $codexPath = Join-Path $CODEX_DIR "skills/$skill"
+            if ($DryRun) {
+                if (Test-Path $codexPath) {
+                    Write-Info "Would remove unselected managed skill: $codexPath"
+                }
+            } elseif (Test-Path $codexPath) {
+                Remove-Item -Recurse -Force $codexPath
+                Write-Ok "Removed unselected managed skill: $skill"
+            }
+        }
+    }
+
+    if (-not $script:SelectSkillSuperpowers) {
+        Remove-SuperpowersFallback
+    }
+}
+
 function Install-SkillPathsFallback {
     param([string]$Repo, [string[]]$Paths)
 
@@ -1472,12 +1610,7 @@ function Install-Superpowers {
         return
     }
 
-    if (Install-NpxSkillNames "obra/superpowers" @(
-        "brainstorming", "dispatching-parallel-agents", "executing-plans", "finishing-a-development-branch",
-        "receiving-code-review", "requesting-code-review", "subagent-driven-development", "systematic-debugging",
-        "test-driven-development", "using-git-worktrees", "using-superpowers", "verification-before-completion",
-        "writing-plans", "writing-skills"
-    )) {
+    if (Install-NpxSkillNames "obra/superpowers" $SUPERPOWERS_SKILLS) {
         Write-Ok "Installed superpowers via npx skills"
         Remove-LegacySuperPowersSkills
         return
@@ -1568,18 +1701,7 @@ function Install-Skills {
         Install-SelectedRecommendedSkills
         Install-SelectedAiSkills
 
-        if ($script:SelectSkillPaperReading -or $script:SelectSkillHumanizer -or
-            $script:SelectSkillHumanizerZh -or $script:SelectSkillHandoff -or
-            $script:SelectSkillAdversarialReview -or $script:SelectSkillUpdate -or
-            $script:SelectSkillCodeReview -or $script:SelectSkillKarpathy -or
-            $script:SelectSkillMattPocock -or $script:SelectSkillFrontendDesign -or
-            $script:SelectSkillPUA -or $script:SelectSkillFrontendSlides -or
-            $script:SelectSkillSuperpowers -or $script:SelectSkillDocumentSkills -or
-            $script:SelectSkillExampleSkills -or
-            $script:SelectAiTokenization -or $script:SelectAiFineTuning -or
-            $script:SelectAiPostTraining -or $script:SelectAiDistributedTraining -or
-            $script:SelectAiInferenceServing -or $script:SelectAiOptimization -or
-            $script:SelectAiDeepXiv) {
+        if (@(Get-SelectedManagedSkills).Count -gt 0) {
             Write-Ok "Selected skills processed"
         } else {
             Write-Info "No selected skills to install"
@@ -1768,8 +1890,8 @@ try {
     } elseif (-not $hasExplicitInstallMode) {
         $script:InteractiveMode = $true
         Show-InteractiveMenu
-        if ($script:InteractiveMode -and -not $script:InteractiveSelectionHasAny) {
-            exit 0
+        if ($script:InteractiveMode) {
+            Sync-InteractiveSkills
         }
     }
 
