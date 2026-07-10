@@ -199,6 +199,9 @@ $script:ManagedSkillOwnershipLoaded = $false
 $script:MattPocockQuickstartReady = $false
 $script:CODEX_STATUS_LINE = 'status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 $script:CODEX_STATUS_LINE_USE_COLORS = 'status_line_use_colors = true'
+$script:PLAYWRIGHT_MCP_VERSION = "0.0.78"
+$script:PLAYWRIGHT_MIN_NODE_MAJOR = 20
+$script:PLAYWRIGHT_NODE_FALLBACK_VERSION = "24"
 
 # ============================================================
 # Output helpers
@@ -864,6 +867,69 @@ function Add-McpServer {
     }
 }
 
+function Get-NodeMajorVersion {
+    if (-not (Get-Command "node" -ErrorAction SilentlyContinue)) {
+        return $null
+    }
+
+    $versionText = (& node --version 2>$null)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($versionText)) {
+        return $null
+    }
+
+    $major = 0
+    $majorText = $versionText.ToString().Trim().TrimStart("v").Split(".")[0]
+    if (-not [int]::TryParse($majorText, [ref]$major)) {
+        return $null
+    }
+    return $major
+}
+
+function Add-PlaywrightMcpServer {
+    $nodeMajor = Get-NodeMajorVersion
+    $package = "@playwright/mcp@$($script:PLAYWRIGHT_MCP_VERSION)"
+
+    if ($null -eq $nodeMajor) {
+        if (-not $DryRun) {
+            Write-Warn "Node.js is unavailable or its version could not be read; skipping Playwright MCP"
+            $script:MCP_FAILED_SERVERS += "playwright"
+            return
+        }
+        $nodeMajor = 0
+    }
+
+    if (-not (Get-Command "npx" -ErrorAction SilentlyContinue) -and -not $DryRun) {
+        Write-Warn "npx is unavailable; skipping Playwright MCP"
+        $script:MCP_FAILED_SERVERS += "playwright"
+        return
+    }
+
+    if ($nodeMajor -lt $script:PLAYWRIGHT_MIN_NODE_MAJOR) {
+        Write-Warn "Node.js $nodeMajor detected; using an isolated Node.js $($script:PLAYWRIGHT_NODE_FALLBACK_VERSION) runtime for Playwright MCP"
+        $launcherArgs = @(
+            "-y",
+            "--loglevel=error",
+            "--package=node@$($script:PLAYWRIGHT_NODE_FALLBACK_VERSION)",
+            "--package=$package",
+            "--",
+            "playwright-mcp"
+        )
+    } else {
+        $launcherArgs = @("-y", $package)
+    }
+
+    if (-not $DryRun) {
+        & npx @launcherArgs "--version" *> $null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn "Playwright MCP startup check failed; not registering a broken server"
+            $script:MCP_FAILED_SERVERS += "playwright"
+            return
+        }
+    }
+
+    Add-McpServer "playwright" (@("--", "npx") + $launcherArgs)
+}
+
 function Add-GithubMcpServer {
     if ([string]::IsNullOrWhiteSpace($env:GITHUB_PERSONAL_ACCESS_TOKEN)) {
         Write-Warn "GITHUB_PERSONAL_ACCESS_TOKEN is not set; skipping GitHub MCP server"
@@ -902,7 +968,7 @@ function Install-SelectedMcp {
         Add-GithubMcpServer
     }
     if ($script:SelectMcpPlaywright) {
-        Add-McpServer "playwright" @("--", "npx", "-y", "@playwright/mcp@latest")
+        Add-PlaywrightMcpServer
     }
     if ($script:SelectMcpOpenaiDeveloperDocs) {
         Add-McpServer "openaiDeveloperDocs" @("--url", "https://developers.openai.com/mcp")
@@ -1364,7 +1430,7 @@ function Install-Mcp {
     Write-Info "Enable it via the interactive installer or 'codex mcp add' after filling credentials."
     Add-McpServer "context7" @("--", "npx", "-y", "@upstash/context7-mcp")
     Add-GithubMcpServer
-    Add-McpServer "playwright" @("--", "npx", "-y", "@playwright/mcp@latest")
+    Add-PlaywrightMcpServer
     Add-McpServer "openaiDeveloperDocs" @("--url", "https://developers.openai.com/mcp")
     Write-McpResult
 }

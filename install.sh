@@ -169,6 +169,9 @@ MANAGED_SKILLS_STATE_FILE="$CODEX_DIR/.awesome-claude-code-config-managed-skills
 GLOBAL_SKILL_LOCK_FILE="$HOME/.agents/.skill-lock.json"
 CODEX_STATUS_LINE='status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 CODEX_STATUS_LINE_USE_COLORS='status_line_use_colors = true'
+PLAYWRIGHT_MCP_VERSION="0.0.78"
+PLAYWRIGHT_MIN_NODE_MAJOR=20
+PLAYWRIGHT_NODE_FALLBACK_VERSION="24"
 
 show_mattpocock_quickstart() {
   $MATTPOCOCK_QUICKSTART_READY || return 0
@@ -761,6 +764,57 @@ add_mcp_server() {
   fi
 }
 
+get_node_major_version() {
+  local version
+
+  command -v node >/dev/null 2>&1 || return 1
+  version="$(node --version 2>/dev/null)" || return 1
+  version="${version#v}"
+  version="${version%%.*}"
+  [[ "$version" =~ ^[0-9]+$ ]] || return 1
+  printf '%s\n' "$version"
+}
+
+add_playwright_mcp_server() {
+  local node_major=0
+  local package="@playwright/mcp@$PLAYWRIGHT_MCP_VERSION"
+  local -a launcher_args
+
+  if ! node_major="$(get_node_major_version)" && ! $DRY_RUN; then
+    warn "Node.js is unavailable or its version could not be read; skipping Playwright MCP"
+    MCP_FAILED_SERVERS+=("playwright")
+    return 0
+  fi
+
+  if ! command -v npx >/dev/null 2>&1 && ! $DRY_RUN; then
+    warn "npx is unavailable; skipping Playwright MCP"
+    MCP_FAILED_SERVERS+=("playwright")
+    return 0
+  fi
+
+  if (( node_major < PLAYWRIGHT_MIN_NODE_MAJOR )); then
+    warn "Node.js $node_major detected; using an isolated Node.js $PLAYWRIGHT_NODE_FALLBACK_VERSION runtime for Playwright MCP"
+    launcher_args=(
+      -y
+      --loglevel=error
+      "--package=node@$PLAYWRIGHT_NODE_FALLBACK_VERSION"
+      "--package=$package"
+      --
+      playwright-mcp
+    )
+  else
+    launcher_args=(-y "$package")
+  fi
+
+  if ! $DRY_RUN && ! npx "${launcher_args[@]}" --version >/dev/null 2>&1; then
+    warn "Playwright MCP startup check failed; not registering a broken server"
+    MCP_FAILED_SERVERS+=("playwright")
+    return 0
+  fi
+
+  add_mcp_server playwright -- npx "${launcher_args[@]}"
+}
+
 add_github_mcp_server() {
   if [[ -z "${GITHUB_PERSONAL_ACCESS_TOKEN:-}" ]]; then
     warn "GITHUB_PERSONAL_ACCESS_TOKEN is not set; skipping GitHub MCP server"
@@ -796,7 +850,7 @@ install_mcp() {
       add_github_mcp_server
     fi
     if $SELECT_MCP_PLAYWRIGHT; then
-      add_mcp_server playwright -- npx -y @playwright/mcp@latest
+      add_playwright_mcp_server
     fi
     if $SELECT_MCP_OPENAI_DOCS; then
       add_mcp_server openaiDeveloperDocs --url https://developers.openai.com/mcp
@@ -820,7 +874,7 @@ install_mcp() {
   info "Enable it via the interactive installer or 'codex mcp add' after filling credentials."
   add_mcp_server context7 -- npx -y @upstash/context7-mcp
   add_github_mcp_server
-  add_mcp_server playwright -- npx -y @playwright/mcp@latest
+  add_playwright_mcp_server
   add_mcp_server openaiDeveloperDocs --url https://developers.openai.com/mcp
   report_mcp_result
 }
