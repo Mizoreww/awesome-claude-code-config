@@ -189,6 +189,8 @@ AGENTS.md 包含 **版本变更日志** 规则：在做版本级改动（新功�
 | Playwright | 浏览器自动化与 E2E 测试（[repo](https://github.com/microsoft/playwright-mcp)） |
 | OpenAI Developer Docs | OpenAI 官方文档 MCP 端点（`https://developers.openai.com/mcp`） |
 
+安装器会固定已验证的 Playwright MCP 版本，并在写入 Codex 前执行启动冒烟检查。Node.js 20 或更高版本会使用上游标准 `npx` 命令；旧版 Node.js 会显示警告，并仅为 Playwright 使用隔离的 Node.js 24 runtime，不替换用户的系统 Node.js。仍建议安装受支持的 Node.js 24 LTS；兼容 runtime 依赖 `npx`，首次使用时需要下载对应 package。
+
 ## 安装说明
 
 1. Lark 与 GitHub MCP 条目在 `config.toml` 中默认被注释关闭。启用前请填入你自己的凭据并取消注释：

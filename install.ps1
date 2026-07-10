@@ -945,7 +945,7 @@ function Add-GithubMcpServer {
 
 function Write-McpResult {
     if ($script:MCP_FAILED_SERVERS.Count -eq 0) {
-        Write-Ok "MCP setup complete (existing entries are ignored)"
+        Write-Ok "MCP setup complete (selected entries are refreshed)"
     } else {
         Write-Warn "MCP setup finished with failures: $($script:MCP_FAILED_SERVERS -join ', ')"
         $script:SKIPPED_COMPONENTS += "MCP servers: $($script:MCP_FAILED_SERVERS -join ', ')"

@@ -84,6 +84,8 @@ assert_contains "$TEMP_DIR/node24/npx.log" \
 assert_contains "$TEMP_DIR/node24/codex.log" \
   "mcp add playwright -- npx -y @playwright/mcp@0.0.78"
 assert_not_contains "$TEMP_DIR/node24/codex.log" "--package=node@24"
+assert_contains "$TEMP_DIR/node24/output.log" \
+  "MCP setup complete (selected entries are refreshed)"
 
 # A launcher that cannot start must not be registered as a successful MCP.
 run_installer_case smoke_failure v24.12.0 1

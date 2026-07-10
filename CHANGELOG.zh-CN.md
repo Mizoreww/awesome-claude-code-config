@@ -14,6 +14,7 @@
 - 根据 review 结果加固安装器边界：移除 orphaned managed skill 名称、恢复 AI/DeepXiv 的 npx-first 路径，并让 statusline 合并安全处理缺失配置与多行 TOML。
 - 两个安装器都新增了条件式 Matt Pocock 安装后 Quickstart：完整 skill 包安装成功后，引导用户通过 Codex `/skills` 或 `@` 选择 `setup-matt-pocock-skills`，并说明已安装 skill 不会成为独立的根级 slash command。
 - 已安装的 Codex review 规则改为使用 Matt Pocock 的 `code-review` Standards/Spec 工作流，不再调用 `adversarial-review` 或启动 `claude -p` reviewer。
+- Bash 与 PowerShell 安装器现在都能安全注册 Playwright MCP：固定 `@playwright/mcp@0.0.78`，主机 Node.js 低于 20 时使用隔离的 Node.js 24 launcher，并在启动冒烟检查失败时拒绝写入坏配置。
 
 ### 设计理由
 - Codex 没有 Claude Code 的同款 plugin runtime，所以迁移目标是保留用户可识别的分类，同时把能力映射到 Codex skills、MCP server 或明确跳过的项目。
@@ -22,6 +23,7 @@
 - Codex 安装器现在优先保持可选项干净；只会警告或需要很重手动配置的项目不再为了迁移对齐而展示。
 - 清理范围受经过校验的 ownership 文件约束，目录名本身不再代表删除权限。安装器先通过 `npx skills remove --global --agent codex` 更新 Codex/全局元数据，再只对 Codex 本地目录做 fallback 清理；不会扫描或删除普通的 `~/.agents/skills` 子目录。
 - 当前 `skills@latest` 即使指定 `--agent codex --copy`，全局 Codex skill 也可能安装到规范化的共享目录 `~/.agents/skills`；Codex 会发现该目录，而根 `/` 菜单仍是命令菜单，已安装 skills 通过 `/skills` 或 `@` 进入。
+- `codex mcp add` 只能证明配置已写入，不能证明 stdio 进程能完成初始化。安装前探测实际 launcher 可以阻止不兼容的 Node.js/Playwright 组合被误报为成功；固定 MCP 版本则避免后续 `latest` 发布悄悄改变已验证命令。
 
 ### 注意事项
 - `github` 和 `lark-mcp` 仍需要真实凭据；GitHub 使用 `GITHUB_PERSONAL_ACCESS_TOKEN`，lark-mcp 因需要 app credentials 仍保持手动配置。
@@ -31,6 +33,7 @@
 - Skill 清理只在真实的交互菜单提交后执行；显式非交互参数仍是增量安装，Core 文件、MCP 配置、共享 agent skill、未拥有的自定义 skill 和来源不明的旧条目不会被移除。
 - 重复安装会保留已有的 `model` 与 `model_reasoning_effort`；新默认值只在新建 `config.toml` 时使用，勾选 StatusLine 则会刷新为托管的 footer 布局。
 - Matt Pocock Quickstart 在 dry-run 和安装失败时不会显示；如果 Codex TUI 在安装前已经打开，可能需要重启后才能看到新 skill。
+- Node.js 24 兼容 launcher 只作用于 Playwright MCP，依赖 `npx` 且首次使用需要下载 package。仍优先建议安装受支持的 Node.js 24 LTS；升级后重新运行 MCP 安装并重启 Codex。
 
 ## [2.6.1] - 2026-05-25
 

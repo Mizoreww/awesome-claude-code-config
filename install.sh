@@ -827,7 +827,7 @@ add_github_mcp_server() {
 
 report_mcp_result() {
   if [[ ${#MCP_FAILED_SERVERS[@]} -eq 0 ]]; then
-    ok "MCP setup complete (existing entries are ignored)"
+    ok "MCP setup complete (selected entries are refreshed)"
   else
     warn "MCP setup finished with failures: ${MCP_FAILED_SERVERS[*]}"
     SKIPPED_COMPONENTS+=("MCP servers: ${MCP_FAILED_SERVERS[*]}")

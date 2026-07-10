@@ -14,6 +14,7 @@
 - Hardened installer edge cases found in review: removed orphaned managed skill names, restored npx-first AI/DeepXiv paths, and made statusline merging handle missing or multi-line config safely.
 - Added a conditional Matt Pocock post-install quickstart to both installers: after the full pack succeeds, it points users to Codex `/skills` or `@`, names `setup-matt-pocock-skills`, and explains that installed skills are not individual root slash commands.
 - Changed the installed Codex review policy to use Matt Pocock's `code-review` Standards/Spec workflow instead of invoking `adversarial-review` or spawning `claude -p` reviewers.
+- Made Playwright MCP registration runtime-safe in both installers: pin `@playwright/mcp@0.0.78`, use an isolated Node.js 24 launcher when the host Node.js is older than 20, and refuse to register the server when its startup smoke check fails.
 
 ### Design Rationale
 - Codex does not have Claude Code's plugin runtime, so the migration preserves user-facing categories while mapping installable capabilities to Codex skills, MCP servers, or explicit skipped items.
@@ -22,6 +23,7 @@
 - The Codex installer now favors a clean selectable surface over migration parity for items that would only warn or require heavy manual setup.
 - A validated ownership file bounds reconciliation so a generic catalogue name is never treated as deletion authority by itself. `npx skills remove --global --agent codex` updates Codex/global metadata before Codex-local fallback cleanup, and generic `~/.agents/skills` children are never scanned or deleted.
 - Current `skills@latest` global Codex installs can use the canonical shared `~/.agents/skills` directory even with `--agent codex --copy`; Codex discovers that directory, while its root `/` menu remains a command menu and exposes installed skills through `/skills` or `@`.
+- `codex mcp add` proves that configuration was written, not that the stdio process can initialize. Probing the exact launcher first prevents an incompatible Node.js/Playwright combination from being reported as a successful install, while pinning the MCP version prevents a later `latest` release from silently changing a validated command.
 
 ### Notes & Caveats
 - `github` and `lark-mcp` remain credential-gated; GitHub uses `GITHUB_PERSONAL_ACCESS_TOKEN`, while lark-mcp stays manual because it needs app credentials.
@@ -31,6 +33,7 @@
 - Skill reconciliation runs only after a real interactive menu submission. Explicit non-interactive flags remain additive, and core files, MCP configuration, shared-agent skills, unowned/custom skills, and ambiguous legacy entries are not removed.
 - Repeat installs preserve existing `model` and `model_reasoning_effort` values; the new defaults apply only when creating `config.toml`, while a selected StatusLine is refreshed to the managed footer layout.
 - The Matt Pocock quickstart is suppressed for dry-runs and failed installs, and an already-open Codex TUI may need to be restarted before newly installed skills appear.
+- The Node.js 24 compatibility launcher is scoped to Playwright MCP and requires `npx` plus a first-use package download. Installing a supported Node.js 24 LTS runtime remains preferable; rerun the MCP installer and restart Codex after upgrading.
 
 ## [1.7.3] - 2026-04-09
 
