@@ -114,6 +114,8 @@ assert_file_contains "install.sh" "skills@latest remove"
 assert_file_contains "install.sh" "--global --agent codex --yes"
 assert_file_contains "install.sh" "remove_legacy_mattpocock_skills"
 assert_file_contains "install.sh" "locked_skill_source_matches"
+assert_file_contains "install.sh" 'XDG_STATE_HOME'
+assert_file_contains "install.sh" 'skills/.skill-lock.json'
 assert_file_contains "install.sh" 'local -a args=(-y skills@latest remove "${removable[@]}" --global --yes)'
 assert_file_not_contains "install.sh" "SELECT_SKILL_CODING_FOUNDATIONS"
 assert_file_contains "install.sh" "handoff|Conversation handoff skill|1|skill-handoff"
@@ -140,6 +142,8 @@ assert_file_contains "install.ps1" "function Test-SuperpowersOwnershipRecorded"
 assert_file_contains "install.ps1" '"--global", "--agent", "codex", "--yes"'
 assert_file_contains "install.ps1" "function Remove-LegacyMattPocockSkills"
 assert_file_contains "install.ps1" "function Test-LockedSkillSource"
+assert_file_contains "install.ps1" '$env:XDG_STATE_HOME'
+assert_file_contains "install.ps1" 'skills/.skill-lock.json'
 assert_file_contains "install.ps1" '@("--global", "--yes")'
 assert_file_contains "install.ps1" 'Label = "handoff"; Description = "Conversation handoff skill"; Default = $true; StateVar = "SelectSkillHandoff"'
 assert_file_not_contains "install.ps1" 'SelectSkillCodingFoundations'

@@ -160,12 +160,14 @@ Assert-True ($selected -contains "handoff") "an explicitly selected handoff sour
 $script:SelectSkillHandoff = $false
 
 $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-skill-reconciliation-test-" + [guid]::NewGuid().ToString("N"))
+$oldXdgStateHome = $env:XDG_STATE_HOME
+$env:XDG_STATE_HOME = Join-Path $tempDir "xdg-state"
 $CODEX_DIR = Join-Path $tempDir ".codex"
 $AGENTS_SKILLS_DIR = Join-Path $tempDir ".agents/skills"
 $SUPERPOWERS_DIR = Join-Path $CODEX_DIR "superpowers"
 $SUPERPOWERS_LINK = Join-Path $AGENTS_SKILLS_DIR "superpowers"
 $MANAGED_SKILLS_STATE_FILE = Join-Path $CODEX_DIR ".awesome-claude-code-config-managed-skills"
-$GLOBAL_SKILL_LOCK_FILE = Join-Path $tempDir ".agents/.skill-lock.json"
+$GLOBAL_SKILL_LOCK_FILE = Join-Path $env:XDG_STATE_HOME "skills/.skill-lock.json"
 $script:ManagedSkillOwnershipLoaded = $false
 $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
 $Force = $true
@@ -379,6 +381,11 @@ try {
     Assert-True (Test-Path $customReview) "custom same-name skill should be preserved"
 } finally {
     $env:PATH = $oldPath
+    if ($null -eq $oldXdgStateHome) {
+        Remove-Item Env:XDG_STATE_HOME -ErrorAction SilentlyContinue
+    } else {
+        $env:XDG_STATE_HOME = $oldXdgStateHome
+    }
     Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue
 }
 

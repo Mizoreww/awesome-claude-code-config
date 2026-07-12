@@ -6,6 +6,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 export HOME="$TMP/home"
+export XDG_STATE_HOME="$TMP/xdg-state"
 export NPX_LOG="$TMP/npx.log"
 mkdir -p "$HOME" "$TMP/bin"
 sed '$d' "$ROOT/install.sh" > "$TMP/install-lib.sh"
@@ -73,6 +74,9 @@ fail() {
   printf 'FAIL: %s\n' "$*" >&2
   exit 1
 }
+
+[[ "$GLOBAL_SKILL_LOCK_FILE" == "$XDG_STATE_HOME/skills/.skill-lock.json" ]] ||
+  fail "global skill lock path did not honor XDG_STATE_HOME"
 
 assert_exists() {
   [[ -e "$1" || -L "$1" ]] || fail "expected path to exist: $1"
