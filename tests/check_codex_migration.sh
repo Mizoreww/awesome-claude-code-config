@@ -142,6 +142,8 @@ assert_file_contains "install.ps1" "function Test-SuperpowersOwnershipRecorded"
 assert_file_contains "install.ps1" '"--global", "--agent", "codex", "--yes"'
 assert_file_contains "install.ps1" "function Remove-LegacyMattPocockSkills"
 assert_file_contains "install.ps1" "function Test-LockedSkillSource"
+assert_file_contains "install.ps1" "function Get-GlobalSkillLockFile"
+assert_file_contains "install.ps1" '$GLOBAL_SKILL_LOCK_FILE = Get-GlobalSkillLockFile'
 assert_file_contains "install.ps1" '$env:XDG_STATE_HOME'
 assert_file_contains "install.ps1" 'skills/.skill-lock.json'
 assert_file_contains "install.ps1" '@("--global", "--yes")'

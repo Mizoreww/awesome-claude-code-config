@@ -45,6 +45,7 @@ function Get-FunctionText {
 }
 
 foreach ($name in @(
+    "Get-GlobalSkillLockFile",
     "Test-SkillInList",
     "Test-ManagedSkillName",
     "Get-ExpectedSkillSource",
@@ -74,6 +75,20 @@ foreach ($name in @(
 }
 $realRemoveMattPocockSkillLockEntries =
     (Get-Item Function:\Remove-MattPocockSkillLockEntries).ScriptBlock
+
+$lockPathFixture = Join-Path ([System.IO.Path]::GetTempPath()) "codex-lock-path-fixture"
+$xdgLockPath = Get-GlobalSkillLockFile `
+    -HomePath (Join-Path $lockPathFixture "home") `
+    -XdgStateHome (Join-Path $lockPathFixture "state")
+Assert-True `
+    ($xdgLockPath -ceq (Join-Path $lockPathFixture "state/skills/.skill-lock.json")) `
+    "global skill lock path should honor XDG_STATE_HOME"
+$homeLockPath = Get-GlobalSkillLockFile `
+    -HomePath (Join-Path $lockPathFixture "home") `
+    -XdgStateHome ""
+Assert-True `
+    ($homeLockPath -ceq (Join-Path $lockPathFixture "home/.agents/.skill-lock.json")) `
+    "global skill lock path should fall back to HOME"
 
 function Write-Info { param($Message) }
 function Write-Ok { param($Message) }
@@ -167,7 +182,9 @@ $AGENTS_SKILLS_DIR = Join-Path $tempDir ".agents/skills"
 $SUPERPOWERS_DIR = Join-Path $CODEX_DIR "superpowers"
 $SUPERPOWERS_LINK = Join-Path $AGENTS_SKILLS_DIR "superpowers"
 $MANAGED_SKILLS_STATE_FILE = Join-Path $CODEX_DIR ".awesome-claude-code-config-managed-skills"
-$GLOBAL_SKILL_LOCK_FILE = Join-Path $env:XDG_STATE_HOME "skills/.skill-lock.json"
+$GLOBAL_SKILL_LOCK_FILE = Get-GlobalSkillLockFile `
+    -HomePath $HOME `
+    -XdgStateHome $env:XDG_STATE_HOME
 $script:ManagedSkillOwnershipLoaded = $false
 $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
 $Force = $true
