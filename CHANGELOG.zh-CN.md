@@ -4,7 +4,7 @@
 
 ### 新功能
 - 托管的 Matt Pocock 工作流升级到 v1.1.0：用 `to-spec`/`to-tickets` 替换 `to-prd`/`to-issues`，新增 `wayfinder`，并把已退役的 `decision-mapping`/`review` 降为仅迁移清理项。
-- Bash 与 PowerShell 都会下载 release commit `d574778f94cf620fcc8ce741584093bc650a61d3` 的本地快照来实现可复现安装；新增逐 skill 内容验证、当前及旧名称匹配 lock 的显式退役、基于来源校验的共享 agent 关联清理，以及失败时 fail-closed 的 ownership 处理。
+- Bash 与 PowerShell 都会下载 release commit `d574778f94cf620fcc8ce741584093bc650a61d3` 的本地快照来实现可复现安装；新增逐 skill 内容验证、与 CLI 一致的 home/XDG lock 查找、当前及旧名称匹配 lock 的显式退役、基于来源校验的共享 agent 关联清理，以及失败时 fail-closed 的 ownership 处理。
 - 将 Claude main 的最新安装分类迁移到 Codex 分支，并用 Codex-native 分组呈现：Review、Workflow、Development Tools、Design & Content、Lifestyle、Academic Research、Slides、MCP Servers。
 - 对兼容的上游 skill 包优先使用 `npx skills@latest add ... --agent codex --copy --yes --full-depth` 安装；按路径安装的包仍保留 Python `skill-installer` 作为 fallback。
 - Codex 模板默认设置为 `model = "gpt-5.6-sol"`、`model_reasoning_effort = "max"`、`approval_policy = "never"`、`sandbox_mode = "danger-full-access"`；`[tui].status_line` 统一显示模型、推理强度、项目、分支、上下文用量、5 小时配额和每周配额。
@@ -20,7 +20,7 @@
 
 ### 设计理由
 - `skills@latest` 返回成功并不代表每个请求名称都已安装，而且远程 tag/commit 后缀当前可能解析不一致。预验证的不可变本地快照配合显式目录检查，可以阻止部分安装和混合版本。
-- 省略 `--agent` 是当前可靠的全 agent 删除路径：`skills@1.5.16` 会拒绝文档中的 `--agent '*'`。显式清理来源匹配的 lock，还能覆盖已经没有安装目录、CLI 无法发现的退役条目。
+- 省略 `--agent` 是当前可靠的全 agent 删除路径：`skills@1.5.16` 会拒绝文档中的 `--agent '*'`。显式清理来源匹配的 lock，还能覆盖已经没有安装目录、CLI 无法发现的退役条目；配置了 XDG 时则与 CLI 一样使用 `$XDG_STATE_HOME/skills/.skill-lock.json`。
 - Codex 没有 Claude Code 的同款 plugin runtime，所以迁移目标是保留用户可识别的分类，同时把能力映射到 Codex skills、MCP server 或明确跳过的项目。
 - `npx skills` 是安装包含有效 `SKILL.md` 的跨 agent skill 仓库的直接路径；既有 Python installer 继续作为嵌套路径安装的回退方案。
 - Codex 的 `/statusline` 会把 footer 字段保存到 `[tui]`；把 `status_line` 追加到顶层可能因为 TOML table 作用域而悄悄落进前一个表。

@@ -4,7 +4,7 @@
 
 ### Features
 - Upgraded the managed Matt Pocock workflow set to v1.1.0: `to-prd`/`to-issues` are replaced by `to-spec`/`to-tickets`, `wayfinder` is added, and the retired `decision-mapping`/`review` names are migration-only cleanup entries.
-- Made Matt Pocock installs reproducible in both Bash and PowerShell by downloading release commit `d574778f94cf620fcc8ce741584093bc650a61d3` and installing from the local snapshot; added per-skill content verification, explicit retirement of matching current and legacy lock entries, provenance-gated cleanup across shared agent associations, and fail-closed ownership handling.
+- Made Matt Pocock installs reproducible in both Bash and PowerShell by downloading release commit `d574778f94cf620fcc8ce741584093bc650a61d3` and installing from the local snapshot; added per-skill content verification, CLI-compatible home/XDG lock discovery, explicit retirement of matching current and legacy lock entries, provenance-gated cleanup across shared agent associations, and fail-closed ownership handling.
 - Migrated the latest Claude main installer categories into the Codex branch as Codex-native groups: Review, Workflow, Development Tools, Design & Content, Lifestyle, Academic Research, Slides, and MCP Servers.
 - Added `npx skills@latest add ... --agent codex --copy --yes --full-depth` as the first-choice installer path for compatible upstream skill packs, with the Python `skill-installer` kept as fallback for path-based packs.
 - Set the Codex template defaults to `model = "gpt-5.6-sol"`, `model_reasoning_effort = "max"`, `approval_policy = "never"`, `sandbox_mode = "danger-full-access"`, and a `[tui].status_line` footer showing model, reasoning, project, branch, context use, five-hour quota, and weekly quota.
@@ -20,7 +20,7 @@
 
 ### Design Rationale
 - A successful `skills@latest` exit does not prove that every requested name was installed, and remote tag/commit suffixes currently resolve inconsistently. A prevalidated immutable local snapshot plus explicit directory checks prevents partial or mixed-version installs.
-- Omitting `--agent` is the current reliable all-agent removal path: `skills@1.5.16` rejects its documented `--agent '*'` value. Explicit matching-source lock cleanup also covers retired entries that no longer have an installed directory for the CLI to discover.
+- Omitting `--agent` is the current reliable all-agent removal path: `skills@1.5.16` rejects its documented `--agent '*'` value. Explicit matching-source lock cleanup also covers retired entries that no longer have an installed directory for the CLI to discover, and mirrors the CLI's `$XDG_STATE_HOME/skills/.skill-lock.json` override when configured.
 - Codex does not have Claude Code's plugin runtime, so the migration preserves user-facing categories while mapping installable capabilities to Codex skills, MCP servers, or explicit skipped items.
 - `npx skills` is the most direct cross-agent skill installer for repositories that expose valid `SKILL.md` entries, while the existing Python installer remains useful as a fallback for nested path installs.
 - Codex's `/statusline` command persists footer fields under `[tui]`; writing a top-level `status_line` can silently land inside the previous TOML table when appended to an existing config.

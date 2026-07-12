@@ -11,6 +11,7 @@ Source plan: the review task supplied the user journey and acceptance criteria; 
 - As an existing installer user, I want retired Matt Pocock skills removed from every shared agent association so the v1.1 install can proceed.
 - As a user with a stale Matt Pocock lock entry but no remaining skill directory, I want the matching lock retired so a later generic update cannot restore retired content.
 - As a PowerShell user, I want every failed pinned install to clear ownership recorded during the attempt so unverified content is never treated as installer-owned.
+- As a user with `XDG_STATE_HOME`, I want the installer to read and retire the same global skill lock that the Skills CLI updates.
 - As a maintainer, I want the same migration guarantees executed by both Bash and PowerShell tests.
 
 ## RED and GREEN evidence
@@ -21,6 +22,10 @@ Source plan: the review task supplied the user journey and acceptance criteria; 
 | RED | `ffd06d5` | `/tmp/pr49-pwsh/runtime/pwsh -NoProfile -File tests/install_ps1_skill_reconciliation.Tests.ps1` | Expected failure | After making the fixture cross-platform, PowerShell reached the same legacy-cleanup failure. |
 | GREEN | `225a7c4` | `bash tests/check_codex_skill_reconciliation.sh` | PASS | Output ended with `Codex skill reconciliation checks passed`. |
 | GREEN | `225a7c4` | `/tmp/pr49-pwsh/runtime/pwsh -NoProfile -File tests/install_ps1_skill_reconciliation.Tests.ps1` | PASS | Output: `install.ps1 skill reconciliation tests passed`. |
+| XDG RED | `a101f90` | `bash tests/check_codex_skill_reconciliation.sh` | Expected failure | Output: `global skill lock path did not honor XDG_STATE_HOME`. |
+| XDG RED | `a101f90` | `bash tests/check_codex_migration.sh` | Expected failure | The Bash/PowerShell parity contract found no XDG lock-path handling in the installers. |
+| XDG GREEN | `fabd70c` | `bash tests/check_codex_migration.sh && bash tests/check_codex_skill_reconciliation.sh` | PASS | Both migration and XDG-backed runtime lock scenarios passed. |
+| XDG GREEN | `fabd70c` | `/tmp/pr49-pwsh/runtime/pwsh -NoProfile -File tests/install_ps1_skill_reconciliation.Tests.ps1` | PASS | PowerShell lock and ownership scenarios passed against an XDG-backed lock path. |
 
 ## Test specification
 
@@ -30,6 +35,7 @@ Source plan: the review task supplied the user journey and acceptance criteria; 
 | 2 | Matching `mattpocock/skills` lock entries for retired names are deleted while unrelated lock entries remain unchanged | legacy cleanup fixtures | Integration/error state | PASS |
 | 3 | A PowerShell exception after npx records ownership returns failure and clears ownership for every requested skill | injected lock-cleanup exception | Unit/error path | PASS |
 | 4 | The PowerShell reconciliation fixture initializes every selection flag and uses a platform-neutral temporary directory | full PowerShell test script | Cross-platform regression | PASS |
+| 5 | Both installers use `$XDG_STATE_HOME/skills/.skill-lock.json` when configured and the home fallback otherwise | migration contract plus XDG-backed fixtures | Cross-platform integration | PASS |
 
 ## External CLI reproduction
 
