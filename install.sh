@@ -1376,7 +1376,9 @@ remove_legacy_mattpocock_skills() {
     return 1
   fi
 
-  local -a args=(-y skills@latest remove "${removable[@]}" --global --agent '*' --yes)
+  # Omitting --agent targets every detected agent. skills@1.5.16 currently
+  # rejects the documented wildcard value (`--agent '*'`).
+  local -a args=(-y skills@latest remove "${removable[@]}" --global --yes)
   if ! DO_NOT_TRACK=1 npx "${args[@]}" </dev/null; then
     warn "npx skills could not migrate retired Matt Pocock skills: ${removable[*]}"
     return 1
@@ -1385,6 +1387,10 @@ remove_legacy_mattpocock_skills() {
   for skill in "${removable[@]}"; do
     rm -rf "$AGENTS_SKILLS_DIR/$skill" "$CODEX_DIR/skills/$skill"
   done
+  if ! remove_mattpocock_skill_lock_entries "${removable[@]}"; then
+    warn "Could not retire matching lock entries for retired Matt Pocock skills: ${removable[*]}"
+    return 1
+  fi
   remove_managed_skill_ownership "${removable[@]}"
   ok "Removed retired Matt Pocock skills: ${removable[*]}"
 }

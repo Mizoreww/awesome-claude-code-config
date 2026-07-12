@@ -1808,6 +1808,7 @@ function Install-MattPocockSkillNames {
         }
         return $true
     } catch {
+        Remove-ManagedSkillOwnership $SkillNames
         Write-Warn "Could not install Matt Pocock $($script:MATTPOCOCK_VERSION): $($_.Exception.Message)"
         return $false
     } finally {
@@ -1923,7 +1924,9 @@ function Remove-LegacyMattPocockSkills {
         return $false
     }
 
-    $npxArgs = @("-y", "skills@latest", "remove") + $removable + @("--global", "--agent", "*", "--yes")
+    # Omitting --agent targets every detected agent. skills@1.5.16 currently
+    # rejects the documented wildcard value (`--agent '*'`).
+    $npxArgs = @("-y", "skills@latest", "remove") + $removable + @("--global", "--yes")
     $oldDoNotTrack = $env:DO_NOT_TRACK
     $env:DO_NOT_TRACK = "1"
     try {
@@ -1943,6 +1946,10 @@ function Remove-LegacyMattPocockSkills {
     foreach ($skill in $removable) {
         Remove-Item -LiteralPath (Join-Path $AGENTS_SKILLS_DIR $skill) -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath (Join-Path $CODEX_DIR "skills/$skill") -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if (-not (Remove-MattPocockSkillLockEntries $removable)) {
+        Write-Warn "Could not retire matching lock entries for retired Matt Pocock skills: $($removable -join ', ')"
+        return $false
     }
     Remove-ManagedSkillOwnership $removable
     Write-Ok "Removed retired Matt Pocock skills: $($removable -join ', ')"

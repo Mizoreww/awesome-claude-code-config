@@ -359,8 +359,14 @@ assert_missing "$AGENTS_SKILLS_DIR/to-issues"
 if grep -Fq -- '--agent *' "$NPX_LOG"; then
   fail "legacy Matt Pocock cleanup used the CLI's invalid wildcard agent"
 fi
-grep -Fq -- 'skills@latest remove to-prd to-issues --global --yes' "$NPX_LOG" || \
+legacy_remove_call="$(tail -n 1 "$NPX_LOG")"
+[[ "$legacy_remove_call" == *"skills@latest remove "* &&
+   "$legacy_remove_call" == *" --global --yes"* ]] || \
   fail "legacy Matt Pocock cleanup did not use default all-agent removal"
+for retired_skill in to-prd to-issues; do
+  [[ " $legacy_remove_call " == *" $retired_skill "* ]] || \
+    fail "legacy Matt Pocock cleanup omitted $retired_skill"
+done
 if [[ -f "$MANAGED_SKILLS_STATE_FILE" ]]; then
   grep -Fxq to-prd "$MANAGED_SKILLS_STATE_FILE" && \
     fail "retired to-prd ownership survived migration"
