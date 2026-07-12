@@ -173,7 +173,11 @@ SUPERPOWERS_SKILLS=(
 )
 LOCAL_MANAGED_SKILLS=(paper-reading humanizer humanizer-zh handoff adversarial-review update)
 MANAGED_SKILLS_STATE_FILE="$CODEX_DIR/.awesome-claude-code-config-managed-skills"
-GLOBAL_SKILL_LOCK_FILE="$HOME/.agents/.skill-lock.json"
+if [[ -n "${XDG_STATE_HOME:-}" ]]; then
+  GLOBAL_SKILL_LOCK_FILE="$XDG_STATE_HOME/skills/.skill-lock.json"
+else
+  GLOBAL_SKILL_LOCK_FILE="$HOME/.agents/.skill-lock.json"
+fi
 CODEX_STATUS_LINE='status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 CODEX_STATUS_LINE_USE_COLORS='status_line_use_colors = true'
 PLAYWRIGHT_MCP_VERSION="0.0.78"

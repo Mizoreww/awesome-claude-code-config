@@ -197,7 +197,11 @@ $SUPERPOWERS_SKILLS = @(
 )
 $LOCAL_MANAGED_SKILLS = @("paper-reading", "humanizer", "humanizer-zh", "handoff", "adversarial-review", "update")
 $MANAGED_SKILLS_STATE_FILE = Join-Path $CODEX_DIR ".awesome-claude-code-config-managed-skills"
-$GLOBAL_SKILL_LOCK_FILE = Join-Path $HOME ".agents/.skill-lock.json"
+$GLOBAL_SKILL_LOCK_FILE = if ($env:XDG_STATE_HOME) {
+    Join-Path $env:XDG_STATE_HOME "skills/.skill-lock.json"
+} else {
+    Join-Path $HOME ".agents/.skill-lock.json"
+}
 $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
 $script:ManagedSkillOwnershipLoaded = $false
 $script:MattPocockQuickstartReady = $false

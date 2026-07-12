@@ -119,7 +119,7 @@ write_owned_skills() {
 }
 
 reset_ownership_discovery() {
-  rm -f "$MANAGED_SKILLS_STATE_FILE" "$HOME/.agents/.skill-lock.json"
+  rm -f "$MANAGED_SKILLS_STATE_FILE" "$GLOBAL_SKILL_LOCK_FILE"
   MANAGED_SKILLS_OWNERSHIP_LOADED=false
   OWNED_MANAGED_SKILLS=()
 }
@@ -210,16 +210,17 @@ assert_missing "$CODEX_DIR/skills/humanizer-zh"
 
 # A lock entry is imported only when its source matches the installer source.
 reset_ownership_discovery
-mkdir -p "$CODEX_DIR/skills/research" "$HOME/.agents"
-printf '%s\n' '{"version":3,"skills":{"research":{"source":"user/custom-skills"}}}' > "$HOME/.agents/.skill-lock.json"
+mkdir -p "$CODEX_DIR/skills/research" "$(dirname "$GLOBAL_SKILL_LOCK_FILE")"
+printf '%s\n' '{"version":3,"skills":{"research":{"source":"user/custom-skills"}}}' > "$GLOBAL_SKILL_LOCK_FILE"
 reconcile_interactive_skills
 assert_exists "$CODEX_DIR/skills/research"
 
 reset_ownership_discovery
-mkdir -p "$CODEX_DIR/skills/frontend-slides" "$AGENTS_SKILLS_DIR/frontend-slides" "$HOME/.agents"
+mkdir -p "$CODEX_DIR/skills/frontend-slides" "$AGENTS_SKILLS_DIR/frontend-slides" \
+  "$(dirname "$GLOBAL_SKILL_LOCK_FILE")"
 printf '%s\n' custom > "$CODEX_DIR/skills/frontend-slides/SKILL.md"
 printf '%s\n' upstream > "$AGENTS_SKILLS_DIR/frontend-slides/SKILL.md"
-printf '%s\n' '{"version":3,"skills":{"frontend-slides":{"source":"zarazhangrui/frontend-slides"}}}' > "$HOME/.agents/.skill-lock.json"
+printf '%s\n' '{"version":3,"skills":{"frontend-slides":{"source":"zarazhangrui/frontend-slides"}}}' > "$GLOBAL_SKILL_LOCK_FILE"
 reconcile_interactive_skills
 assert_exists "$CODEX_DIR/skills/frontend-slides"
 assert_exists "$AGENTS_SKILLS_DIR/frontend-slides"
@@ -227,7 +228,7 @@ assert_exists "$AGENTS_SKILLS_DIR/frontend-slides"
 reset_ownership_discovery
 rm -rf "$CODEX_DIR/skills/frontend-slides"
 cp -R "$AGENTS_SKILLS_DIR/frontend-slides" "$CODEX_DIR/skills/frontend-slides"
-printf '%s\n' '{"version":3,"skills":{"frontend-slides":{"source":"zarazhangrui/frontend-slides"}}}' > "$HOME/.agents/.skill-lock.json"
+printf '%s\n' '{"version":3,"skills":{"frontend-slides":{"source":"zarazhangrui/frontend-slides"}}}' > "$GLOBAL_SKILL_LOCK_FILE"
 reconcile_interactive_skills
 assert_missing "$CODEX_DIR/skills/frontend-slides"
 assert_exists "$AGENTS_SKILLS_DIR/frontend-slides"
@@ -235,10 +236,11 @@ assert_exists "$AGENTS_SKILLS_DIR/frontend-slides"
 # Retired coding-foundations names remain cleanup-only: they cannot be selected
 # or installed, but a verified legacy copy is removed on the first upgrade.
 reset_ownership_discovery
-mkdir -p "$CODEX_DIR/skills/python-patterns" "$AGENTS_SKILLS_DIR/python-patterns" "$HOME/.agents"
+mkdir -p "$CODEX_DIR/skills/python-patterns" "$AGENTS_SKILLS_DIR/python-patterns" \
+  "$(dirname "$GLOBAL_SKILL_LOCK_FILE")"
 printf '%s\n' legacy > "$AGENTS_SKILLS_DIR/python-patterns/SKILL.md"
 cp "$AGENTS_SKILLS_DIR/python-patterns/SKILL.md" "$CODEX_DIR/skills/python-patterns/SKILL.md"
-printf '%s\n' '{"version":3,"skills":{"python-patterns":{"source":"affaan-m/everything-claude-code"}}}' > "$HOME/.agents/.skill-lock.json"
+printf '%s\n' '{"version":3,"skills":{"python-patterns":{"source":"affaan-m/everything-claude-code"}}}' > "$GLOBAL_SKILL_LOCK_FILE"
 reconcile_interactive_skills
 assert_missing "$CODEX_DIR/skills/python-patterns"
 assert_exists "$AGENTS_SKILLS_DIR/python-patterns"
