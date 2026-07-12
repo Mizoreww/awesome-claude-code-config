@@ -66,6 +66,8 @@ LESSONS_SEEDED=false
 OWNED_MANAGED_SKILLS=()
 MANAGED_SKILLS_OWNERSHIP_LOADED=false
 MATTPOCOCK_QUICKSTART_READY=false
+MATTPOCOCK_VERSION="v1.1.0"
+MATTPOCOCK_COMMIT="d574778f94cf620fcc8ce741584093bc650a61d3"
 
 SELECT_CORE_AGENTS_MD=false
 SELECT_CORE_CONFIG=false
@@ -128,7 +130,7 @@ MANAGED_SKILLS=(
   frontend-slides
   ask-matt diagnosing-bugs grill-with-docs triage
   implement improve-codebase-architecture setup-matt-pocock-skills tdd
-  to-issues to-prd prototype domain-modeling codebase-design
+  to-spec to-tickets wayfinder prototype domain-modeling codebase-design
   grill-me grilling research teach writing-great-skills
   pua pua-en pua-ja
 )
@@ -138,9 +140,14 @@ LEGACY_CLEANUP_SKILLS=(
   security-review tdd-workflow verification-loop api-design database-migrations
 )
 
+MATTPOCOCK_LEGACY_SKILLS=(
+  to-issues to-prd decision-mapping review
+)
+
 OWNERSHIP_SKILLS=(
   "${MANAGED_SKILLS[@]}"
   "${LEGACY_CLEANUP_SKILLS[@]}"
+  "${MATTPOCOCK_LEGACY_SKILLS[@]}"
 )
 
 LEGACY_SUPERPOWERS_SKILLS=(
@@ -153,7 +160,7 @@ LEGACY_SUPERPOWERS_SKILLS=(
 MATTPOCOCK_SKILLS=(
   ask-matt diagnosing-bugs grill-with-docs triage
   implement improve-codebase-architecture setup-matt-pocock-skills tdd
-  to-issues to-prd prototype domain-modeling codebase-design
+  to-spec to-tickets wayfinder prototype domain-modeling codebase-design
   grill-me grilling research teach writing-great-skills
 )
 
@@ -166,7 +173,11 @@ SUPERPOWERS_SKILLS=(
 )
 LOCAL_MANAGED_SKILLS=(paper-reading humanizer humanizer-zh handoff adversarial-review update)
 MANAGED_SKILLS_STATE_FILE="$CODEX_DIR/.awesome-claude-code-config-managed-skills"
-GLOBAL_SKILL_LOCK_FILE="$HOME/.agents/.skill-lock.json"
+if [[ -n "${XDG_STATE_HOME:-}" ]]; then
+  GLOBAL_SKILL_LOCK_FILE="$XDG_STATE_HOME/skills/.skill-lock.json"
+else
+  GLOBAL_SKILL_LOCK_FILE="$HOME/.agents/.skill-lock.json"
+fi
 CODEX_STATUS_LINE='status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 CODEX_STATUS_LINE_USE_COLORS='status_line_use_colors = true'
 PLAYWRIGHT_MCP_VERSION="0.0.78"
@@ -182,7 +193,7 @@ show_mattpocock_quickstart() {
   echo "  Matt Pocock skills are already installed; do not run npx again."
   echo "  1. Restart Codex if it was open during installation."
   echo "  2. Type /skills (or press @), choose List skills, then search for setup-matt-pocock-skills."
-  echo "  3. Insert and run it; it will ask about your issue tracker, triage labels, and docs location."
+  echo "  3. Insert and run it; it will configure the issue tracker, triage labels when applicable, and domain docs."
   echo "  Note: installed skills are not individual root slash commands such as /setup-matt-pocock-skills."
 }
 
@@ -905,7 +916,9 @@ managed_skill_name_is_valid() {
 expected_source_for_skill() {
   local skill="$1"
 
-  if [[ "$skill" == "code-review" ]] || skill_in_array "$skill" "${MATTPOCOCK_SKILLS[@]}"; then
+  if [[ "$skill" == "code-review" ]] ||
+     skill_in_array "$skill" "${MATTPOCOCK_SKILLS[@]}" ||
+     skill_in_array "$skill" "${MATTPOCOCK_LEGACY_SKILLS[@]}"; then
     printf '%s\n' "mattpocock/skills"
   elif [[ "$skill" == "karpathy-guidelines" ]]; then
     printf '%s\n' "forrestchang/andrej-karpathy-skills"
@@ -1013,6 +1026,18 @@ for name, metadata in skills.items():
         if isinstance(source, str) and "\t" not in name and "\t" not in source:
             print(f"{name}\t{source}")
 PY
+}
+
+locked_skill_source_matches() {
+  local wanted_name="$1"
+  local wanted_source="$2"
+  local name source
+  while IFS=$'\t' read -r name source; do
+    if [[ "$name" == "$wanted_name" && "$source" == "$wanted_source" ]]; then
+      return 0
+    fi
+  done < <(legacy_locked_skill_pairs)
+  return 1
 }
 
 superpowers_fallback_is_owned() {
@@ -1133,6 +1158,51 @@ confirm_empty_skill_removal() {
   [[ "$answer" =~ ^[Yy]$ ]]
 }
 
+verify_installed_skill_names() {
+  local -a missing=()
+  local skill
+  for skill in "$@"; do
+    if [[ ! -f "$AGENTS_SKILLS_DIR/$skill/SKILL.md" &&
+          ! -f "$CODEX_DIR/skills/$skill/SKILL.md" ]]; then
+      missing+=("$skill")
+    fi
+  done
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    warn "npx skills returned success but did not install: ${missing[*]}"
+    return 1
+  fi
+  return 0
+}
+
+remove_mattpocock_skill_lock_entries() {
+  [[ -f "$GLOBAL_SKILL_LOCK_FILE" ]] || return 0
+  command -v node >/dev/null 2>&1 || return 1
+
+  node - "$GLOBAL_SKILL_LOCK_FILE" "$@" <<'NODE'
+const fs = require("fs");
+
+const [lockPath, ...names] = process.argv.slice(2);
+let lock;
+try {
+  lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+} catch {
+  process.exit(1);
+}
+
+if (!lock.skills || typeof lock.skills !== "object") process.exit(0);
+for (const name of names) {
+  if (lock.skills[name]?.source === "mattpocock/skills") {
+    delete lock.skills[name];
+  }
+}
+
+const tempPath = `${lockPath}.tmp.${process.pid}`;
+fs.writeFileSync(tempPath, `${JSON.stringify(lock, null, 2)}\n`, "utf8");
+fs.renameSync(tempPath, lockPath);
+NODE
+}
+
 install_npx_skill_names() {
   local repo="$1"
   shift
@@ -1154,11 +1224,89 @@ install_npx_skill_names() {
     args+=(--skill "$skill")
   done
 
-  if DO_NOT_TRACK=1 npx "${args[@]}" </dev/null; then
+  if DO_NOT_TRACK=1 npx "${args[@]}" </dev/null &&
+     verify_installed_skill_names "${skill_names[@]}"; then
     add_managed_skill_ownership "${skill_names[@]}"
     return 0
   fi
   return 1
+}
+
+install_mattpocock_skill_names() {
+  local -a skill_names=("$@")
+
+  remove_legacy_mattpocock_skills || return 1
+
+  if $DRY_RUN; then
+    info "Would install Matt Pocock $MATTPOCOCK_VERSION from commit $MATTPOCOCK_COMMIT: $*"
+    return 0
+  fi
+
+  if ! command -v tar >/dev/null 2>&1; then
+    warn "tar not found; cannot unpack pinned Matt Pocock skills"
+    return 1
+  fi
+
+  local temp_dir archive source_dir skill
+  temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/mattpocock-skills.XXXXXX")
+  archive="$temp_dir/source.tar.gz"
+
+  if ! download_archive \
+    "https://github.com/mattpocock/skills/archive/${MATTPOCOCK_COMMIT}.tar.gz" \
+    "$archive"; then
+    rm -rf "$temp_dir"
+    warn "Could not download Matt Pocock $MATTPOCOCK_VERSION"
+    return 1
+  fi
+
+  if ! tar -xzf "$archive" -C "$temp_dir"; then
+    rm -rf "$temp_dir"
+    warn "Could not unpack Matt Pocock $MATTPOCOCK_VERSION"
+    return 1
+  fi
+
+  source_dir=$(find "$temp_dir" -mindepth 1 -maxdepth 1 -type d -print -quit)
+  if [[ -z "$source_dir" ]]; then
+    rm -rf "$temp_dir"
+    warn "Pinned Matt Pocock archive did not contain a repository root"
+    return 1
+  fi
+
+  for skill in "${skill_names[@]}"; do
+    if ! find "$source_dir/skills" -path "*/$skill/SKILL.md" -type f -print -quit | grep -q .; then
+      rm -rf "$temp_dir"
+      warn "Pinned Matt Pocock archive is missing requested skill: $skill"
+      return 1
+    fi
+  done
+
+  local result=0 source_skill target_skill
+  install_npx_skill_names "$source_dir" "${skill_names[@]}" || result=$?
+  if [[ "$result" -ne 0 ]]; then
+    remove_managed_skill_ownership "${skill_names[@]}"
+  fi
+  if [[ "$result" -eq 0 ]]; then
+    for skill in "${skill_names[@]}"; do
+      source_skill=$(find "$source_dir/skills" -path "*/$skill/SKILL.md" -type f -print -quit)
+      source_skill=${source_skill%/SKILL.md}
+      target_skill="$AGENTS_SKILLS_DIR/$skill"
+      [[ -d "$target_skill" ]] || target_skill="$CODEX_DIR/skills/$skill"
+      if ! managed_directory_trees_equal "$source_skill" "$target_skill"; then
+        warn "Installed Matt Pocock skill does not match pinned snapshot: $skill"
+        remove_managed_skill_ownership "${skill_names[@]}"
+        result=1
+        break
+      fi
+    done
+  fi
+  if [[ "$result" -eq 0 ]] &&
+     ! remove_mattpocock_skill_lock_entries "${skill_names[@]}"; then
+    warn "Could not retire remote Matt Pocock lock entries after pinned installation"
+    remove_managed_skill_ownership "${skill_names[@]}"
+    result=1
+  fi
+  rm -rf "$temp_dir"
+  return "$result"
 }
 
 selected_managed_skill_names() {
@@ -1208,6 +1356,49 @@ remove_npx_skill_names() {
   fi
 }
 
+remove_legacy_mattpocock_skills() {
+  initialize_managed_skill_ownership
+
+  local -a removable=()
+  local skill
+  for skill in "${MATTPOCOCK_LEGACY_SKILLS[@]}"; do
+    if owned_managed_skill_contains "$skill" ||
+       locked_skill_source_matches "$skill" "mattpocock/skills"; then
+      removable+=("$skill")
+    fi
+  done
+
+  [[ ${#removable[@]} -gt 0 ]] || return 0
+
+  if $DRY_RUN; then
+    info "Would remove retired Matt Pocock skills from all agent associations: ${removable[*]}"
+    return 0
+  fi
+
+  if ! command -v npx >/dev/null 2>&1; then
+    warn "npx not found; cannot safely migrate retired Matt Pocock skills: ${removable[*]}"
+    return 1
+  fi
+
+  # Omitting --agent targets every detected agent. skills@1.5.16 currently
+  # rejects the documented wildcard value (`--agent '*'`).
+  local -a args=(-y skills@latest remove "${removable[@]}" --global --yes)
+  if ! DO_NOT_TRACK=1 npx "${args[@]}" </dev/null; then
+    warn "npx skills could not migrate retired Matt Pocock skills: ${removable[*]}"
+    return 1
+  fi
+
+  for skill in "${removable[@]}"; do
+    rm -rf "$AGENTS_SKILLS_DIR/$skill" "$CODEX_DIR/skills/$skill"
+  done
+  if ! remove_mattpocock_skill_lock_entries "${removable[@]}"; then
+    warn "Could not retire matching lock entries for retired Matt Pocock skills: ${removable[*]}"
+    return 1
+  fi
+  remove_managed_skill_ownership "${removable[@]}"
+  ok "Removed retired Matt Pocock skills: ${removable[*]}"
+}
+
 remove_superpowers_fallback() {
   if ! superpowers_fallback_is_owned; then
     if [[ -L "$SUPERPOWERS_LINK" || -e "$SUPERPOWERS_LINK" || -e "$SUPERPOWERS_DIR" ]]; then
@@ -1254,6 +1445,9 @@ reconcile_interactive_skills() {
   local skill wanted selected
 
   initialize_managed_skill_ownership
+  if ! remove_legacy_mattpocock_skills; then
+    warn "Retired Matt Pocock skills were preserved because migration cleanup failed"
+  fi
 
   while IFS= read -r skill; do
     [[ -n "$skill" ]] && desired+=("$skill")
@@ -1261,6 +1455,7 @@ reconcile_interactive_skills() {
 
   if [[ ${#OWNED_MANAGED_SKILLS[@]} -gt 0 ]]; then
     for skill in "${OWNED_MANAGED_SKILLS[@]}"; do
+      skill_in_array "$skill" "${MATTPOCOCK_LEGACY_SKILLS[@]}" && continue
       wanted=false
       if [[ ${#desired[@]} -gt 0 ]]; then
         for selected in "${desired[@]}"; do
@@ -1525,7 +1720,7 @@ install_local_skills() {
 
 install_selected_recommended_skills() {
   if $SELECT_SKILL_CODE_REVIEW; then
-    install_npx_skill_names mattpocock/skills code-review || \
+    install_mattpocock_skill_names code-review || \
       skip_unsupported_item "code-review" "npx skills install failed; use Codex /review as the native fallback"
   fi
 
@@ -1539,7 +1734,7 @@ install_selected_recommended_skills() {
   fi
 
   if $SELECT_SKILL_MATTPOCOCK; then
-    if install_npx_skill_names mattpocock/skills "${MATTPOCOCK_SKILLS[@]}"; then
+    if install_mattpocock_skill_names "${MATTPOCOCK_SKILLS[@]}"; then
       MATTPOCOCK_QUICKSTART_READY=true
     else
       skip_unsupported_item "mattpocock/skills" "npx skills install failed"
@@ -1628,7 +1823,7 @@ install_skills() {
   info "Installing skills (group: $SKILL_GROUP)..."
 
   if [[ "$SKILL_GROUP" == "core" || "$SKILL_GROUP" == "all" ]]; then
-    install_npx_skill_names mattpocock/skills code-review || \
+    install_mattpocock_skill_names code-review || \
       skip_unsupported_item "code-review" "npx skills install failed; use Codex /review as the native fallback"
 
     install_npx_skill_names forrestchang/andrej-karpathy-skills karpathy-guidelines || \
@@ -1636,7 +1831,7 @@ install_skills() {
 
     install_superpowers
 
-    if install_npx_skill_names mattpocock/skills "${MATTPOCOCK_SKILLS[@]}"; then
+    if install_mattpocock_skill_names "${MATTPOCOCK_SKILLS[@]}"; then
       MATTPOCOCK_QUICKSTART_READY=true
     else
       skip_unsupported_item "mattpocock/skills" "npx skills install failed"

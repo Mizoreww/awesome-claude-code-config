@@ -139,7 +139,7 @@ skills/rules  → python-patterns、golang-patterns、frontend-patterns
 
 | 技能集 | 来源 | 覆盖范围 |
 |-------|------|----------|
-| mattpocock/skills | [mattpocock/skills](https://github.com/mattpocock/skills) | 通过 `npx skills` 安装 `ask-matt`、grilling/design、research、PRD/issues、implementation、triage、TDD、架构和领域建模工作流 |
+| mattpocock/skills | [mattpocock/skills](https://github.com/mattpocock/skills) | 固定 v1.1 的 `ask-matt`、grilling/design、research、specs/tickets、wayfinding、implementation、triage、TDD、架构和领域建模工作流 |
 | superpowers | [obra/superpowers](https://github.com/obra/superpowers) | 完整原生 superpowers 集合，含 brainstorming、计划执行、review handoff、worktree 等；优先通过 `npx skills` 安装，失败时回退到 git/junction |
 | andrej-karpathy-skills | [forrestchang/andrej-karpathy-skills](https://github.com/forrestchang/andrej-karpathy-skills) | 通过 `npx skills` 安装 Karpathy 风格编码指南 |
 | anthropic skills packs | [anthropics/skills](https://github.com/anthropics/skills) | 文档处理、前端设计、画布/艺术、MCP builder |
@@ -153,6 +153,8 @@ skills/rules  → python-patterns、golang-patterns、frontend-patterns
 ```bash
 npx -y skills@latest add <repo> --global --agent codex --copy --yes --full-depth --skill <name>
 ```
+
+Matt Pocock skills 是例外：两个安装器都会先下载不可变的 v1.1.0 release commit，再把该本地快照交给 `skills@latest`。这样可以避开可变的 `main` 内容，以及当前 CLI 对远程 tag/commit 后缀处理不可靠的问题。只有全部请求的 skill 目录与快照一致时才算安装成功；匹配的远程 lock 条目会被移除，避免之后的通用 `skills update` 覆盖固定内容。迁移时还会跨共享 agent 关联移除来源已验证的旧名称（`to-prd`、`to-issues`、`decision-mapping`、`review`）。
 
 `mattpocock/skills` 安装成功后，安装器会显示一段 30 秒 Codex Quickstart。当前版本的 `skills` CLI 即使指定 `--agent codex --copy`，全局 Codex skill 也可能放在共享目录 `~/.agents/skills`，Codex 会直接发现它们。在 Codex 中输入 `/skills` 并选择 **List skills**，或直接按 `@`，然后搜索 `setup-matt-pocock-skills`。已安装的 skill 不会变成 `/setup-matt-pocock-skills` 这样的根级 slash command。
 
