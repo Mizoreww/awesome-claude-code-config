@@ -33,8 +33,18 @@ if [[ " $* " == *" add "* ]]; then
 fi
 
 if [[ " $* " == *" remove "* ]]; then
-  remove_all_agents=false
-  [[ " $* " == *" --agent * --yes "* ]] && remove_all_agents=true
+  remove_all_agents=true
+  previous=""
+  for arg in "$@"; do
+    if [[ "$previous" == "--agent" ]]; then
+      # skills@1.5.16 documents '*' but currently rejects it as an invalid
+      # agent. Omitting --agent is the supported all-agent removal path.
+      [[ "$arg" == "*" ]] && exit 1
+      remove_all_agents=false
+      break
+    fi
+    previous="$arg"
+  done
   removing=false
   for arg in "$@"; do
     if [[ "$arg" == "remove" ]]; then
@@ -338,19 +348,36 @@ reset_ownership_discovery
 mkdir -p "$AGENTS_SKILLS_DIR/to-prd" "$AGENTS_SKILLS_DIR/to-issues"
 printf '%s\n' legacy > "$AGENTS_SKILLS_DIR/to-prd/SKILL.md"
 printf '%s\n' legacy > "$AGENTS_SKILLS_DIR/to-issues/SKILL.md"
+mkdir -p "$(dirname "$GLOBAL_SKILL_LOCK_FILE")"
+printf '%s\n' '{"version":3,"skills":{"to-prd":{"source":"mattpocock/skills"},"to-issues":{"source":"mattpocock/skills"},"custom-skill":{"source":"user/custom-skills"}}}' > \
+  "$GLOBAL_SKILL_LOCK_FILE"
 write_owned_skills to-prd to-issues
 : > "$NPX_LOG"
 remove_legacy_mattpocock_skills || fail "legacy Matt Pocock cleanup failed"
 assert_missing "$AGENTS_SKILLS_DIR/to-prd"
 assert_missing "$AGENTS_SKILLS_DIR/to-issues"
-grep -Fq -- '--agent * --yes' "$NPX_LOG" || \
-  fail "legacy Matt Pocock cleanup did not remove all shared-agent associations"
+if grep -Fq -- '--agent *' "$NPX_LOG"; then
+  fail "legacy Matt Pocock cleanup used the CLI's invalid wildcard agent"
+fi
+grep -Fq -- 'skills@latest remove to-prd to-issues --global --yes' "$NPX_LOG" || \
+  fail "legacy Matt Pocock cleanup did not use default all-agent removal"
 if [[ -f "$MANAGED_SKILLS_STATE_FILE" ]]; then
   grep -Fxq to-prd "$MANAGED_SKILLS_STATE_FILE" && \
     fail "retired to-prd ownership survived migration"
   grep -Fxq to-issues "$MANAGED_SKILLS_STATE_FILE" && \
     fail "retired to-issues ownership survived migration"
 fi
+python3 - "$GLOBAL_SKILL_LOCK_FILE" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as fh:
+    skills = json.load(fh)["skills"]
+if "to-prd" in skills or "to-issues" in skills:
+    raise SystemExit("retired Matt Pocock lock entries survived migration")
+if skills.get("custom-skill", {}).get("source") != "user/custom-skills":
+    raise SystemExit("unrelated skill lock entry changed during legacy cleanup")
+PY
 
 reset_ownership_discovery
 mkdir -p "$AGENTS_SKILLS_DIR/review" "$(dirname "$GLOBAL_SKILL_LOCK_FILE")"

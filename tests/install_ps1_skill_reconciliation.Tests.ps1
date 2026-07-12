@@ -72,6 +72,8 @@ foreach ($name in @(
     Assert-True ($null -ne $functionText) "install.ps1 should define $name"
     Invoke-Expression $functionText
 }
+$realRemoveMattPocockSkillLockEntries =
+    (Get-Item Function:\Remove-MattPocockSkillLockEntries).ScriptBlock
 
 function Write-Info { param($Message) }
 function Write-Ok { param($Message) }
@@ -127,15 +129,6 @@ $script:SelectSkillPaperReading = $false
 $script:SelectSkillHumanizer = $true
 $script:SelectSkillHumanizerZh = $false
 $script:SelectSkillHandoff = $false
-$script:SelectSkillMattPocock = $true
-$selected = @(Get-SelectedManagedSkills)
-foreach ($skill in @("to-spec", "to-tickets", "wayfinder")) {
-    Assert-True ($selected -contains $skill) "Matt Pocock selection is missing v1.1 skill: $skill"
-}
-foreach ($skill in $MATTPOCOCK_LEGACY_SKILLS) {
-    Assert-True (-not ($selected -contains $skill)) "Matt Pocock selection still exposes retired skill: $skill"
-}
-$script:SelectSkillMattPocock = $false
 $script:SelectSkillAdversarialReview = $false
 $script:SelectSkillUpdate = $false
 $script:SelectAiTokenization = $false
@@ -145,6 +138,16 @@ $script:SelectAiDistributedTraining = $false
 $script:SelectAiInferenceServing = $false
 $script:SelectAiOptimization = $false
 $script:SelectAiDeepXiv = $false
+
+$script:SelectSkillMattPocock = $true
+$selected = @(Get-SelectedManagedSkills)
+foreach ($skill in @("to-spec", "to-tickets", "wayfinder")) {
+    Assert-True ($selected -contains $skill) "Matt Pocock selection is missing v1.1 skill: $skill"
+}
+foreach ($skill in $MATTPOCOCK_LEGACY_SKILLS) {
+    Assert-True (-not ($selected -contains $skill)) "Matt Pocock selection still exposes retired skill: $skill"
+}
+$script:SelectSkillMattPocock = $false
 
 $selected = @(Get-SelectedManagedSkills)
 Assert-True ($selected -contains "humanizer") "selected local skill should be desired"
@@ -156,7 +159,7 @@ $selected = @(Get-SelectedManagedSkills)
 Assert-True ($selected -contains "handoff") "an explicitly selected handoff source should be retained"
 $script:SelectSkillHandoff = $false
 
-$tempDir = Join-Path $env:TEMP ("codex-skill-reconciliation-test-" + [guid]::NewGuid().ToString("N"))
+$tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-skill-reconciliation-test-" + [guid]::NewGuid().ToString("N"))
 $CODEX_DIR = Join-Path $tempDir ".codex"
 $AGENTS_SKILLS_DIR = Join-Path $tempDir ".agents/skills"
 $SUPERPOWERS_DIR = Join-Path $CODEX_DIR "superpowers"
@@ -186,11 +189,20 @@ function npx {
         }
     }
     if ($isRemove -and $args -contains "*") {
+        # skills@1.5.16 rejects the documented wildcard agent. The production
+        # installer must omit --agent to target every agent.
+        $global:LASTEXITCODE = 1
+        return
+    }
+    $removeAllAgents = $isRemove -and -not ($args -contains "--agent")
+    if ($isRemove) {
         $removeIndex = [Array]::IndexOf($args, "remove")
         for ($i = $removeIndex + 1; $i -lt $args.Count; $i++) {
             if ($args[$i].StartsWith("--")) { break }
-            Remove-Item -LiteralPath (Join-Path $AGENTS_SKILLS_DIR $args[$i]) `
-                -Recurse -Force -ErrorAction SilentlyContinue
+            if ($removeAllAgents) {
+                Remove-Item -LiteralPath (Join-Path $AGENTS_SKILLS_DIR $args[$i]) `
+                    -Recurse -Force -ErrorAction SilentlyContinue
+            }
         }
     }
     $global:LASTEXITCODE = 0
@@ -286,6 +298,7 @@ try {
         New-Item -ItemType Directory -Path $skillDir -Force | Out-Null
         Set-Content -LiteralPath (Join-Path $skillDir "SKILL.md") -Value "legacy"
     }
+    Set-Content -LiteralPath $GLOBAL_SKILL_LOCK_FILE -Value '{"version":3,"skills":{"to-prd":{"source":"mattpocock/skills"},"to-issues":{"source":"mattpocock/skills"},"custom-skill":{"source":"user/custom-skills"}}}'
     $legacyResult = Remove-LegacyMattPocockSkills
     Assert-True $legacyResult "legacy Matt Pocock cleanup should succeed"
     Assert-True (-not (Test-Path (Join-Path $AGENTS_SKILLS_DIR "to-prd"))) "to-prd should be removed"
@@ -293,7 +306,12 @@ try {
     Assert-True (-not $script:OwnedManagedSkills.Contains("to-prd")) "to-prd ownership should be removed"
     Assert-True (-not $script:OwnedManagedSkills.Contains("to-issues")) "to-issues ownership should be removed"
     $lastNpxCall = $script:NpxCalls[-1]
-    Assert-True ($lastNpxCall -contains "*") "legacy cleanup should remove all agent associations"
+    Assert-True (-not ($lastNpxCall -contains "*")) "legacy cleanup should not pass the CLI's invalid wildcard agent"
+    Assert-True (-not ($lastNpxCall -contains "--agent")) "legacy cleanup should use default all-agent removal"
+    $lockAfterLegacyCleanup = Get-Content -LiteralPath $GLOBAL_SKILL_LOCK_FILE -Raw | ConvertFrom-Json
+    Assert-True (-not $lockAfterLegacyCleanup.skills.PSObject.Properties["to-prd"]) "to-prd lock should be retired"
+    Assert-True (-not $lockAfterLegacyCleanup.skills.PSObject.Properties["to-issues"]) "to-issues lock should be retired"
+    Assert-True ($lockAfterLegacyCleanup.skills.PSObject.Properties["custom-skill"].Value.source -ceq "user/custom-skills") "legacy cleanup should preserve unrelated locks"
 
     # Execute the pinned snapshot path itself: stale content must fail and
     # clear previous ownership; a matching snapshot must use the immutable
@@ -332,6 +350,25 @@ try {
     Assert-True (-not $lockAfterPinnedInstall.skills.PSObject.Properties["ask-matt"]) "ask-matt remote lock should be retired"
     Assert-True (-not $lockAfterPinnedInstall.skills.PSObject.Properties["to-spec"]) "to-spec remote lock should be retired"
     Assert-True ($lockAfterPinnedInstall.skills.PSObject.Properties["custom-skill"].Value.source -ceq "user/custom-skills") "unrelated lock should be preserved"
+
+    # An exception after npx has recorded ownership must still fail closed and
+    # clear every requested ownership record.
+    Remove-ManagedSkillOwnership @("ask-matt", "to-spec")
+    Remove-Item -LiteralPath (Join-Path $AGENTS_SKILLS_DIR "ask-matt") -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $AGENTS_SKILLS_DIR "to-spec") -Recurse -Force -ErrorAction SilentlyContinue
+    function Remove-MattPocockSkillLockEntries {
+        param([string[]]$SkillNames)
+        throw "injected lock cleanup failure"
+    }
+    try {
+        $exceptionResult = Install-MattPocockSkillNames @("ask-matt", "to-spec")
+        Assert-True (-not $exceptionResult) "lock cleanup exception should fail pinned installation"
+        Assert-True (-not $script:OwnedManagedSkills.Contains("ask-matt")) "exception retained ask-matt ownership"
+        Assert-True (-not $script:OwnedManagedSkills.Contains("to-spec")) "exception retained to-spec ownership"
+    } finally {
+        Set-Item -Path Function:\Remove-MattPocockSkillLockEntries `
+            -Value $realRemoveMattPocockSkillLockEntries
+    }
 
     $customReview = Join-Path $AGENTS_SKILLS_DIR "review"
     New-Item -ItemType Directory -Path $customReview -Force | Out-Null
