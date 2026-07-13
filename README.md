@@ -141,7 +141,7 @@ This keeps common principles and language-specific practices aligned.
 
 | Skill Set | Source | Coverage |
 |----------|--------|----------|
-| mattpocock/skills | [mattpocock/skills](https://github.com/mattpocock/skills) | `ask-matt`, grilling/design, research, implementation, triage, TDD, architecture and domain-modeling workflows via `npx skills` |
+| mattpocock/skills | [mattpocock/skills](https://github.com/mattpocock/skills) | Pinned v1.1 workflows for `ask-matt`, grilling/design, research, specs/tickets, wayfinding, implementation, triage, TDD, architecture and domain modeling |
 | superpowers | [obra/superpowers](https://github.com/obra/superpowers) | full native superpowers set, including brainstorming, plan execution, review handoff, worktrees; installed via `npx skills` with git/junction fallback |
 | andrej-karpathy-skills | [forrestchang/andrej-karpathy-skills](https://github.com/forrestchang/andrej-karpathy-skills) | Karpathy-style coding guidelines via `npx skills` |
 | anthropic skills packs | [anthropics/skills](https://github.com/anthropics/skills) | document tools, frontend design, canvas/art, MCP builder |
@@ -158,6 +158,8 @@ Remote skills are installed with:
 ```bash
 npx -y skills@latest add <repo> --global --agent codex --copy --yes --full-depth --skill <name>
 ```
+
+Matt Pocock skills are the exception: both installers download the immutable v1.1.0 release commit first, then pass that local snapshot to `skills@latest`. This avoids mutable `main` content and the current CLI's unreliable handling of remote tag/commit suffixes. Installation succeeds only when every requested skill directory matches the snapshot; matching remote lock entries are retired so a later generic `skills update` cannot overwrite the pinned content. Provenance-verified retired names (`to-prd`, `to-issues`, `decision-mapping`, `review`) are removed across shared agent associations during migration.
 
 After `mattpocock/skills` installs successfully, the installer prints a 30-second Codex quickstart. With the current `skills` CLI, global Codex installs may use the shared `~/.agents/skills` directory even when `--agent codex --copy` is set; Codex discovers those skills directly. In Codex, type `/skills` and choose **List skills**, or press `@`, then search for `setup-matt-pocock-skills`. Installed skills are not separate root slash commands such as `/setup-matt-pocock-skills`.
 

@@ -1,8 +1,10 @@
 # 更新日志
 
-## [Unreleased] - 2026-07-13
+## [2.10.0] - 2026-07-13
 
 ### 新功能
+- 托管的 Matt Pocock 工作流升级到 v1.1.0：用 `to-spec`/`to-tickets` 替换 `to-prd`/`to-issues`，新增 `wayfinder`，并把已退役的 `decision-mapping`/`review` 降为仅迁移清理项。
+- Bash 与 PowerShell 都会下载 release commit `d574778f94cf620fcc8ce741584093bc650a61d3` 的本地快照来实现可复现安装；新增逐 skill 内容验证、与 CLI 一致的 home/XDG lock 查找、当前及旧名称匹配 lock 的显式退役、基于来源校验的共享 agent 关联清理，以及失败时 fail-closed 的 ownership 处理。
 - 将 Claude main 的最新安装分类迁移到 Codex 分支，并用 Codex-native 分组呈现：Review、Workflow、Development Tools、Design & Content、Lifestyle、Academic Research、Slides、MCP Servers。
 - 对兼容的上游 skill 包优先使用 `npx skills@latest add ... --agent codex --copy --yes --full-depth` 安装；按路径安装的包仍保留 Python `skill-installer` 作为 fallback。
 - Codex 模板默认设置为 `model = "gpt-5.6-sol"`、`model_reasoning_effort = "max"`、`approval_policy = "never"`、`sandbox_mode = "danger-full-access"`；`[tui].status_line` 统一显示模型、推理强度、项目、分支、上下文用量、5 小时配额和每周配额。
@@ -18,18 +20,21 @@
 - 在 **Academic Research** 中新增彼此独立、默认关闭的 Microsoft ResearchStudio Idea 与 Reel。两套安装器都使用临时的官方源码 checkout：Idea 复制 `idea_spark`、`paper_search`、`scoop_check`；Reel 复制 `paper2assets`、`paper2poster`、`paper2video`、`paper2blog`、`paper2reel`。安装器只复制白名单内的 skill 源码，并把 Idea 的 Claude-only 指令与项目路径适配为 Codex 用法。
 - 将 `hugohe3/ppt-master` 加入 **Slides**，作为独立且默认关闭的条目。显式选择后只通过 `npx skills` 安装官方 skill 定义，runtime 依赖留给第一次实际调用时的 skill 工作流处理。
 - 所有 `npx skills` 安装在 Node.js 18 主机上都会使用隔离的 Node.js 24 launcher。
-- 远程 npx skill 只有在规范目录实际落盘 `SKILL.md`，且共享 skill lock 的上游来源与请求一致后才算成功，不再只信任 `skills` CLI 的退出码。AI research 的路径条目会把仓库目录名映射到声明的 skill 名，并移除当前 Matt Pocock 上游已不再提供的条目。
+- 远程 npx skill 只有在规范目录实际落盘 `SKILL.md`，且本次调用新鲜刷新了来源匹配、hash 非空的共享 skill lock fingerprint 后才算成功，不再只信任 `skills` CLI 的退出码。AI research 的路径条目会把仓库目录名映射到声明的 skill 名，并移除当前 Matt Pocock 上游已不再提供的条目。
 - ResearchStudio Idea、ResearchStudio Reel 与 PPT Master 均保持纯 skill 安装：安装器不创建环境、不安装 Python 包或浏览器、不探测原生工具，也不执行 runtime 依赖自检。
+- 移除 ResearchStudio Idea、ResearchStudio Reel 与 PPT Master 各自的安装后 Quickstart 大段提示，只保留简短安装结果；第一次使用说明由 skill 自身提供。
 - 可选 bundle 现在必须被明确选择：单独使用 `--skills` / `-Skills` 会让 ResearchStudio 与 PPT Master 保持关闭；显式的 `all`、`ai-research`、全量安装参数或交互勾选才会启用它们。
 - 未完成的安装现在返回非零状态且不更新版本戳。
 - 按作用域拆分纠正记忆：安装到 `~/.codex/lessons.md` 的内容来自专用空白全局模板；项目级纠正写入按需创建的 `<project-root>/lessons.md`，并要求 Codex 主动定位、读取该文件。
 
 ### 设计理由
+- `skills@latest` 返回成功并不代表每个请求名称都已安装，而且远程 tag/commit 后缀当前可能解析不一致。预验证的不可变本地快照配合显式目录检查，可以阻止部分安装和混合版本。
+- 省略 `--agent` 是当前可靠的全 agent 删除路径：`skills@1.5.16` 会拒绝文档中的 `--agent '*'`。显式清理来源匹配的 lock，还能覆盖已经没有安装目录、CLI 无法发现的退役条目；配置了 XDG 时则与 CLI 一样使用 `$XDG_STATE_HOME/skills/.skill-lock.json`。
 - Codex 没有 Claude Code 的同款 plugin runtime，所以迁移目标是保留用户可识别的分类，同时把能力映射到 Codex skills、MCP server 或明确跳过的项目。
 - `npx skills` 是安装包含有效 `SKILL.md` 的跨 agent skill 仓库的直接路径；既有 Python installer 继续作为嵌套路径安装的回退方案。
 - Codex 的 `/statusline` 会把 footer 字段保存到 `[tui]`；把 `status_line` 追加到顶层可能因为 TOML table 作用域而悄悄落进前一个表。
 - Codex 安装器现在优先保持可选项干净；只会警告或需要很重手动配置的项目不再为了迁移对齐而展示。
-- 清理范围受经过校验的 ownership 文件约束，目录名本身不再代表删除权限。安装器先通过 `npx skills remove --global --agent codex` 更新 Codex/全局元数据，再只对 Codex 本地目录做 fallback 清理；不会扫描或删除普通的 `~/.agents/skills` 子目录。
+- 清理范围受经过校验的 ownership 文件约束，目录名本身不再代表删除权限。安装器先通过 `npx skills remove --global --agent codex` 更新 Codex/全局元数据，再只对 Codex 本地目录做 fallback 清理；除显式且来源已验证的退役项迁移外，不会扫描或删除普通的 `~/.agents/skills` 子目录。
 - 当前 `skills@latest` 即使指定 `--agent codex --copy`，全局 Codex skill 也可能安装到规范化的共享目录 `~/.agents/skills`；Codex 会发现该目录，而根 `/` 菜单仍是命令菜单，已安装 skills 通过 `/skills` 或 `@` 进入。
 - `codex mcp add` 只能证明配置已写入，不能证明 stdio 进程能完成初始化。安装前向实际 launcher 发送 JSON-RPC `initialize` 请求，可以阻止不兼容的 Node.js/Playwright 组合被误报为成功；固定 MCP 版本则避免后续 `latest` 发布悄悄改变已验证命令。
 - ResearchStudio 统一使用源码路径，避免同时维护 npx 与 checkout 两套行为。安装器校验固定 skill 白名单、拒绝 links，只复制用户选择的 bundle；不会执行上游安装器或授予其 `sudo`，依赖配置留给 skill 的第一次使用说明。
@@ -38,6 +43,7 @@
 - 项目 lessons 不进入全局 seed，可防止一个仓库的纠正静默影响无关项目。它与项目 CHANGELOG 使用同一按需原则：第一次项目级纠正发生前，不要求项目预先存在日志。
 
 ### 注意事项
+- Matt Pocock 旧名称只有在 installer ownership 或 `mattpocock/skills` lock 来源证明其归属时，才会移除全部 agent 关联和来源匹配的 lock；来源不明的同名自定义 skill 与无关 lock 条目都会保留。
 - `github` 和 `lark-mcp` 仍需要真实凭据；GitHub 使用 `GITHUB_PERSONAL_ACCESS_TOKEN`，lark-mcp 因需要 app credentials 仍保持手动配置。
 - Slides 的两个条目都默认关闭。选择 `ppt-master` 只安装 skill 定义；浏览器确认页、live preview 与任何 runtime 配置只会在真实 deck 工作流到达对应阶段时发生。
 - YOLO 自主默认值只适合可信仓库。

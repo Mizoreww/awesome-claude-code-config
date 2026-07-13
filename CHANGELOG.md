@@ -1,8 +1,10 @@
 # Changelog
 
-## [Unreleased] - 2026-07-13
+## [2.10.0] - 2026-07-13
 
 ### Features
+- Upgraded the managed Matt Pocock workflow set to v1.1.0: `to-prd`/`to-issues` are replaced by `to-spec`/`to-tickets`, `wayfinder` is added, and the retired `decision-mapping`/`review` names are migration-only cleanup entries.
+- Made Matt Pocock installs reproducible in both Bash and PowerShell by downloading release commit `d574778f94cf620fcc8ce741584093bc650a61d3` and installing from the local snapshot; added per-skill content verification, CLI-compatible home/XDG lock discovery, explicit retirement of matching current and legacy lock entries, provenance-gated cleanup across shared agent associations, and fail-closed ownership handling.
 - Migrated the latest Claude main installer categories into the Codex branch as Codex-native groups: Review, Workflow, Development Tools, Design & Content, Lifestyle, Academic Research, Slides, and MCP Servers.
 - Added `npx skills@latest add ... --agent codex --copy --yes --full-depth` as the first-choice installer path for compatible upstream skill packs, with the Python `skill-installer` kept as fallback for path-based packs.
 - Set the Codex template defaults to `model = "gpt-5.6-sol"`, `model_reasoning_effort = "max"`, `approval_policy = "never"`, `sandbox_mode = "danger-full-access"`, and a `[tui].status_line` footer showing model, reasoning, project, branch, context use, five-hour quota, and weekly quota.
@@ -18,18 +20,21 @@
 - Added separate, default-off Microsoft ResearchStudio Idea and Reel entries to **Academic Research**. Both installers use a temporary official source checkout: Idea copies `idea_spark`, `paper_search`, and `scoop_check`; Reel copies `paper2assets`, `paper2poster`, `paper2video`, `paper2blog`, and `paper2reel`. Only the allowlisted skill source is installed, with Idea's Claude-only instructions and project paths adapted for Codex.
 - Added `hugohe3/ppt-master` as a separate, default-off **Slides** item. Explicit selection installs the official skill definition through `npx skills`; runtime dependencies remain a first-use concern of the skill workflow.
 - Made all `npx skills` installs work on Node.js 18 hosts by supplying an isolated Node.js 24 launcher.
-- Made remote npx skill completion depend on both an installed canonical `SKILL.md` and a matching upstream source in the shared skill lock, rather than the `skills` CLI exit code alone. Path-based AI research entries map repository folder names to their declared skill names, and removed Matt Pocock entries that current upstream no longer exposes.
+- Made remote npx skill completion depend on an installed canonical `SKILL.md` plus a matching nonempty source/hash lock fingerprint freshly updated by the current invocation, rather than the `skills` CLI exit code alone. Path-based AI research entries map repository folder names to their declared skill names, and removed Matt Pocock entries that current upstream no longer exposes.
 - Kept ResearchStudio Idea, ResearchStudio Reel, and PPT Master deliberately skill-only: the installers do not create environments, install Python packages or browsers, probe native tools, or run runtime dependency self-checks.
+- Kept completion output concise by removing the separate ResearchStudio Idea, ResearchStudio Reel, and PPT Master post-install Quickstart blocks; each skill carries its own first-use instructions.
 - Made optional bundle selection truly explicit: bare `--skills` / `-Skills` keeps ResearchStudio and PPT Master off, while an explicit `all`, `ai-research`, full-install flag, or interactive selection opts in as documented.
 - Made incomplete installs return a non-zero status and leave the installed-version stamp unchanged.
 - Split correction memory by scope: the installed `~/.codex/lessons.md` is seeded from a dedicated blank global template, while project-specific corrections live in an on-demand `<project-root>/lessons.md` that Codex is instructed to discover and read.
 
 ### Design Rationale
+- A successful `skills@latest` exit does not prove that every requested name was installed, and remote tag/commit suffixes currently resolve inconsistently. A prevalidated immutable local snapshot plus explicit directory checks prevents partial or mixed-version installs.
+- Omitting `--agent` is the current reliable all-agent removal path: `skills@1.5.16` rejects its documented `--agent '*'` value. Explicit matching-source lock cleanup also covers retired entries that no longer have an installed directory for the CLI to discover, and mirrors the CLI's `$XDG_STATE_HOME/skills/.skill-lock.json` override when configured.
 - Codex does not have Claude Code's plugin runtime, so the migration preserves user-facing categories while mapping installable capabilities to Codex skills, MCP servers, or explicit skipped items.
 - `npx skills` is the most direct cross-agent skill installer for repositories that expose valid `SKILL.md` entries, while the existing Python installer remains useful as a fallback for nested path installs.
 - Codex's `/statusline` command persists footer fields under `[tui]`; writing a top-level `status_line` can silently land inside the previous TOML table when appended to an existing config.
 - The Codex installer now favors a clean selectable surface over migration parity for items that would only warn or require heavy manual setup.
-- A validated ownership file bounds reconciliation so a generic catalogue name is never treated as deletion authority by itself. `npx skills remove --global --agent codex` updates Codex/global metadata before Codex-local fallback cleanup, and generic `~/.agents/skills` children are never scanned or deleted.
+- A validated ownership file bounds reconciliation so a generic catalogue name is never treated as deletion authority by itself. `npx skills remove --global --agent codex` updates Codex/global metadata before Codex-local fallback cleanup, and generic `~/.agents/skills` children are never scanned or deleted except by an explicit provenance-verified retired-source migration.
 - Current `skills@latest` global Codex installs can use the canonical shared `~/.agents/skills` directory even with `--agent codex --copy`; Codex discovers that directory, while its root `/` menu remains a command menu and exposes installed skills through `/skills` or `@`.
 - `codex mcp add` proves that configuration was written, not that the stdio process can initialize. Sending the exact launcher a JSON-RPC `initialize` request first prevents an incompatible Node.js/Playwright combination from being reported as a successful install, while pinning the MCP version prevents a later `latest` release from silently changing a validated command.
 - One source-based ResearchStudio path avoids maintaining separate npx and checkout behavior. The installers validate a fixed skill allowlist, reject links, and copy only the selected bundle without executing the upstream installer or granting it `sudo`; dependency setup is deferred to the skill's first-use instructions.
@@ -38,6 +43,7 @@
 - Keeping project lessons out of the global seed prevents one repository's corrections from silently affecting unrelated work. The same on-demand principle used for project changelogs applies: no project log is required until the first project-scoped correction occurs.
 
 ### Notes & Caveats
+- Matt Pocock legacy cleanup removes all agent associations and matching-source lock entries only when installer ownership or a `mattpocock/skills` lock source proves provenance; unknown same-name skills and unrelated lock entries are preserved.
 - `github` and `lark-mcp` remain credential-gated; GitHub uses `GITHUB_PERSONAL_ACCESS_TOKEN`, while lark-mcp stays manual because it needs app credentials.
 - Both Slides entries are default off. Selecting `ppt-master` installs only its skill definition; browser confirmation, live preview, and any runtime setup occur only when a real deck workflow reaches those stages.
 - The autonomous YOLO defaults should only be used in trusted repositories.
