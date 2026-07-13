@@ -150,7 +150,7 @@ skills/rules  → python-patterns、golang-patterns、frontend-patterns
 | ResearchStudio Reel | [microsoft/ResearchStudio](https://github.com/microsoft/ResearchStudio/tree/main/ResearchStudio-Reel) | 默认关闭；从官方源码树复制 paper-to-assets、poster、video、blog 与 interactive-reel 工作流 |
 | AI research skills | [zechenzhangAGI/AI-research-SKILLs](https://github.com/zechenzhangAGI/AI-research-SKILLs) | 分词、微调、后训练、推理服务、分布式训练、优化 |
 | frontend-slides | [zarazhangrui/frontend-slides](https://github.com/zarazhangrui/frontend-slides) | 通过 `npx skills` 安装幻灯片生成 skill；默认关闭 |
-| ppt-master | [hugohe3/ppt-master](https://github.com/hugohe3/ppt-master) | 生成原生可编辑 PPTX，带浏览器确认与 live preview；显式选择时安装完整 Python 依赖；默认关闭 |
+| ppt-master | [hugohe3/ppt-master](https://github.com/hugohe3/ppt-master) | 默认关闭；生成原生可编辑 PPTX，只安装 skill 定义，runtime 留到第一次使用时处理 |
 | PUA | [tanweai/pua](https://github.com/tanweai/pua) | 可选的 productivity coaching skills，通过 `npx skills` 安装；默认关闭 |
 
 远程 skills 默认使用：
@@ -161,34 +161,9 @@ npx -y skills@latest add <repo> --global --agent codex --copy --yes --full-depth
 
 `mattpocock/skills` 安装成功后，安装器会显示一段 30 秒 Codex Quickstart。当前版本的 `skills` CLI 即使指定 `--agent codex --copy`，全局 Codex skill 也可能放在共享目录 `~/.agents/skills`，Codex 会直接发现它们。在 Codex 中输入 `/skills` 并选择 **List skills**，或直接按 `@`，然后搜索 `setup-matt-pocock-skills`。已安装的 skill 不会变成 `/setup-matt-pocock-skills` 这样的根级 slash command。
 
-每个远程 skill 只有在 `~/.agents/skills` 或 `~/.codex/skills` 中实际出现对应 `SKILL.md` 后才算安装成功；如果 `npx` 返回 0 但没有落盘，仍会判定为未完成。对于按路径安装的技能包，安装器会把仓库目录名映射到 skill 声明名，并仅对缺少的条目使用内置 `skill-installer` Python helper 重试。Codex 安装器不会显示没有可安装 Codex target 的 Claude-only plugin 工作流。
+每个通过 npx 请求的 skill，只有在规范目录中实际出现对应 `SKILL.md`，且本次安装确实刷新了与请求上游一致、hash 非空的共享 skill lock 记录后，才算安装成功；缺少这份本次运行产生的 provenance 时，即使 npx 返回 0 也会判定为未完成。对于按路径安装的技能包，安装器会把仓库目录名映射到 skill 声明名，并仅对本次 npx 未验证的条目使用内置 `skill-installer` Python helper 重试。Codex 安装器不会显示没有可安装 Codex target 的 Claude-only plugin 工作流。
 
-### ResearchStudio Idea 与 Reel（默认关闭）
-
-两个 ResearchStudio 条目都**默认不安装**，并且可以在 **Academic Research** 中独立选择。显式请求 AI-research 分组或使用全量安装参数时会选择两者。安装器会把官方源码仓库 shallow clone 到临时目录，校验精确的 skill 白名单，拒绝 symlink/reparse point，只复制所选 bundle，最后删除 checkout；不会执行上游 `install.sh`，也不会自行调用 `sudo`。
-
-- **Idea** 安装 `idea-spark`、`paper-search`、`scoop-check`，随后安装其 6 项声明的 Python 依赖并执行 connector 自检。
-- **Reel** 安装 `paper2assets`、`paper2poster`、`paper2video`、`paper2blog`、`paper2reel`，随后安装 Python 依赖与 Playwright Chromium，并检查 Poppler 和 bundled/system FFmpeg 路径。
-
-复制后的 skills 自带 scripts 与 references，不依赖 ResearchStudio 平台服务，也不要求保留源码 checkout。安装器只创建临时 bootstrap venv 来获得 pip，再把依赖安装到当前 Python 的 user site，因此 PEP 668 系统中后续直接调用 `python3` 也能 import；退出前会删除这个临时 venv。缺少 package 或 probe 失败会明确报告为未完成，而不是误报成功；OpenReview 可选凭据仍会显示填写教程：
-
-```bash
-python3 ~/.codex/skills/idea_spark/scripts/run.py check_connectors
-```
-
-如果 Python venv support、Chromium 或 Poppler 不可用，已复制的 skills 会保留，但所选环境会列为未完成并显示准确修复步骤。Reel 核心路径需要 Python 3.10+、Playwright Chromium 与 Poppler；没有系统 FFmpeg 时由 `imageio-ffmpeg` 提供 bundled FFmpeg。LibreOffice 只用于可选的 PPTX-to-PDF 与 DOCX/PPTX visual QA。Paper2Video 的高级 deck 路径还需要 `ppt-master` 或已有 PPTX。
-
-重启 Codex 后，输入 `$` 选择已安装的 skill，也可以直接提出匹配请求让 Codex 自动触发。OpenReview 与可选的高配额 connector 使用环境变量；只把自检要求的凭据加入 `~/.codex/skills/.env`。取消选择或卸载时安装器会保留该文件。请保护它，不要把凭据粘贴进对话。
-
-### PPT Master（默认关闭，完整环境）
-
-`ppt-master` 是 **Slides** 下的独立条目，**默认不安装**。勾选后，安装器会通过受限的 Codex `npx skills` 命令安装官方 `ppt-master` skill，在 `~/.codex/skills` 或共享的 `~/.agents/skills` 中定位真实安装目录，再用 Python 3.10+ 安装上游完整的 `requirements.txt`。显式使用 `--all`、`--skills all`、`-All` 或 `-Skills -SkillGroup all` 也会选择它。
-
-安装器不会创建或激活 Conda 环境。它使用上文相同的“临时 bootstrap venv → 当前 Python user site”方式安装上游完整 `requirements.txt`。安装结束后的自检会验证 Python 版本、所有声明的 runtime import，以及 project manager、SVG 转换、确认 UI 和 live-preview server 的存在与语法；安装阶段不会弹出面板。
-
-真正运行该 skill 生成 deck 时，它会在工作流对应阶段自动用本机 loopback 地址打开浏览器确认页和 live preview/editor。基础 PPT 生成不需要 API 凭据；可选图片 provider 可能要求各自的环境变量。请勿把 secrets 粘贴到聊天中或提交到 Git。
-
-如果无法创建 venv，或 import/script 检查失败，已复制 skill 会保留但明确报告为未完成；安装器会说明如何补充 Python venv support 并重新选择安装。Pandoc 是可选项，只在少见输入格式中需要。
+ResearchStudio Idea、ResearchStudio Reel 与 `ppt-master` 是互相独立、默认关闭的菜单条目。显式选择后只安装受限的上游 skill 源码，以及 Idea 在 Codex 中必需的指令/路径适配。安装器不会创建 Python 或 Conda 环境，不会安装 Python 包、浏览器或原生工具，也不会执行 runtime 依赖检查。第一次真正调用时，skill 可以自行建立项目局部环境，或向用户说明缺少哪些依赖。
 
 本仓库内置本地技能：
 - `paper-reading`（`skills/paper-reading/SKILL.md`）— 结构化论文阅读与总结

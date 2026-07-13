@@ -32,6 +32,7 @@ run_installer_case() {
   local node_version="$2"
   local npx_exit_code="${3:-0}"
   local npx_response="${4:-success}"
+  local expected_installer_status="${5:-0}"
   local case_dir="$TEMP_DIR/$case_name"
   local mock_bin="$case_dir/bin"
 
@@ -65,7 +66,9 @@ MOCK_CODEX
   : > "$case_dir/npx.log"
   : > "$case_dir/npx-stdin.log"
 
-  if ! HOME="$case_dir/home" \
+  set +e
+  HOME="$case_dir/home" \
+      GITHUB_PERSONAL_ACCESS_TOKEN="test-only-token" \
       MOCK_NODE_VERSION="$node_version" \
       MOCK_NPX_EXIT_CODE="$npx_exit_code" \
       MOCK_NPX_RESPONSE="$npx_response" \
@@ -73,8 +76,11 @@ MOCK_CODEX
       MOCK_NPX_STDIN_LOG="$case_dir/npx-stdin.log" \
       MOCK_CODEX_LOG="$case_dir/codex.log" \
       PATH="$mock_bin:$PATH" \
-      bash "$INSTALL_SH" --mcp > "$case_dir/output.log" 2>&1; then
-    fail "$case_name installer run failed"
+      bash "$INSTALL_SH" --mcp > "$case_dir/output.log" 2>&1
+  local installer_status=$?
+  set -e
+  if [[ "$installer_status" -ne "$expected_installer_status" ]]; then
+    fail "$case_name installer status was $installer_status, expected $expected_installer_status"
   fi
 }
 
@@ -104,13 +110,13 @@ assert_contains "$TEMP_DIR/node24/output.log" \
   "MCP setup complete (selected entries are refreshed)"
 
 # A launcher that cannot start must not be registered as a successful MCP.
-run_installer_case smoke_failure v24.12.0 1
+run_installer_case smoke_failure v24.12.0 1 success 1
 assert_not_contains "$TEMP_DIR/smoke_failure/codex.log" "mcp add playwright"
 assert_contains "$TEMP_DIR/smoke_failure/output.log" \
   "Playwright MCP initialize check failed; not registering a broken server"
 
 # A zero exit without an initialize result is still a failed handshake.
-run_installer_case missing_initialize v24.12.0 0 missing
+run_installer_case missing_initialize v24.12.0 0 missing 1
 assert_not_contains "$TEMP_DIR/missing_initialize/codex.log" "mcp add playwright"
 assert_contains "$TEMP_DIR/missing_initialize/output.log" \
   "Playwright MCP initialize check failed; not registering a broken server"

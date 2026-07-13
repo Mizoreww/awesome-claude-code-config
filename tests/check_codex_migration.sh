@@ -114,7 +114,7 @@ assert_file_contains "install.sh" 'SKILLS_NPX_LAUNCHER_ARGS[@]}" remove'
 assert_file_contains "install.sh" "--global --agent codex --yes"
 assert_file_not_contains "install.sh" "SELECT_SKILL_CODING_FOUNDATIONS"
 assert_file_contains "install.sh" "handoff|Conversation handoff skill|1|skill-handoff"
-assert_file_not_contains "install.sh" '-e "$AGENTS_SKILLS_DIR/$skill"'
+assert_file_contains "install.sh" 'managed_directory_trees_equal "$canonical_skill_path" "$codex_skill_path"'
 assert_file_contains "install.sh" "install-skill-from-github.py"
 assert_file_contains "install.ps1" "skills@latest"
 assert_file_contains "install.ps1" "--agent"
@@ -137,7 +137,7 @@ assert_file_contains "install.ps1" "function Test-SuperpowersOwnershipRecorded"
 assert_file_contains "install.ps1" '"--global", "--agent", "codex", "--yes"'
 assert_file_contains "install.ps1" 'Label = "handoff"; Description = "Conversation handoff skill"; Default = $true; StateVar = "SelectSkillHandoff"'
 assert_file_not_contains "install.ps1" 'SelectSkillCodingFoundations'
-assert_file_not_contains "install.ps1" 'Join-Path $AGENTS_SKILLS_DIR $skill'
+assert_file_contains "install.ps1" 'Test-DirectoryTreeEqual $canonicalPath $codexPath'
 assert_file_contains "install.ps1" "Resolve-PythonCommand"
 
 assert_file_contains "install.sh" "affaan-m/everything-claude-code"
@@ -307,10 +307,10 @@ ps_reconcile = re.search(
 )
 if not bash_reconcile or not ps_reconcile:
     raise SystemExit("could not locate both reconciliation function bodies")
-if "AGENTS_SKILLS_DIR" in bash_reconcile.group("body"):
-    raise SystemExit("Bash reconciliation must not scan shared ~/.agents/skills")
-if "AGENTS_SKILLS_DIR" in ps_reconcile.group("body"):
-    raise SystemExit("PowerShell reconciliation must not scan shared ~/.agents/skills")
+if 'rm -rf "$AGENTS_SKILLS_DIR/' in bash_reconcile.group("body"):
+    raise SystemExit("Bash reconciliation must not directly remove shared ~/.agents/skills")
+if re.search(r"Remove-Item[^\n]+AGENTS_SKILLS_DIR", ps_reconcile.group("body")):
+    raise SystemExit("PowerShell reconciliation must not directly remove shared ~/.agents/skills")
 
 bash_mapper = re.search(
     r"selected_managed_skill_names\(\) \{(?P<body>.*?)\n\}",

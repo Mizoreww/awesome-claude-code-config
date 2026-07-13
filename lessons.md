@@ -80,3 +80,33 @@ Example lessons (invisible to `cat`, visible in editors):
 **Context**: The user ran the Codex installer on a Node.js 18 / PEP 668 host after the ResearchStudio and PPT Master changes.
 **Mistake**: Relied on mocked and structural checks without completing a clean end-to-end installer run on the actual host toolchain. `npx skills` failed under Node.js 18, Python `--user` installs failed under PEP 668, selected skills remained incomplete, and source copies were still reported as installed.
 **Rule**: Before presenting or uploading installer changes, run the real installer in an isolated HOME using the host's actual Node/Python constraints and verify every selected component exists and passes its runtime self-check. Provide a runtime path that works on Node.js 18 and PEP 668 systems, and never print an installation-success message when required dependencies failed.
+
+## 2026-07-13 - Reuse installer-managed runtimes before adding duplicates
+**Context**: Adding browser-backed checks for optional ResearchStudio and ppt-master skills while the Codex installer already manages Playwright MCP and related browser tooling.
+**Mistake**: Added a separate Python Playwright and Chromium installation to ppt-master before proving that its source required that exact runtime or attempting to reuse the installer-managed browser capability.
+**Rule**: Inspect the selected skill's actual runtime calls and the installer-managed dependency first. Reuse a compatible existing runtime or browser cache when possible; install another Playwright package or browser only when the skill demonstrably needs a different API/runtime and no compatible shared installation is available.
+
+## 2026-07-13 - Test each opt-in environment independently
+**Context**: Verifying ppt-master after a combined full installer run.
+**Mistake**: The combined run passed because ResearchStudio Reel had already installed Python Playwright and Chromium, masking that ppt-master's upstream `requirements.txt` omits its visual-review browser dependency.
+**Rule**: Validate every default-off bundle in a fresh isolated HOME without sibling bundles. A bundle's installer and self-check must supply and prove its own required runtime while still reusing a compatible shared dependency when one genuinely exists.
+
+## 2026-07-13 - Do not install dependencies for disabled connectors
+**Context**: Running a clean ResearchStudio Idea install and observing its dependency closure.
+**Mistake**: Included `scholarly` even though Google Scholar is disabled in the installed paper-search source list, causing unrelated Selenium and Sphinx packages to be installed.
+**Rule**: Derive automatic dependencies from active execution paths, not every optional source file present upstream. Leave disabled connector dependencies uninstalled until that connector is explicitly enabled.
+
+## 2026-07-13 - Distinguish agent-driven skill setup from script-level auto-install
+**Context**: Explaining what happens when ResearchStudio Idea is invoked with missing dependencies.
+**Mistake**: Claimed the skill would only degrade or fail because its Python scripts do not silently install packages, overlooking that Codex follows the skill's setup instructions and can proactively create a project-local venv and run `pip install` before continuing.
+**Rule**: Inspect both executable scripts and `SKILL.md`/setup instructions before describing runtime dependency behavior. Call this an agent-driven setup when the agent performs it, and verify whether an installer-provisioned interpreter is actually reused before claiming that preinstallation prevents per-project environment creation.
+
+## 2026-07-13 - Keep third-party research and slide skills minimally installed
+**Context**: Finalizing the Codex installer entries for ResearchStudio Idea, ResearchStudio Reel, and PPT Master.
+**Mistake**: Made the installer provision and probe each upstream skill's Python packages, Playwright browser, and native-tool environment even though the skills can handle or explain first-use setup themselves.
+**Rule**: These three opt-in entries install only the skill source plus necessary Codex instruction/path adaptation. Do not create environments, install Python packages or browsers, or fail installation because runtime dependencies are absent; leave dependency setup to the invoked skill workflow.
+
+## 2026-07-13 - Do not print redundant post-install skill guides
+**Context**: Completing the minimal ResearchStudio Idea, ResearchStudio Reel, and PPT Master installation flow.
+**Mistake**: Printed three long Quickstart blocks after installation even though Codex already exposes installed skills through its picker and each skill carries its own usage/setup instructions.
+**Rule**: For these three opt-in entries, finish with the normal concise installer result only. Do not print separate post-install Quickstart, dependency, credential, browser-panel, or cross-skill guidance unless the user explicitly requests it.

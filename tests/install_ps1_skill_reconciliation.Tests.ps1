@@ -137,7 +137,7 @@ $selected = @(Get-SelectedManagedSkills)
 Assert-True ($selected -contains "handoff") "an explicitly selected handoff source should be retained"
 $script:SelectSkillHandoff = $false
 
-$tempDir = Join-Path $env:TEMP ("codex-skill-reconciliation-test-" + [guid]::NewGuid().ToString("N"))
+$tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-skill-reconciliation-test-" + [guid]::NewGuid().ToString("N"))
 $CODEX_DIR = Join-Path $tempDir ".codex"
 $AGENTS_SKILLS_DIR = Join-Path $tempDir ".agents/skills"
 $SUPERPOWERS_DIR = Join-Path $CODEX_DIR "superpowers"
@@ -160,6 +160,8 @@ try {
     New-Item -ItemType Directory -Path (Join-Path $CODEX_DIR "skills/handoff") -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $CODEX_DIR "skills/private-skill") -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $AGENTS_SKILLS_DIR "pua") -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $CODEX_DIR "skills/pua/SKILL.md") -Value "managed"
+    Set-Content -LiteralPath (Join-Path $AGENTS_SKILLS_DIR "pua/SKILL.md") -Value "managed"
     [System.IO.File]::WriteAllLines($MANAGED_SKILLS_STATE_FILE, @("pua"))
 
     $DryRun = $true

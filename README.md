@@ -147,10 +147,10 @@ This keeps common principles and language-specific practices aligned.
 | anthropic skills packs | [anthropics/skills](https://github.com/anthropics/skills) | document tools, frontend design, canvas/art, MCP builder |
 | DeepXiv skills | [DeepXiv/deepxiv_sdk](https://github.com/DeepXiv/deepxiv_sdk) | latest DeepXiv research workflows (`deepxiv-cli`, `deepxiv-baseline-table`, `deepxiv-trending-digest`) fetched fresh during install |
 | ResearchStudio Idea | [microsoft/ResearchStudio](https://github.com/microsoft/ResearchStudio) | opt-in research ideation, paper search, and novelty checking copied from the official source tree |
-| ResearchStudio Reel | [microsoft/ResearchStudio](https://github.com/microsoft/ResearchStudio/tree/main/ResearchStudio-Reel) | opt-in paper-to-assets, poster, video, blog, and interactive-reel workflows copied from the official source tree |
+| ResearchStudio Reel | [microsoft/ResearchStudio](https://github.com/microsoft/ResearchStudio/tree/main/ResearchStudio-Reel) | default-off paper-to-assets, poster, video, blog, and interactive-reel workflows copied from the official source tree |
 | AI research skills | [zechenzhangAGI/AI-research-SKILLs](https://github.com/zechenzhangAGI/AI-research-SKILLs) | tokenization, fine-tuning, post-training, inference, distributed training, optimization |
 | frontend-slides | [zarazhangrui/frontend-slides](https://github.com/zarazhangrui/frontend-slides) | slide generation skill via `npx skills`; default off |
-| ppt-master | [hugohe3/ppt-master](https://github.com/hugohe3/ppt-master) | native editable PPTX workflow with browser confirmation/live preview; full Python requirements installed on explicit selection; default off |
+| ppt-master | [hugohe3/ppt-master](https://github.com/hugohe3/ppt-master) | default-off native editable PPTX workflow; installs only the skill definition and defers runtime setup until first use |
 | PUA | [tanweai/pua](https://github.com/tanweai/pua) | optional productivity coaching skills via `npx skills`; default off |
 
 Remote skills are installed with:
@@ -161,34 +161,9 @@ npx -y skills@latest add <repo> --global --agent codex --copy --yes --full-depth
 
 After `mattpocock/skills` installs successfully, the installer prints a 30-second Codex quickstart. With the current `skills` CLI, global Codex installs may use the shared `~/.agents/skills` directory even when `--agent codex --copy` is set; Codex discovers those skills directly. In Codex, type `/skills` and choose **List skills**, or press `@`, then search for `setup-matt-pocock-skills`. Installed skills are not separate root slash commands such as `/setup-matt-pocock-skills`.
 
-Every requested remote skill is accepted only after its `SKILL.md` exists in `~/.agents/skills` or `~/.codex/skills`; a zero `npx` exit code without the requested files is treated as incomplete. For path-based packs, repository folder names are mapped to their declared skill names and the installer retries only missing entries with the bundled `skill-installer` Python helper. The Codex installer does not show Claude-only plugin workflows that have no installable Codex target.
+Every requested npx skill is accepted only after its canonical `SKILL.md` exists and this exact installer run refreshes a nonempty shared-lock hash for the requested upstream source; a zero exit code without that fresh provenance is treated as incomplete. For path-based packs, repository folder names are mapped to their declared skill names and the installer retries only entries not verified by the current npx run with the bundled `skill-installer` Python helper. The Codex installer does not show Claude-only plugin workflows that have no installable Codex target.
 
-### ResearchStudio Idea and Reel (Opt-In)
-
-Both ResearchStudio entries are **off by default** and can be selected independently in **Academic Research**. An explicit AI-research group request or full-install flag selects both. The installers shallow-clone the official source repository into a temporary directory, validate the exact skill allowlist, reject symlinks/reparse points, copy only the selected bundle, and delete the checkout. They do not execute the upstream `install.sh` and do not invoke `sudo`.
-
-- **Idea** installs `idea-spark`, `paper-search`, and `scoop-check`, installs its six declared Python dependencies, and runs the connector self-check.
-- **Reel** installs `paper2assets`, `paper2poster`, `paper2video`, `paper2blog`, and `paper2reel`, installs its Python dependencies and Playwright Chromium, then checks Poppler and the bundled/system FFmpeg path.
-
-The copied skills include their own scripts and references. They do not require a ResearchStudio platform service or a retained source checkout. The installer creates a temporary bootstrap venv only to obtain pip, then installs into the ambient interpreter's user site so later `python3` calls can import the dependencies even on PEP 668 systems. The temporary venv is deleted before exit. Missing packages or failed probes are reported as incomplete rather than successful; optional OpenReview credentials still get a credential-file walkthrough:
-
-```bash
-python3 ~/.codex/skills/idea_spark/scripts/run.py check_connectors
-```
-
-If Python venv support, Chromium, or Poppler is unavailable, the copied skills remain in place but the selected environment is listed as incomplete with exact repair steps. Reel's core paths require Python 3.10+, Playwright Chromium, and Poppler; `imageio-ffmpeg` supplies a bundled FFmpeg when no system binary exists. LibreOffice is optional for PPTX-to-PDF conversion and DOCX/PPTX visual QA. Paper2Video's advanced deck route additionally needs `ppt-master` or an existing PPTX.
-
-After restarting Codex, type `$` and choose the installed skill, or let Codex trigger it from a matching request. OpenReview and optional higher-rate connectors use environment variables; add only requested credentials to `~/.codex/skills/.env`. The installer preserves that file during deselection/uninstall. Keep it private and never paste credentials into chat.
-
-### PPT Master (Opt-In, Full Environment)
-
-`ppt-master` is a separate **Slides** item and is **off by default**. Selecting it installs the official `ppt-master` skill through the bounded Codex `npx skills` command, locates the resulting skill in either `~/.codex/skills` or the shared `~/.agents/skills` directory, and installs the complete upstream `requirements.txt` with Python 3.10+. An explicit `--all`, `--skills all`, `-All`, or `-Skills -SkillGroup all` also opts in.
-
-The installer does not create or activate a Conda environment. It uses the same temporary-bootstrap/user-site method described above to install the complete upstream `requirements.txt` for the ambient Python. The post-install self-check verifies the Python version, every declared runtime import, and the syntax/presence of the project manager, SVG converter, confirmation UI, and live-preview server. It does not open a panel during installation.
-
-When the skill runs a real deck workflow, its confirmation UI and live-preview/editor open automatically in the browser on a local loopback address. Basic deck creation needs no API credential; optional image providers may require their own environment variables. Never paste or commit secrets.
-
-If venv creation or an import/script check fails, the copied skill remains available but is reported as incomplete. The installer explains how to add Python venv support and rerun the same selection. Pandoc is optional and only needed for uncommon input formats.
+ResearchStudio Idea, ResearchStudio Reel, and `ppt-master` are independent default-off menu entries. Explicit selection installs only the bounded upstream skill source plus the Codex-specific instruction/path adaptation needed by Idea. The installer does not create Python or Conda environments, install Python packages, browsers, or native tools, or run runtime dependency checks. On first use, the selected skill may set up a project-local environment itself or explain the missing requirements.
 
 Bundled local skills in this repo:
 - `paper-reading` (`skills/paper-reading/SKILL.md`) — structured research paper summarization

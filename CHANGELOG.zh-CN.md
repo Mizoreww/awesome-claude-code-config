@@ -15,11 +15,13 @@
 - 两个安装器都新增了条件式 Matt Pocock 安装后 Quickstart：完整 skill 包安装成功后，引导用户通过 Codex `/skills` 或 `@` 选择 `setup-matt-pocock-skills`，并说明已安装 skill 不会成为独立的根级 slash command。
 - 已安装的 Codex review 规则与菜单默认项改为 Matt Pocock 的 `code-review` Standards/Spec 工作流；`adversarial-review` 保持 opt-in，Codex 默认不再启动 `claude -p` reviewer。
 - Bash、PowerShell 安装器与静态 `config.toml` 模板现在都能安全启动 Playwright MCP：固定 `@playwright/mcp@0.0.78`，主机 Node.js 低于 20 时使用隔离的 Node.js 24 launcher，并在 MCP `initialize` 没有返回结果时拒绝写入坏配置。
-- 在 **Academic Research** 中新增彼此独立、默认关闭的 Microsoft ResearchStudio Idea 与 Reel。两套安装器都使用临时的官方源码 checkout：Idea 复制 `idea_spark`、`paper_search`、`scoop_check`；Reel 复制 `paper2assets`、`paper2poster`、`paper2video`、`paper2blog`、`paper2reel`。每个 bundle 都会安装显式依赖、运行各自自检，并记录为安装器 owned skills。
-- 将 `hugohe3/ppt-master` 加入 **Slides**，作为独立且默认关闭的条目。显式选择后会安装官方 skill 与完整 `requirements.txt`，再由 Bash/PowerShell 检查 Python 3.10+、所有 runtime import 和必要的 deck/UI 脚本。
-- 所有 `npx skills` 安装在 Node.js 18 主机上都会使用隔离的 Node.js 24 launcher；Python 依赖则通过临时 bootstrap venv 写入当前解释器的 user site，从而兼容 PEP 668。
-- 远程 skill 只有在实际落盘 `SKILL.md` 后才算成功，不再只信任 `skills` CLI 的退出码。AI research 的路径条目现在会把仓库目录名映射到其声明的 skill 名，并移除当前 Matt Pocock 上游已不再提供的条目。
-- ResearchStudio 与 PPT Master 只有在对应 runtime 自检通过后才报告成功；源码已复制但依赖失败会明确列为未完成。
+- 在 **Academic Research** 中新增彼此独立、默认关闭的 Microsoft ResearchStudio Idea 与 Reel。两套安装器都使用临时的官方源码 checkout：Idea 复制 `idea_spark`、`paper_search`、`scoop_check`；Reel 复制 `paper2assets`、`paper2poster`、`paper2video`、`paper2blog`、`paper2reel`。安装器只复制白名单内的 skill 源码，并把 Idea 的 Claude-only 指令与项目路径适配为 Codex 用法。
+- 将 `hugohe3/ppt-master` 加入 **Slides**，作为独立且默认关闭的条目。显式选择后只通过 `npx skills` 安装官方 skill 定义，runtime 依赖留给第一次实际调用时的 skill 工作流处理。
+- 所有 `npx skills` 安装在 Node.js 18 主机上都会使用隔离的 Node.js 24 launcher。
+- 远程 npx skill 只有在规范目录实际落盘 `SKILL.md`，且共享 skill lock 的上游来源与请求一致后才算成功，不再只信任 `skills` CLI 的退出码。AI research 的路径条目会把仓库目录名映射到声明的 skill 名，并移除当前 Matt Pocock 上游已不再提供的条目。
+- ResearchStudio Idea、ResearchStudio Reel 与 PPT Master 均保持纯 skill 安装：安装器不创建环境、不安装 Python 包或浏览器、不探测原生工具，也不执行 runtime 依赖自检。
+- 可选 bundle 现在必须被明确选择：单独使用 `--skills` / `-Skills` 会让 ResearchStudio 与 PPT Master 保持关闭；显式的 `all`、`ai-research`、全量安装参数或交互勾选才会启用它们。
+- 未完成的安装现在返回非零状态且不更新版本戳。
 - 按作用域拆分纠正记忆：安装到 `~/.codex/lessons.md` 的内容来自专用空白全局模板；项目级纠正写入按需创建的 `<project-root>/lessons.md`，并要求 Codex 主动定位、读取该文件。
 
 ### 设计理由
@@ -30,23 +32,23 @@
 - 清理范围受经过校验的 ownership 文件约束，目录名本身不再代表删除权限。安装器先通过 `npx skills remove --global --agent codex` 更新 Codex/全局元数据，再只对 Codex 本地目录做 fallback 清理；不会扫描或删除普通的 `~/.agents/skills` 子目录。
 - 当前 `skills@latest` 即使指定 `--agent codex --copy`，全局 Codex skill 也可能安装到规范化的共享目录 `~/.agents/skills`；Codex 会发现该目录，而根 `/` 菜单仍是命令菜单，已安装 skills 通过 `/skills` 或 `@` 进入。
 - `codex mcp add` 只能证明配置已写入，不能证明 stdio 进程能完成初始化。安装前向实际 launcher 发送 JSON-RPC `initialize` 请求，可以阻止不兼容的 Node.js/Playwright 组合被误报为成功；固定 MCP 版本则避免后续 `latest` 发布悄悄改变已验证命令。
-- ResearchStudio 统一使用源码路径，避免同时维护 npx 与 checkout 两套行为。安装器校验固定 skill 白名单、拒绝 links，只复制用户选择的 bundle；不会执行上游脚本或授予其 `sudo`，依赖与诊断逻辑均在本仓库中显式可审查。
-- PPT Master 的完整环境较大，因此继续保持 opt-in。临时 venv 只负责提供 pip，运行环境仍是当前 Python；把依赖安装到其 user site 既符合上游直接调用 `python3` 的模型，也能绕过 PEP 668。
-- 当前 `skills` CLI 可能在静默忽略未知 skill 名后仍返回成功。逐项检查安装目录可关闭这条假成功路径，而使用 frontmatter 声明名可处理“目录 basename 不等于安装名”的上游仓库。
+- ResearchStudio 统一使用源码路径，避免同时维护 npx 与 checkout 两套行为。安装器校验固定 skill 白名单、拒绝 links，只复制用户选择的 bundle；不会执行上游安装器或授予其 `sudo`，依赖配置留给 skill 的第一次使用说明。
+- ResearchStudio 与 PPT Master 保持纯 skill 安装，可避免配置安装器耦合到平台特定的 Python、浏览器和原生工具环境；这些上游工作流本身已经能够建立环境或说明缺少项。
+- 当前 `skills` CLI 可能在静默忽略未知 skill 名后仍返回成功。只有请求目录存在，且本次安装确实刷新了来源匹配、hash 非空的 lock 记录，才接受 npx 结果，从而关闭假成功与误接管同名自定义 skill 的路径；使用 frontmatter 声明名则能处理“目录 basename 不等于安装名”的上游仓库。
 - 项目 lessons 不进入全局 seed，可防止一个仓库的纠正静默影响无关项目。它与项目 CHANGELOG 使用同一按需原则：第一次项目级纠正发生前，不要求项目预先存在日志。
 
 ### 注意事项
 - `github` 和 `lark-mcp` 仍需要真实凭据；GitHub 使用 `GITHUB_PERSONAL_ACCESS_TOKEN`，lark-mcp 因需要 app credentials 仍保持手动配置。
-- Slides 的两个条目都默认关闭。选择 `ppt-master` 会安装完整 Python 依赖并执行不启动 UI 的自检；浏览器确认页和 live preview 只会在真实 deck 工作流到达对应阶段时打开。
+- Slides 的两个条目都默认关闭。选择 `ppt-master` 只安装 skill 定义；浏览器确认页、live preview 与任何 runtime 配置只会在真实 deck 工作流到达对应阶段时发生。
 - YOLO 自主默认值只适合可信仓库。
 - 已打开的 Codex TUI 可能需要重启或重新运行 `/statusline` 后才会显示新的 footer 字段。
 - Skill 清理只在真实的交互菜单提交后执行；显式非交互参数仍是增量安装，Core 文件、MCP 配置、共享 agent skill、未拥有的自定义 skill 和来源不明的旧条目不会被移除。
 - 重复安装会保留已有的 `model` 与 `model_reasoning_effort`；新默认值只在新建 `config.toml` 时使用，勾选 StatusLine 则会刷新为托管的 footer 布局。
 - Matt Pocock Quickstart 在 dry-run 和安装失败时不会显示；如果 Codex TUI 在安装前已经打开，可能需要重启后才能看到新 skill。
 - Node.js 24 兼容 launcher 覆盖 Playwright MCP 与全部 `npx skills` 操作，依赖 `npx` 且首次使用需要下载 package；仍优先建议安装受支持的 Node.js 24 LTS。
-- 只有在 Codex 或共享 agent skill 目录中存在对应 `SKILL.md` 的条目才会写入 installer ownership。`npx` 安装不完整时，按路径的包只重试缺少项；fallback 仍失败则会出现在最终 skipped-components 报告中。
-- 两个 ResearchStudio 条目都默认关闭，可在菜单中独立安装；显式请求 AI-research 分组或使用 `--all` / `-All` 时会选择两者。上游 npx 包仍不包含 Reel，但本集成的两个 bundle 都来自官方源码树，因此不再受此限制。
-- Idea 需要 Python 3.9+，并可能使用 OpenReview 或可选的高配额凭据。Reel 需要 Python 3.10+、Playwright Chromium 与 Poppler；可接受 bundled FFmpeg，LibreOffice 只用于可选的 PPTX/DOCX 渲染和 visual QA。Paper2Video 的高级 deck 路径需要单独选择的 `ppt-master` 或已有 PPTX。不会创建 Conda 环境；取消选择/卸载会保留 `~/.codex/skills/.env`，避免误删用户管理的 secrets。
+- npx skill 只有在规范目录存在对应 `SKILL.md`，且本次调用刷新了来源匹配、hash 非空的共享 lock 记录时，才会写入 installer ownership。`npx` 安装不完整时，按路径的包只重试本次调用未验证的条目；fallback 仍失败则会出现在最终 skipped-components 报告中。
+- 两个 ResearchStudio 条目都默认关闭，可在菜单中独立安装；显式请求 AI-research 分组或使用 `--all` / `-All` 时会选择两者，单独使用 `--skills` / `-Skills` 不会选择它们。上游 npx 包仍不包含 Reel，但本集成的两个 bundle 都来自官方源码树，因此不再受此限制。
+- 第一次调用时，Idea 可能需要 Python 和可选 connector 凭据；Reel 可能需要 Python、浏览器与原生文档/媒体工具；PPT Master 可能需要自己的 Python/浏览器环境。安装器既不配置也不验证这些 runtime。Paper2Video 的高级 deck 路径需要单独选择的 `ppt-master` 或已有 PPTX；取消选择/卸载会保留 `~/.codex/skills/.env`，避免误删用户管理的 secrets。
 
 ## [2.6.1] - 2026-05-25
 

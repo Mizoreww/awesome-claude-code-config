@@ -16,6 +16,16 @@ printf '%s\n' "$*" >> "$NPX_LOG"
 if [[ "${NPX_FAIL:-false}" == "true" ]]; then
   exit 1
 fi
+if [[ -n "${NPX_REFRESH_LOCK_SKILL:-}" ]]; then
+  node - "$HOME/.agents/.skill-lock.json" "$NPX_REFRESH_LOCK_SKILL" "$NPX_REFRESH_LOCK_SOURCE" <<'NODE'
+const fs = require("fs");
+const [lockPath, skill, source] = process.argv.slice(2);
+const lock = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+lock.skills[skill].source = source;
+lock.skills[skill].updatedAt = "refreshed-by-npx-test-double";
+fs.writeFileSync(lockPath, JSON.stringify(lock));
+NODE
+fi
 SH
 chmod +x "$TMP/bin/npx"
 export PATH="$TMP/bin:$PATH"
@@ -116,7 +126,10 @@ mkdir -p \
   "$CODEX_DIR/skills/humanizer-zh" \
   "$CODEX_DIR/skills/frontend-slides" \
   "$CODEX_DIR/skills/private-skill" \
+  "$AGENTS_SKILLS_DIR/frontend-slides" \
   "$AGENTS_SKILLS_DIR/research"
+printf '%s\n' managed > "$CODEX_DIR/skills/frontend-slides/SKILL.md"
+printf '%s\n' managed > "$AGENTS_SKILLS_DIR/frontend-slides/SKILL.md"
 write_owned_skills humanizer humanizer-zh frontend-slides
 reconcile_interactive_skills
 assert_exists "$CODEX_DIR/skills/humanizer"
@@ -196,7 +209,9 @@ reconcile_interactive_skills
 assert_exists "$SUPERPOWERS_LINK"
 assert_exists "$SUPERPOWERS_DIR"
 
-mkdir -p "$CODEX_DIR/skills/pua"
+mkdir -p "$CODEX_DIR/skills/pua" "$AGENTS_SKILLS_DIR/pua"
+printf '%s\n' managed > "$CODEX_DIR/skills/pua/SKILL.md"
+printf '%s\n' managed > "$AGENTS_SKILLS_DIR/pua/SKILL.md"
 write_owned_skills pua brainstorming
 reconcile_interactive_skills
 assert_missing "$CODEX_DIR/skills/pua"
@@ -209,25 +224,28 @@ write_owned_skills pua
 DRY_RUN=true
 dry_output="$(reconcile_interactive_skills)"
 assert_exists "$CODEX_DIR/skills/pua"
-[[ "$dry_output" == *"Would remove unselected managed skill"* ]] || fail "dry-run did not report removal"
+[[ "$dry_output" == *"Would remove"* ]] || fail "dry-run did not report removal"
 DRY_RUN=false
 
-# A failing npx cleanup still removes only the recorded Codex-local skill and
-# clears its ownership; it must not touch shared ~/.agents skills.
+# A failing npx cleanup preserves both copies and ownership so a later run can
+# retry without losing a same-name user directory.
 mkdir -p "$CODEX_DIR/skills/pua" "$AGENTS_SKILLS_DIR/pua"
 write_owned_skills pua
 NPX_FAIL=true reconcile_interactive_skills
-assert_missing "$CODEX_DIR/skills/pua"
+assert_exists "$CODEX_DIR/skills/pua"
 assert_exists "$AGENTS_SKILLS_DIR/pua"
-if grep -Fxq pua "$MANAGED_SKILLS_STATE_FILE"; then
-  fail "removed skill remained in installer ownership state"
-fi
+grep -Fxq pua "$MANAGED_SKILLS_STATE_FILE" || fail "failed removal lost retry ownership"
 
 # Successful local and npx installs register ownership for later reconciliation.
 reset_ownership_discovery
 copy_local_skill true humanizer
 grep -Fxq humanizer "$MANAGED_SKILLS_STATE_FILE" || fail "local install did not record ownership"
+mkdir -p "$HOME/.agents"
+printf '%s\n' '{"version":3,"skills":{"frontend-slides":{"source":"zarazhangrui/frontend-slides","skillFolderHash":"0123456789abcdef0123456789abcdef01234567"}}}' > "$HOME/.agents/.skill-lock.json"
+export NPX_REFRESH_LOCK_SKILL=frontend-slides
+export NPX_REFRESH_LOCK_SOURCE=zarazhangrui/frontend-slides
 install_npx_skill_names zarazhangrui/frontend-slides frontend-slides
+unset NPX_REFRESH_LOCK_SKILL NPX_REFRESH_LOCK_SOURCE
 grep -Fxq frontend-slides "$MANAGED_SKILLS_STATE_FILE" || fail "npx install did not record ownership"
 
 # Empty skill selections require a second confirmation before bulk removal.

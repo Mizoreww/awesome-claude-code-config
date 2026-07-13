@@ -22,7 +22,8 @@
   Install skills only
 
 .PARAMETER SkillGroup
-  Skill group: core, ai-research, all (default: all)
+  Skill group: core, ai-research, all (default: all). Default-off
+  ResearchStudio/PPT entries require an explicit SkillGroup or -All.
 
 .PARAMETER Uninstall
   Uninstall managed files. Combine with -Core, -Mcp, -Skills to select components.
@@ -94,11 +95,12 @@ $SUPERPOWERS_LINK     = Join-Path $AGENTS_SKILLS_DIR "superpowers"
 
 $script:InteractiveMode = $false
 $script:InteractiveSelectionHasAny = $false
+$script:SkillGroupExplicit = $PSBoundParameters.ContainsKey("SkillGroup")
 $script:ResearchStudioNonInteractiveRequested = [bool](
-    $All -or ($Skills -and ($SkillGroup -eq "ai-research" -or $SkillGroup -eq "all"))
+    $All -or ($Skills -and $script:SkillGroupExplicit -and ($SkillGroup -eq "ai-research" -or $SkillGroup -eq "all"))
 )
 $script:ResearchStudioReelNonInteractiveRequested = $script:ResearchStudioNonInteractiveRequested
-$script:PptMasterNonInteractiveRequested = [bool]($All -or ($Skills -and $SkillGroup -eq "all"))
+$script:PptMasterNonInteractiveRequested = [bool]($All -or ($Skills -and $script:SkillGroupExplicit -and $SkillGroup -eq "all"))
 $script:SKIPPED_COMPONENTS = @()
 $script:MCP_FAILED_SERVERS = @()
 $script:LessonsSeeded = $false
@@ -204,7 +206,6 @@ $MATTPOCOCK_SKILLS = @(
 $RESEARCHSTUDIO_SKILLS = @("idea_spark", "paper_search", "scoop_check")
 $RESEARCHSTUDIO_REEL_SKILLS = @("paper2assets", "paper2poster", "paper2video", "paper2blog", "paper2reel")
 $RESEARCHSTUDIO_REPO_URL = "https://github.com/microsoft/ResearchStudio.git"
-
 $PUA_SKILLS = @("pua", "pua-en", "pua-ja")
 $SUPERPOWERS_SKILLS = @(
     "brainstorming", "dispatching-parallel-agents", "executing-plans", "finishing-a-development-branch",
@@ -218,15 +219,13 @@ $GLOBAL_SKILL_LOCK_FILE = Join-Path $HOME ".agents/.skill-lock.json"
 $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
 $script:ManagedSkillOwnershipLoaded = $false
 $script:MattPocockQuickstartReady = $false
-$script:ResearchStudioQuickstartReady = $false
-$script:ResearchStudioReelQuickstartReady = $false
-$script:PptMasterQuickstartReady = $false
 $script:CODEX_STATUS_LINE = 'status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 $script:CODEX_STATUS_LINE_USE_COLORS = 'status_line_use_colors = true'
 $script:PLAYWRIGHT_MCP_VERSION = "0.0.78"
 $script:PLAYWRIGHT_MIN_NODE_MAJOR = 20
 $script:PLAYWRIGHT_NODE_FALLBACK_VERSION = "24"
 $script:SKILLS_MIN_NODE_MAJOR = 20
+$script:NpxVerifiedSkillNames = @()
 $script:SKILLS_NODE_FALLBACK_VERSION = "24"
 $script:SkillsNodeFallbackNotified = $false
 
@@ -252,129 +251,98 @@ function Show-MattPocockQuickstart {
     )
 }
 
-function Show-ResearchStudioQuickstart {
-    if (-not $script:ResearchStudioQuickstartReady -or $DryRun) { return }
-
-    @(
-        "",
-        "ResearchStudio Idea quickstart",
-        "  1. Restart Codex if it was open during installation.",
-        '  2. Type $ in the composer and select idea-spark, paper-search, or scoop-check.',
-        "  3. The connector self-check ran automatically. Rerun anytime: python3 `"$CODEX_DIR/skills/idea_spark/scripts/run.py`" check_connectors",
-        "  If the check asks for credentials, store them in $CODEX_DIR/skills/.env; never paste them into chat.",
-        "  Idea and Reel both install from the official source repository; Reel remains a separate opt-in menu item."
-    ) | ForEach-Object { Write-Host $_ }
-}
-
-function Show-ResearchStudioReelQuickstart {
-    if (-not $script:ResearchStudioReelQuickstartReady -or $DryRun) { return }
-
-    @(
-        "",
-        "ResearchStudio Reel quickstart",
-        "  1. Restart Codex if it was open during installation.",
-        '  2. Type $ in the composer and select paper2assets, paper2poster, paper2video, paper2blog, or paper2reel.',
-        "  3. Python dependencies, Playwright Chromium, and the dependency self-check were completed automatically.",
-        "  Poppler is required. Bundled FFmpeg is supported; LibreOffice is optional for PPTX/DOCX rendering and visual QA.",
-        "  Paper2Video's advanced deck-authoring route additionally expects ppt-master (select it separately under Slides) or an existing PPTX."
-    ) | ForEach-Object { Write-Host $_ }
-}
-
-function Show-PptMasterQuickstart {
-    if (-not $script:PptMasterQuickstartReady -or $DryRun) { return }
-
-    @(
-        "",
-        "PPT Master quickstart",
-        "  1. Restart Codex if it was open during installation.",
-        '  2. Type $ in the composer and select ppt-master, then describe the deck you want.',
-        "  3. The full Python requirements and self-check were run automatically; follow any repair steps printed above.",
-        "  During deck generation, ppt-master opens its confirmation and live-preview panels in your browser on a local loopback address.",
-        "  Basic deck creation needs no API credential. Optional image providers may ask for their own environment variables; never paste secrets into chat."
-    ) | ForEach-Object { Write-Host $_ }
-}
-
-function Invoke-ResearchStudioSelfCheck {
-    $checkScript = Join-Path $CODEX_DIR "skills/idea_spark/scripts/run.py"
-    Write-Info "Running ResearchStudio connector self-check..."
-
-    if (-not (Test-Path -LiteralPath $checkScript -PathType Leaf)) {
-        Write-Warn "ResearchStudio self-check could not run because $checkScript is missing."
-        Write-Warn "To restore it, rerun this installer and select ResearchStudio Idea."
-        Write-Warn "The installer will copy the Idea allowlist from $RESEARCHSTUDIO_REPO_URL."
-        Write-Warn "Then rerun: python3 `"$checkScript`" check_connectors"
-        return $false
+function Convert-ResearchStudioIdeaForCodex {
+    $paperSkill = Join-Path $CODEX_DIR "skills/paper_search/SKILL.md"
+    $scoopSkill = Join-Path $CODEX_DIR "skills/scoop_check/SKILL.md"
+    $fetchScript = Join-Path $CODEX_DIR "skills/scoop_check/scripts/fetch_paper.sh"
+    foreach ($path in @($paperSkill, $scoopSkill, $fetchScript)) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
     }
 
-    $py = Resolve-PythonCommand
-    if (-not $py) {
-        Write-Warn "ResearchStudio self-check could not run: no usable Python 3 was found."
-        Write-Warn "Install Python 3 from https://www.python.org/downloads/, reopen PowerShell, and verify:"
-        Write-Warn "  python --version"
-        Write-Warn "Then rerun this installer; it will install dependencies without modifying the system Python environment."
-        return $false
-    }
-
-    $exe = $py[0]
-    $pyArgs = @()
-    if ($py.Count -gt 1) {
-        $pyArgs = $py[1..($py.Count - 1)]
-    }
-    $pythonPreview = (@($exe) + @($pyArgs)) -join " "
-
-    & $exe @pyArgs -c "import feedparser, openreview, bs4, fitz, scholarly, requests" *> $null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warn "ResearchStudio self-check found missing Python dependencies."
-        Write-Warn "Install Python venv support, then rerun this installer."
-        Write-Warn "  Ubuntu/Debian: sudo apt-get install -y python3-venv"
-        Write-Warn "  macOS: brew install python"
-        return $false
-    }
-
-    $output = @()
-    $exitCode = 1
     try {
-        $output = @(& $exe @pyArgs $checkScript check_connectors 2>&1 | ForEach-Object { [string]$_ })
-        $exitCode = $LASTEXITCODE
-    } catch {
-        $output = @([string]$_.Exception.Message)
-        $exitCode = 1
-    }
-    $output | ForEach-Object { Write-Host $_ }
+        $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+        $searchScript = (Join-Path $CODEX_DIR "skills/paper_search/scripts/search_papers.py") -replace '\\', '/'
 
-    $hasMissingPackage = @($output | Where-Object { $_ -match 'package not installed|not installed \(pip install' }).Count -gt 0
-    if ($exitCode -eq 0 -and -not $hasMissingPackage) {
-        if (@($output | Where-Object { $_ -match 'missing env vars' }).Count -gt 0) {
-            Write-Warn "ResearchStudio dependencies passed; OpenReview is disabled until optional credentials are added to $CODEX_DIR/skills/.env."
-        }
-        Write-Ok "ResearchStudio connector self-check passed."
+        $paperText = [System.IO.File]::ReadAllText($paperSkill)
+        $paperText = $paperText.Replace('${CLAUDE_PROJECT_DIR}/skills/paper_search/scripts/search_papers.py', $searchScript)
+        $paperText = $paperText.Replace('${CLAUDE_PROJECT_DIR}/allinone.md', '${PWD}/allinone.md')
+        [System.IO.File]::WriteAllText($paperSkill, $paperText, $utf8NoBom)
+
+        $scoopText = [System.IO.File]::ReadAllText($scoopSkill)
+        $scoopText = $scoopText.Replace('.claude/skills/', 'the installed Codex skills directory')
+        $scoopText = $scoopText.Replace('${CLAUDE_PROJECT_DIR}', '${PWD}')
+        $scoopText = $scoopText.Replace(
+            'Do **not** use `AskUserQuestion` or pause for confirmation at any point',
+            'Do **not** ask a blocking clarification question or pause for confirmation at any point'
+        )
+        $scoopText = $scoopText.Replace(
+            'use `TaskCreate` to register all seven steps as tasks up front',
+            "use Codex's ``update_plan`` tool to register all seven steps up front"
+        )
+        $scoopText = $scoopText.Replace(
+            'handing the PDF URL to `WebFetch` directly',
+            'asking Codex web browsing to summarize the PDF directly'
+        )
+        $scoopText = $scoopText.Replace(
+            'Use `WebFetch` first only to locate the PDF URL',
+            'Use Codex web browsing only to locate the PDF URL'
+        )
+        $scoopText = $scoopText.Replace(
+            'Use the `Read` tool on the printed `.txt` path.',
+            "Read the printed ``.txt`` path with Codex's local filesystem tools."
+        )
+        $scoopText = $scoopText.Replace(
+            'try `WebFetch` on the abstract / HTML version',
+            'use Codex web browsing on the abstract / HTML version'
+        )
+        $scoopFetch = (Join-Path $CODEX_DIR "skills/scoop_check/scripts/fetch_paper.sh") -replace '\\', '/'
+        $scoopText = [regex]::Replace($scoopText, '(?<![/\\\w])scripts/fetch_paper\.sh', ('bash "' + $scoopFetch + '"'))
+        [System.IO.File]::WriteAllText($scoopSkill, $scoopText, $utf8NoBom)
+
+        $fetchText = [System.IO.File]::ReadAllText($fetchScript)
+        $fetchText = $fetchText.Replace(': "${CLAUDE_PROJECT_DIR:?CLAUDE_PROJECT_DIR must be set}"', 'PROJECT_DIR="${CODEX_PROJECT_DIR:-${CLAUDE_PROJECT_DIR:-$PWD}}"')
+        $fetchText = $fetchText.Replace('${CLAUDE_PROJECT_DIR}', '${PROJECT_DIR}')
+        $fetchText = $fetchText.Replace(': "${PROJECT_DIR:?CLAUDE_PROJECT_DIR must be set}"', 'PROJECT_DIR="${CODEX_PROJECT_DIR:-${CLAUDE_PROJECT_DIR:-$PWD}}"')
+        [System.IO.File]::WriteAllText($fetchScript, $fetchText, $utf8NoBom)
         return $true
+    } catch {
+        Write-Warn "ResearchStudio Idea Codex path adaptation failed: $_"
+        return $false
     }
-
-    Write-Warn "ResearchStudio self-check found missing or degraded components."
-    $envFile = Join-Path $CODEX_DIR "skills/.env"
-    Write-Warn "How to fix ResearchStudio:"
-    Write-Warn "  1. Ensure Python can create a bootstrap venv, then rerun this installer."
-    Write-Warn "     Ubuntu/Debian: sudo apt-get install -y python3-venv"
-    Write-Warn "     macOS: brew install python"
-    Write-Warn "  2. If the report says 'missing env vars', open `"$envFile`" and add only the reported names, one KEY=value per line. For example:"
-    Write-Warn "     OPENREVIEW_USER=your_email"
-    Write-Warn "     OPENREVIEW_PASS=your_password"
-    Write-Warn "     SEMANTICSCHOLAR_API_KEY=your_optional_key"
-    Write-Warn "     Do not paste this file into chat or commit it to Git."
-    Write-Warn "  3. Rerun the self-check:"
-    Write-Warn "     $pythonPreview `"$checkScript`" check_connectors"
-    return $false
 }
 
-# ============================================================
+function Test-ResearchStudioIdeaAdapter {
+    $paperSkill = Join-Path $CODEX_DIR "skills/paper_search/SKILL.md"
+    $paperScript = Join-Path $CODEX_DIR "skills/paper_search/scripts/search_papers.py"
+    $scoopSkill = Join-Path $CODEX_DIR "skills/scoop_check/SKILL.md"
+    $fetchScript = Join-Path $CODEX_DIR "skills/scoop_check/scripts/fetch_paper.sh"
+    foreach ($path in @(
+        (Join-Path $CODEX_DIR "skills/idea_spark/SKILL.md"),
+        $paperSkill,
+        $paperScript,
+        $scoopSkill,
+        $fetchScript
+    )) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
+    }
+
+    $paperText = [System.IO.File]::ReadAllText($paperSkill)
+    $scoopText = [System.IO.File]::ReadAllText($scoopSkill)
+    $fetchText = [System.IO.File]::ReadAllText($fetchScript)
+    $paperPath = $paperScript -replace '\\', '/'
+    $fetchPath = $fetchScript -replace '\\', '/'
+    if (-not $paperText.Contains($paperPath)) { return $false }
+    if (-not $scoopText.Contains('bash "' + $fetchPath + '"')) { return $false }
+    if ($scoopText -match 'TaskCreate|AskUserQuestion|WebFetch|`Read` tool') { return $false }
+    if ($fetchText.Contains('CLAUDE_PROJECT_DIR must be set')) { return $false }
+    return $true
+}
+
 # Script directory detection
 # ============================================================
 $script:SCRIPT_DIR   = ""
 $script:REMOTE_MODE  = $false
 $script:TempDir      = $null
-$script:PythonBootstrapDir = $null
-$script:PythonBootstrapCommand = $null
 
 function Detect-ScriptDir {
     # $PSScriptRoot is set when running from a file; empty in piped/iex mode
@@ -422,18 +390,17 @@ function Remove-TempDir {
     if ($script:TempDir -and (Test-Path $script:TempDir)) {
         Remove-Item -Recurse -Force $script:TempDir -ErrorAction SilentlyContinue
     }
-    if ($script:PythonBootstrapDir -and (Test-Path $script:PythonBootstrapDir)) {
-        Remove-Item -Recurse -Force $script:PythonBootstrapDir -ErrorAction SilentlyContinue
-    }
-    $script:PythonBootstrapDir = $null
-    $script:PythonBootstrapCommand = $null
 }
 
 # ============================================================
 # Utilities
 # ============================================================
 function Test-PythonCommand {
-    param([string[]]$Command)
+    param(
+        [string[]]$Command,
+        [int]$MinimumMajor = 3,
+        [int]$MinimumMinor = 0
+    )
 
     if (-not $Command -or $Command.Count -eq 0) {
         return $false
@@ -448,7 +415,10 @@ function Test-PythonCommand {
     try {
         $probeArgs = @()
         $probeArgs += $baseArgs
-        $probeArgs += @("-c", "import sys; raise SystemExit(0 if sys.version_info[0] >= 3 else 1)")
+        $probeArgs += @(
+            "-c",
+            "import sys; raise SystemExit(0 if sys.version_info[:2] >= ($MinimumMajor, $MinimumMinor) else 1)"
+        )
         & $exe @probeArgs *> $null
         return ($LASTEXITCODE -eq 0)
     } catch {
@@ -457,6 +427,10 @@ function Test-PythonCommand {
 }
 
 function Resolve-PythonCommand {
+    param(
+        [int]$MinimumMajor = 3,
+        [int]$MinimumMinor = 0
+    )
     $candidates = @()
 
     if ($env:PYTHON) {
@@ -478,122 +452,12 @@ function Resolve-PythonCommand {
     }
 
     foreach ($candidate in $candidates) {
-        if (Test-PythonCommand $candidate) {
+        if (Test-PythonCommand -Command $candidate -MinimumMajor $MinimumMajor -MinimumMinor $MinimumMinor) {
             return ,$candidate
         }
     }
 
     return $null
-}
-
-function Get-PythonUserSite {
-    param([string[]]$PythonCommand)
-
-    if (-not $PythonCommand) { return $null }
-    $exe = $PythonCommand[0]
-    $baseArgs = @()
-    if ($PythonCommand.Count -gt 1) {
-        $baseArgs = $PythonCommand[1..($PythonCommand.Count - 1)]
-    }
-    try {
-        $probe = "import site; print(site.getusersitepackages()); raise SystemExit(0 if site.ENABLE_USER_SITE else 1)"
-        $output = @(& $exe @baseArgs -c $probe 2>$null)
-        if ($LASTEXITCODE -eq 0 -and $output.Count -gt 0) {
-            return [string]$output[-1]
-        }
-    } catch {}
-    return $null
-}
-
-function Initialize-PythonBootstrap {
-    param([string[]]$PythonCommand)
-
-    if ($script:PythonBootstrapCommand) { return $true }
-    if (-not $PythonCommand) { return $false }
-
-    $exe = $PythonCommand[0]
-    $baseArgs = @()
-    if ($PythonCommand.Count -gt 1) {
-        $baseArgs = $PythonCommand[1..($PythonCommand.Count - 1)]
-    }
-    $bootstrapDir = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-python-bootstrap-" + [guid]::NewGuid().ToString("N"))
-    try {
-        & $exe @baseArgs -m venv $bootstrapDir *> $null
-        if ($LASTEXITCODE -ne 0) { throw "python -m venv failed" }
-
-        $bootstrapExe = $null
-        foreach ($candidate in @(
-            (Join-Path $bootstrapDir "Scripts/python.exe"),
-            (Join-Path $bootstrapDir "bin/python")
-        )) {
-            if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-                $bootstrapExe = $candidate
-                break
-            }
-        }
-        if (-not $bootstrapExe) { throw "bootstrap Python executable is missing" }
-
-        & $bootstrapExe -m pip --version *> $null
-        if ($LASTEXITCODE -ne 0) { throw "bootstrap pip is unavailable" }
-        $script:PythonBootstrapDir = $bootstrapDir
-        $script:PythonBootstrapCommand = @($bootstrapExe)
-        return $true
-    } catch {
-        Remove-Item -LiteralPath $bootstrapDir -Recurse -Force -ErrorAction SilentlyContinue
-        return $false
-    }
-}
-
-function Install-PythonUserPackages {
-    param(
-        [string[]]$PythonCommand,
-        [string[]]$Packages = @(),
-        [string]$RequirementsFile = ""
-    )
-
-    $userSite = Get-PythonUserSite $PythonCommand
-    if (-not $userSite) {
-        Write-Warn "Python user site-packages is unavailable for the selected interpreter."
-        return $false
-    }
-    New-Item -ItemType Directory -Path $userSite -Force | Out-Null
-
-    if (Initialize-PythonBootstrap $PythonCommand) {
-        $bootstrapExe = $script:PythonBootstrapCommand[0]
-        $installArgs = @(
-            "-m", "pip", "install",
-            "--disable-pip-version-check",
-            "--no-warn-script-location",
-            "--upgrade",
-            "--target", $userSite
-        )
-        if ($RequirementsFile) {
-            $installArgs += @("-r", $RequirementsFile)
-        } else {
-            $installArgs += @($Packages)
-        }
-        & $bootstrapExe @installArgs 2>&1 | ForEach-Object { Write-Host $_ }
-        return ($LASTEXITCODE -eq 0)
-    }
-
-    $exe = $PythonCommand[0]
-    $baseArgs = @()
-    if ($PythonCommand.Count -gt 1) {
-        $baseArgs = $PythonCommand[1..($PythonCommand.Count - 1)]
-    }
-    & $exe @baseArgs -m pip --version *> $null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warn "Could not create a temporary Python bootstrap environment."
-        return $false
-    }
-    $directArgs = @($baseArgs) + @("-m", "pip", "install", "--user")
-    if ($RequirementsFile) {
-        $directArgs += @("-r", $RequirementsFile)
-    } else {
-        $directArgs += @($Packages)
-    }
-    & $exe @directArgs 2>&1 | ForEach-Object { Write-Host $_ }
-    return ($LASTEXITCODE -eq 0)
 }
 
 function Get-SkillsNpxLauncherArgs {
@@ -635,6 +499,7 @@ Options:
   -Core                      Install AGENTS.md, blank global lessons.md, config.toml, agents/*
   -Mcp                       Install MCP servers only
   -Skills [-SkillGroup GROUP] Install skills only. GROUP: core, ai-research, all (default: all)
+                             Default-off ResearchStudio/PPT entries require an explicit GROUP or -All
   -Uninstall [-Core] [-Mcp] [-Skills]
                              Uninstall managed files (all components if none specified)
   -Version                   Show source / installed / remote versions
@@ -1989,8 +1854,41 @@ function Confirm-EmptySkillRemoval {
     return (Confirm-Action "Remove $Count previously installer-managed skill(s)?")
 }
 
+function Get-NpxSkillLockFingerprint {
+    param([string]$Skill, [string]$ExpectedSource)
+
+    if (-not (Test-Path -LiteralPath $GLOBAL_SKILL_LOCK_FILE -PathType Leaf)) {
+        return $null
+    }
+    try {
+        $lock = Get-Content -LiteralPath $GLOBAL_SKILL_LOCK_FILE -Raw | ConvertFrom-Json
+        $property = @($lock.skills.PSObject.Properties | Where-Object { $_.Name -ceq $Skill } | Select-Object -First 1)
+        if ($property.Count -ne 1) { return $null }
+        $entry = $property[0].Value
+        if ($entry.source -cne $ExpectedSource -or
+            $entry.skillFolderHash -isnot [string] -or
+            $entry.skillFolderHash.Length -eq 0) {
+            return $null
+        }
+        return (@(
+            [string]$entry.source,
+            [string]$entry.skillFolderHash,
+            [string]$entry.installedAt,
+            [string]$entry.updatedAt
+        ) | ConvertTo-Json -Compress)
+    } catch {
+        return $null
+    }
+}
+
+function Test-NpxSkillVerifiedThisRun {
+    param([string]$Skill)
+    return @($script:NpxVerifiedSkillNames | Where-Object { $_ -ceq $Skill }).Count -gt 0
+}
+
 function Install-NpxSkillNames {
     param([string]$Repo, [string[]]$SkillNames)
+    $script:NpxVerifiedSkillNames = @()
 
     if ($DryRun) {
         Write-Info "Would install via npx skills: ${Repo} -> $($SkillNames -join ', ')"
@@ -2007,31 +1905,40 @@ function Install-NpxSkillNames {
         $npxArgs += @("--skill", $skill)
     }
 
+    $beforeFingerprints = @{}
+    foreach ($skill in $SkillNames) {
+        $beforeFingerprints[$skill] = Get-NpxSkillLockFingerprint -Skill $skill -ExpectedSource $Repo
+    }
+
     $oldDoNotTrack = $env:DO_NOT_TRACK
     $env:DO_NOT_TRACK = "1"
     try {
         & npx @npxArgs 2>&1 | ForEach-Object { Write-Host $_ }
         $exitCode = $LASTEXITCODE
-        if ($exitCode -eq 0) {
-            $installedNames = @()
-            $missingNames = @()
-            foreach ($skill in $SkillNames) {
-                if (Test-InstalledSkill $skill) {
-                    $installedNames += $skill
-                } else {
-                    $missingNames += $skill
-                }
+        $missingNames = @()
+        foreach ($skill in $SkillNames) {
+            $afterFingerprint = Get-NpxSkillLockFingerprint -Skill $skill -ExpectedSource $Repo
+            if ((Test-Path -LiteralPath (Join-Path $AGENTS_SKILLS_DIR "$skill/SKILL.md") -PathType Leaf) -and
+                $null -ne $afterFingerprint -and
+                $afterFingerprint -cne $beforeFingerprints[$skill]) {
+                $script:NpxVerifiedSkillNames += $skill
+            } else {
+                $missingNames += $skill
             }
-            if ($installedNames.Count -gt 0) {
-                Add-ManagedSkillOwnership $installedNames
-            }
-            if ($missingNames.Count -gt 0) {
-                Write-Warn "npx returned success, but these skills were not installed: $($missingNames -join ', ')"
-                return $false
-            }
-            return $true
         }
-        return $false
+        if ($script:NpxVerifiedSkillNames.Count -gt 0) {
+            Add-ManagedSkillOwnership $script:NpxVerifiedSkillNames
+        }
+        if ($missingNames.Count -gt 0) {
+            if ($exitCode -eq 0) {
+                Write-Warn "npx returned success, but this run did not freshly verify skill files/source ownership: $($missingNames -join ', ')"
+            }
+            return $false
+        }
+        if ($exitCode -ne 0) {
+            Write-Warn "npx returned non-zero, but every requested skill was freshly verified from $Repo"
+        }
+        return $script:NpxVerifiedSkillNames.Count -eq $SkillNames.Count
     } finally {
         if ($null -eq $oldDoNotTrack) {
             Remove-Item Env:DO_NOT_TRACK -ErrorAction SilentlyContinue
@@ -2041,144 +1948,25 @@ function Install-NpxSkillNames {
     }
 }
 
-function Get-PptMasterSkillDir {
-    foreach ($candidate in @(
-        (Join-Path $CODEX_DIR "skills/ppt-master"),
-        (Join-Path $AGENTS_SKILLS_DIR "ppt-master")
-    )) {
-        if (Test-Path -LiteralPath (Join-Path $candidate "SKILL.md") -PathType Leaf) {
-            return $candidate
-        }
-    }
-    return $null
-}
-
-function Invoke-PptMasterSelfCheck {
-    Write-Info "Running PPT Master environment self-check..."
-
-    $skillDir = Get-PptMasterSkillDir
-    if (-not $skillDir) {
-        Write-Warn "PPT Master self-check could not run because the installed skill directory is missing."
-        Write-Warn "Rerun this installer and select ppt-master under Slides."
-        return $false
-    }
-
-    $requirements = Join-Path $skillDir "requirements.txt"
-    if (-not (Test-Path -LiteralPath $requirements -PathType Leaf)) {
-        Write-Warn "PPT Master self-check could not find $requirements."
-        Write-Warn "Rerun this installer and select ppt-master under Slides to restore the complete skill."
-        return $false
-    }
-
-    $py = Resolve-PythonCommand
-    if (-not $py) {
-        Write-Warn "PPT Master self-check found missing or degraded components."
-        Write-Warn "Python 3.10+ was not found. Install it from https://www.python.org/downloads/, reopen PowerShell, then rerun this installer and select ppt-master."
-        return $false
-    }
-
-    $exe = $py[0]
-    $pyArgs = @()
-    if ($py.Count -gt 1) {
-        $pyArgs = $py[1..($py.Count - 1)]
-    }
-    $pythonPreview = (@($exe) + @($pyArgs)) -join " "
-    $degraded = $false
-
-    & $exe @pyArgs -c "import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)" *> $null
-    if ($LASTEXITCODE -ne 0) { $degraded = $true }
-
-    $importProbe = "import pptx, xlsxwriter, edge_tts, fitz, mammoth, markdownify, ebooklib, nbconvert, openpyxl, PIL, numpy, requests, bs4, curl_cffi, google.genai, flask"
-    & $exe @pyArgs -c $importProbe *> $null
-    if ($LASTEXITCODE -ne 0) { $degraded = $true }
-
-    foreach ($scriptFile in @(
-        "scripts/project_manager.py",
-        "scripts/svg_to_pptx.py",
-        "scripts/svg_editor/server.py",
-        "scripts/confirm_ui/server.py"
-    )) {
-        $scriptPath = Join-Path $skillDir $scriptFile
-        if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
-            $degraded = $true
-            continue
-        }
-        & $exe @pyArgs -m py_compile $scriptPath *> $null
-        if ($LASTEXITCODE -ne 0) { $degraded = $true }
-    }
-
-    if (-not $degraded) {
-        Write-Ok "PPT Master environment self-check passed."
-        return $true
-    }
-
-    Write-Warn "PPT Master self-check found missing or degraded components."
-    Write-Warn "How to finish the PPT Master setup:"
-    Write-Warn "  1. Ensure Python can create a bootstrap venv."
-    Write-Warn "     Ubuntu/Debian: sudo apt-get install -y python3-venv"
-    Write-Warn "     macOS: brew install python"
-    Write-Warn "  2. Rerun this installer and select ppt-master under Slides. It will install the official requirements into $pythonPreview's user site."
-    Write-Warn "  Pandoc is optional and only needed for uncommon document-input formats."
-    return $false
-}
-
 function Install-PptMaster {
-    Write-Info "Installing PPT Master skill and its complete Python environment..."
+    Write-Info "Installing PPT Master skill (runtime dependencies deferred until first use)..."
     if ($DryRun) {
-        Write-Info "Would install hugohe3/ppt-master for Codex, install its requirements.txt, then run the environment self-check"
+        Write-Info "Would install the hugohe3/ppt-master skill for Codex without Python packages or browsers"
         return
     }
 
     if (-not (Install-NpxSkillNames "hugohe3/ppt-master" @("ppt-master"))) {
-        Skip-UnsupportedItem "ppt-master" "npx skills install failed"
+        Skip-UnsupportedItem "ppt-master" "npx skills install failed or source ownership could not be verified"
         return
     }
 
-    $skillDir = Get-PptMasterSkillDir
-    if (-not $skillDir) {
-        Remove-ManagedSkillOwnership @("ppt-master")
-        Skip-UnsupportedItem "ppt-master" "the installed skill directory could not be found"
-        return
-    }
-
-    $requirements = Join-Path $skillDir "requirements.txt"
-    $py = Resolve-PythonCommand
-    $pythonVersionOk = $false
-    if ($py) {
-        $exe = $py[0]
-        $pyArgs = @()
-        if ($py.Count -gt 1) {
-            $pyArgs = $py[1..($py.Count - 1)]
-        }
-        & $exe @pyArgs -c "import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)" *> $null
-        $pythonVersionOk = ($LASTEXITCODE -eq 0)
-    }
-
-    if (-not (Test-Path -LiteralPath $requirements -PathType Leaf)) {
-        Write-Warn "PPT Master requirements file is missing: $requirements"
-    } elseif (-not $py) {
-        Write-Warn "PPT Master requires Python 3.10+; the self-check will show installation steps"
-    } elseif ($pythonVersionOk) {
-        if (-not (Install-PythonUserPackages -PythonCommand $py -RequirementsFile $requirements)) {
-            Write-Warn "PPT Master Python dependency installation failed; the self-check will show repair steps"
-        }
-    } else {
-        Write-Warn "PPT Master requires Python 3.10+; the self-check will show repair steps"
-    }
-
-    if (Invoke-PptMasterSelfCheck) {
-        $script:PptMasterQuickstartReady = $true
-        Write-Ok "PPT Master skill and complete Python environment installed for Codex"
-    } else {
-        Write-Warn "PPT Master skill was copied, but its required environment is incomplete."
-        $script:SKIPPED_COMPONENTS += "ppt-master environment (self-check failed)"
-    }
+    Write-Ok "PPT Master skill installed for Codex (minimal install; runtime dependencies deferred)"
 }
 
 function Install-ResearchStudio {
-    Write-Info "Installing ResearchStudio Idea skills from a full official checkout..."
+    Write-Info "Installing ResearchStudio Idea skills from a full official checkout (runtime dependencies deferred)..."
     if ($DryRun) {
-        Write-Info "Would clone $RESEARCHSTUDIO_REPO_URL, copy the three allowlisted ResearchStudio-Idea skills, install Python dependencies, then run the connector self-check"
+        Write-Info "Would clone $RESEARCHSTUDIO_REPO_URL, copy the three allowlisted ResearchStudio-Idea skills, and apply Codex instruction/path adaptation without installing runtime dependencies"
         return
     }
     if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
@@ -2229,122 +2017,19 @@ function Install-ResearchStudio {
         Remove-Item -LiteralPath $checkout -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    $py = Resolve-PythonCommand
-    $pythonVersionOk = $false
-    if ($py) {
-        $exe = $py[0]
-        $pyArgs = @()
-        if ($py.Count -gt 1) {
-            $pyArgs = $py[1..($py.Count - 1)]
-        }
-        & $exe @pyArgs -c "import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 9) else 1)" *> $null
-        $pythonVersionOk = ($LASTEXITCODE -eq 0)
-    }
-    if ($py -and $pythonVersionOk) {
-        $packages = @(
-            "feedparser>=6.0.12", "openreview-py>=2.2.3", "beautifulsoup4>=4.13.0",
-            "pymupdf>=1.26.0", "scholarly>=1.7.11", "requests>=2.31.0"
-        )
-        if (-not (Install-PythonUserPackages -PythonCommand $py -Packages $packages)) {
-            Write-Warn "ResearchStudio Idea Python dependency installation failed; the self-check will show repair steps"
-        }
-    } elseif ($py) {
-        Write-Warn "ResearchStudio Idea requires Python 3.9+; the self-check will show repair steps"
-    }
-
     Add-ManagedSkillOwnership $RESEARCHSTUDIO_SKILLS
-    if (Invoke-ResearchStudioSelfCheck) {
-        $script:ResearchStudioQuickstartReady = $true
-        Write-Ok "ResearchStudio Idea skills and Python dependencies installed for Codex"
+    if ((Convert-ResearchStudioIdeaForCodex) -and (Test-ResearchStudioIdeaAdapter)) {
+        Write-Ok "ResearchStudio Idea skills installed for Codex (minimal install; runtime dependencies deferred)"
     } else {
-        Write-Warn "ResearchStudio Idea skills were copied, but their required environment is incomplete."
-        $script:SKIPPED_COMPONENTS += "ResearchStudio Idea environment (self-check failed)"
+        Write-Warn "ResearchStudio Idea was copied, but its Codex instruction/path adaptation could not be verified. Rerun this selection to refresh the skill files."
+        $script:SKIPPED_COMPONENTS += "ResearchStudio Idea Codex adapter (verification failed)"
     }
-}
-
-function Test-ResearchStudioReelCommand {
-    param([string]$Name)
-    return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
-}
-
-function Invoke-ResearchStudioReelSelfCheck {
-    Write-Info "Running ResearchStudio Reel dependency self-check..."
-    $py = Resolve-PythonCommand
-    if (-not $py) {
-        Write-Warn "ResearchStudio Reel self-check could not run: Python 3.10+ was not found."
-        Write-Warn "Install Python from https://www.python.org/downloads/, reopen PowerShell, verify with 'python --version', and rerun the Reel installer."
-        return $false
-    }
-
-    $exe = $py[0]
-    $pyArgs = @()
-    if ($py.Count -gt 1) {
-        $pyArgs = $py[1..($py.Count - 1)]
-    }
-    $pythonPreview = (@($exe) + @($pyArgs)) -join " "
-    $degraded = $false
-    $libreOfficeMissing = $false
-    $bundledFfmpeg = ""
-
-    & $exe @pyArgs -c "import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)" *> $null
-    if ($LASTEXITCODE -ne 0) { $degraded = $true }
-
-    $importProbe = "import fitz, PIL, numpy, docx, qrcode, playwright, imageio_ffmpeg, edge_tts, pptx, pdf2image, lxml, pyphen, cairosvg"
-    & $exe @pyArgs -c $importProbe *> $null
-    if ($LASTEXITCODE -ne 0) { $degraded = $true }
-
-    $chromiumProbe = "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); browser=p.chromium.launch(headless=True); browser.close(); p.stop()"
-    & $exe @pyArgs -c $chromiumProbe *> $null
-    if ($LASTEXITCODE -ne 0) { $degraded = $true }
-
-    if (-not (Test-ResearchStudioReelCommand "pdftotext")) { $degraded = $true }
-    if (-not (Test-ResearchStudioReelCommand "pdftoppm")) { $degraded = $true }
-    if (-not (Test-ResearchStudioReelCommand "soffice") -and
-        -not (Test-ResearchStudioReelCommand "libreoffice")) { $libreOfficeMissing = $true }
-    if (-not (Test-ResearchStudioReelCommand "ffmpeg")) {
-        try {
-            $ffmpegOutput = @(& $exe @pyArgs -c "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())" 2>$null)
-            if ($LASTEXITCODE -eq 0 -and $ffmpegOutput.Count -gt 0) {
-                $bundledFfmpeg = [string]$ffmpegOutput[-1]
-            }
-        } catch {}
-        if (-not $bundledFfmpeg -or -not (Test-Path -LiteralPath $bundledFfmpeg -PathType Leaf)) {
-            $degraded = $true
-        }
-    }
-
-    if (-not $degraded) {
-        Write-Ok "ResearchStudio Reel dependency self-check passed."
-        if ($bundledFfmpeg) {
-            Write-Info "Using imageio-ffmpeg's bundled executable: $bundledFfmpeg"
-            Write-Info "For paper2reel on a machine without system FFmpeg, pass: --ffmpeg `"$bundledFfmpeg`""
-        }
-        if ($libreOfficeMissing) {
-            Write-Warn "LibreOffice is not installed. Core poster/blog/video paths are ready; PPTX-to-PDF rendering and DOCX/PPTX visual QA remain optional-unavailable."
-            Write-Warn "Install it with winget install --id TheDocumentFoundation.LibreOffice -e, sudo apt-get install -y libreoffice, or brew install --cask libreoffice."
-        }
-        return $true
-    }
-
-    Write-Warn "ResearchStudio Reel self-check found missing or degraded components."
-    Write-Warn "How to finish the Reel setup:"
-    Write-Warn "  1. Ensure Python venv support is installed, then rerun this installer."
-    Write-Warn "     Ubuntu/Debian: sudo apt-get install -y python3-venv"
-    Write-Warn "     macOS: brew install python"
-    Write-Warn "  2. Install Poppler if pdftotext/pdftoppm is missing:"
-    Write-Warn "     Windows: winget install --id oschwartz10612.Poppler -e"
-    Write-Warn "     Linux: sudo apt-get install -y poppler-utils"
-    Write-Warn "     macOS: brew install poppler"
-    Write-Warn "  3. The installer will install Playwright Chromium and a bundled FFmpeg automatically."
-    Write-Warn "  4. LibreOffice is optional for PPTX-to-PDF rendering and DOCX/PPTX visual QA."
-    Write-Warn "  Paper2Video's advanced deck route also needs the external ppt-master project or an existing PPTX."
-    return $false
 }
 
 function Install-ResearchStudioReel {
-    Write-Info "Installing ResearchStudio Reel skills from a full official checkout..."
+    Write-Info "Installing ResearchStudio Reel skills from a full official checkout (runtime dependencies deferred)..."
     if ($DryRun) {
-        Write-Info "Would clone $RESEARCHSTUDIO_REPO_URL, copy the five allowlisted Reel skills, install Python dependencies and Chromium, then run the dependency self-check"
+        Write-Info "Would clone $RESEARCHSTUDIO_REPO_URL and copy only the five allowlisted Reel skills without Python packages, browsers, or native tools"
         return
     }
     if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
@@ -2395,44 +2080,9 @@ function Install-ResearchStudioReel {
         Remove-Item -LiteralPath $checkout -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    $py = Resolve-PythonCommand
-    $pythonVersionOk = $false
-    if ($py) {
-        $exe = $py[0]
-        $pyArgs = @()
-        if ($py.Count -gt 1) {
-            $pyArgs = $py[1..($py.Count - 1)]
-        }
-        & $exe @pyArgs -c "import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)" *> $null
-        $pythonVersionOk = ($LASTEXITCODE -eq 0)
-    }
-    if ($py -and $pythonVersionOk) {
-        $packages = @(
-            "pymupdf", "pillow", "numpy", "python-docx>=1.1.2", "qrcode", "playwright",
-            "imageio-ffmpeg", "edge-tts>=7.2.8", "python-pptx>=1.0", "pdf2image>=1.17",
-            "lxml>=5.0", "pyphen>=0.14", "cairosvg"
-        )
-        if (-not (Install-PythonUserPackages -PythonCommand $py -Packages $packages)) {
-            Write-Warn "ResearchStudio Reel Python dependency installation failed; the self-check will show repair steps"
-        }
-        & $exe @pyArgs -m playwright install chromium 2>&1 | ForEach-Object { Write-Host $_ }
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warn "ResearchStudio Reel Chromium installation failed; the self-check will show repair steps"
-        }
-    } elseif ($py) {
-        Write-Warn "ResearchStudio Reel requires Python 3.10+; the self-check will show repair steps"
-    }
-
     Add-ManagedSkillOwnership $RESEARCHSTUDIO_REEL_SKILLS
-    if (Invoke-ResearchStudioReelSelfCheck) {
-        $script:ResearchStudioReelQuickstartReady = $true
-        Write-Ok "ResearchStudio Reel skills, Python dependencies, and Chromium installed for Codex"
-    } else {
-        Write-Warn "ResearchStudio Reel skills were copied, but their required environment is incomplete."
-        $script:SKIPPED_COMPONENTS += "ResearchStudio Reel environment (self-check failed)"
-    }
+    Write-Ok "ResearchStudio Reel skills installed for Codex (minimal install; runtime dependencies deferred)"
 }
-
 function Get-SelectedManagedSkills {
     $selected = New-Object 'System.Collections.Generic.HashSet[string]'
 
@@ -2476,18 +2126,18 @@ function Get-SelectedManagedSkills {
 
 function Remove-NpxSkillNames {
     param([string[]]$SkillNames)
-    if ($SkillNames.Count -eq 0) { return }
+    if ($SkillNames.Count -eq 0) { return $true }
 
     if ($DryRun) {
         Write-Info "Would remove via npx skills for Codex: $($SkillNames -join ', ')"
-        return
+        return $true
     }
 
     $launcherArgs = Get-SkillsNpxLauncherArgs
     if (-not $launcherArgs) {
         Write-Warn "npx not found; shared/global Codex skill associations could not be removed: $($SkillNames -join ', ')"
         $script:SKIPPED_COMPONENTS += "unselected managed skills (npx unavailable): $($SkillNames -join ', ')"
-        return
+        return $false
     }
 
     $npxArgs = @($launcherArgs) + @("remove") + $SkillNames + @("--global", "--agent", "codex", "--yes")
@@ -2498,7 +2148,9 @@ function Remove-NpxSkillNames {
         if ($LASTEXITCODE -ne 0) {
             Write-Warn "npx skills could not remove these Codex skills: $($SkillNames -join ', ')"
             $script:SKIPPED_COMPONENTS += "unselected managed skills (npx removal failed): $($SkillNames -join ', ')"
+            return $false
         }
+        return $true
     } finally {
         if ($null -eq $oldDoNotTrack) {
             Remove-Item Env:DO_NOT_TRACK -ErrorAction SilentlyContinue
@@ -2553,6 +2205,7 @@ function Remove-SuperpowersFallback {
 function Sync-InteractiveSkills {
     $desired = @(Get-SelectedManagedSkills)
     $stale = @()
+    $removedStale = @()
 
     Initialize-ManagedSkillOwnership
 
@@ -2569,32 +2222,99 @@ function Sync-InteractiveSkills {
             }
         }
 
-        $installedStale = @()
+        $npxStale = @()
+        $directStale = @()
         $researchStudioRemoved = $false
         foreach ($skill in $stale) {
-            $codexPath = Join-Path $CODEX_DIR "skills/$skill"
-            if (Test-Path $codexPath) {
-                if ((Test-SkillInList $skill $RESEARCHSTUDIO_SKILLS) -or
-                    (Test-SkillInList $skill $RESEARCHSTUDIO_REEL_SKILLS)) {
-                    $researchStudioRemoved = $true
-                } else {
-                    $installedStale += $skill
-                }
+            $expectedSource = Get-ExpectedSkillSource $skill
+            if ((Test-SkillInList $skill $RESEARCHSTUDIO_SKILLS) -or
+                (Test-SkillInList $skill $RESEARCHSTUDIO_REEL_SKILLS)) {
+                $researchStudioRemoved = $true
+            }
+            if (($expectedSource -and $expectedSource.StartsWith("local:")) -or
+                $expectedSource -ceq "microsoft/ResearchStudio") {
+                $directStale += $skill
+            } else {
+                $npxStale += $skill
             }
         }
-        if ($installedStale.Count -gt 0) {
-            Remove-NpxSkillNames $installedStale
+
+        if ($npxStale.Count -gt 0) {
+            $protectionDir = $null
+            $protectedNpxSkills = @()
+            $verifiedNpxSkills = @()
+            $protectionFailed = $false
+            if (-not $DryRun) {
+                $protectionDir = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-skill-protection-" + [guid]::NewGuid().ToString("N"))
+                New-Item -ItemType Directory -Path $protectionDir -Force | Out-Null
+                foreach ($skill in $npxStale) {
+                    $codexPath = Join-Path $CODEX_DIR "skills/$skill"
+                    $canonicalPath = Join-Path $AGENTS_SKILLS_DIR $skill
+                    if (-not (Test-Path -LiteralPath $codexPath)) { continue }
+                    if (Test-DirectoryTreeEqual $canonicalPath $codexPath) {
+                        $verifiedNpxSkills += $skill
+                        continue
+                    }
+                    try {
+                        Move-Item -LiteralPath $codexPath -Destination (Join-Path $protectionDir $skill) -Force
+                        $protectedNpxSkills += $skill
+                    } catch {
+                        $protectionFailed = $true
+                        Write-Warn "Could not protect the unverified local skill at ${codexPath}; preserving the whole npx removal batch"
+                        break
+                    }
+                }
+            }
+
+            $npxRemovalSucceeded = $false
+            if (-not $protectionFailed) {
+                $npxRemovalSucceeded = [bool](Remove-NpxSkillNames $npxStale)
+            }
+            if ($npxRemovalSucceeded -and -not $DryRun) {
+                foreach ($skill in $verifiedNpxSkills) {
+                    Remove-Item -LiteralPath (Join-Path $CODEX_DIR "skills/$skill") -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            }
+
+            $restorationFailed = $false
+            if (-not $DryRun -and $protectionDir) {
+                foreach ($skill in $protectedNpxSkills) {
+                    $codexPath = Join-Path $CODEX_DIR "skills/$skill"
+                    Remove-Item -LiteralPath $codexPath -Recurse -Force -ErrorAction SilentlyContinue
+                    New-Item -ItemType Directory -Path (Split-Path -Parent $codexPath) -Force | Out-Null
+                    try {
+                        Move-Item -LiteralPath (Join-Path $protectionDir $skill) -Destination $codexPath -Force
+                    } catch {
+                        $restorationFailed = $true
+                        Write-Warn "Could not restore the protected user skill; recover it from $(Join-Path $protectionDir $skill)"
+                    }
+                }
+                if (-not $restorationFailed) {
+                    Remove-Item -LiteralPath $protectionDir -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            }
+            if ($npxRemovalSucceeded -and -not $restorationFailed) {
+                $removedStale += $npxStale
+            }
         }
 
-        foreach ($skill in $stale) {
+        foreach ($skill in $directStale) {
             $codexPath = Join-Path $CODEX_DIR "skills/$skill"
             if ($DryRun) {
                 if (Test-Path $codexPath) {
                     Write-Info "Would remove unselected managed skill: $codexPath"
                 }
             } elseif (Test-Path $codexPath) {
-                Remove-Item -Recurse -Force $codexPath
-                Write-Ok "Removed unselected managed skill: $skill"
+                try {
+                    Remove-Item -Recurse -Force $codexPath
+                    Write-Ok "Removed unselected managed skill: $skill"
+                    $removedStale += $skill
+                } catch {
+                    Write-Warn "Could not remove unselected managed skill: $skill"
+                    $script:SKIPPED_COMPONENTS += "unselected managed skill removal failed: $skill"
+                }
+            } else {
+                $removedStale += $skill
             }
         }
         $researchStudioEnv = Join-Path $CODEX_DIR "skills/.env"
@@ -2607,8 +2327,8 @@ function Sync-InteractiveSkills {
         Remove-SuperpowersFallback
     }
 
-    if ($stale.Count -gt 0 -and -not $DryRun) {
-        Remove-ManagedSkillOwnership $stale
+    if ($removedStale.Count -gt 0 -and -not $DryRun) {
+        Remove-ManagedSkillOwnership $removedStale
     }
 }
 
@@ -2640,7 +2360,8 @@ function Install-SkillPathsFallback {
         & $exe @pyArgs $INSTALLER --repo $Repo --path $path --name $skillName 2>&1 |
             ForEach-Object { Write-Host $_ }
         $exitCode = $LASTEXITCODE
-        if ($exitCode -eq 0 -and (Test-InstalledSkill $skillName)) {
+        $codexLocalSkill = Join-Path $CODEX_DIR "skills/$skillName/SKILL.md"
+        if ($exitCode -eq 0 -and (Test-Path -LiteralPath $codexLocalSkill -PathType Leaf)) {
             $installedNames += $skillName
         } else {
             Write-Warn "Could not install $skillName from $Repo path $path"
@@ -2676,22 +2397,27 @@ function Install-SkillPaths {
         return
     }
 
-    $missingPaths = @()
+    $fallbackPaths = @()
+    $verifiedNames = @()
     for ($index = 0; $index -lt $Paths.Count; $index++) {
-        if (-not (Test-InstalledSkill $names[$index])) {
-            $missingPaths += $Paths[$index]
+        if (Test-NpxSkillVerifiedThisRun -Skill $names[$index]) {
+            $verifiedNames += $names[$index]
+        } else {
+            $fallbackPaths += $Paths[$index]
         }
     }
-    if ($missingPaths.Count -eq 0) {
-        Add-ManagedSkillOwnership $names
-        Write-Ok "All requested skills are present despite the npx non-zero result: $($names -join ', ') ($Repo)"
+    if ($verifiedNames.Count -gt 0) {
+        Add-ManagedSkillOwnership $verifiedNames
+    }
+    if ($fallbackPaths.Count -eq 0) {
+        Write-Ok "All requested skills have verified source provenance despite the npx non-zero result: $($names -join ', ') ($Repo)"
         return
     }
 
-    Write-Warn "npx skills install was incomplete; trying Python fallback for $($missingPaths.Count) missing skill(s) from $Repo"
-    $fallbackSucceeded = Install-SkillPathsFallback $Repo $missingPaths
+    Write-Warn "npx skills install left $($fallbackPaths.Count) source-unverified skill(s); trying the Python fallback for those paths from $Repo"
+    $fallbackSucceeded = Install-SkillPathsFallback $Repo $fallbackPaths
     if ($fallbackSucceeded) {
-        Write-Ok "Installed missing skills with the Python fallback: $Repo"
+        Write-Ok "Installed requested skills with the Python fallback: $Repo"
     }
 }
 
@@ -3082,8 +2808,6 @@ try {
         if ($Skills) { Install-Skills }
     }
 
-    Set-VersionStamp
-
     if ($script:SKIPPED_COMPONENTS.Count -gt 0) {
         Write-Host ""
         Write-Warn "Install finished, but some components were skipped:"
@@ -3091,16 +2815,16 @@ try {
             Write-Warn "  - $comp"
         }
         Write-Warn "Resolve the issues above and re-run the installer to complete them."
+        Write-Warn "The installed-version stamp was not updated."
     } else {
-        Write-Ok "All selected components installed and verified."
+        Set-VersionStamp
+        Write-Ok "All selected components installed."
     }
 
     Show-MattPocockQuickstart
-    Show-ResearchStudioQuickstart
-    Show-ResearchStudioReelQuickstart
-    Show-PptMasterQuickstart
     if ($script:SKIPPED_COMPONENTS.Count -gt 0) {
         Write-Warn "Done with incomplete components. Restart Codex after resolving and rerunning the installer."
+        exit 1
     } else {
         Write-Ok "Done. Restart Codex to load new skills/config if needed."
     }

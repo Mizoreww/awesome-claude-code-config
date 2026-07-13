@@ -46,8 +46,6 @@ error() { echo -e "${RED}[ERROR]${NC} $*"; }
 SCRIPT_DIR=""
 REMOTE_MODE=false
 REMOTE_TMPDIR=""
-PYTHON_BOOTSTRAP_DIR=""
-PYTHON_BOOTSTRAP_PYTHON=""
 MENU_ACTIVE=false
 MENU_SAVED_STTY=""
 
@@ -71,9 +69,6 @@ LESSONS_SEEDED=false
 OWNED_MANAGED_SKILLS=()
 MANAGED_SKILLS_OWNERSHIP_LOADED=false
 MATTPOCOCK_QUICKSTART_READY=false
-RESEARCHSTUDIO_QUICKSTART_READY=false
-RESEARCHSTUDIO_REEL_QUICKSTART_READY=false
-PPT_MASTER_QUICKSTART_READY=false
 
 SELECT_CORE_AGENTS_MD=false
 SELECT_CORE_CONFIG=false
@@ -180,7 +175,6 @@ MATTPOCOCK_SKILLS=(
 RESEARCHSTUDIO_SKILLS=(idea_spark paper_search scoop_check)
 RESEARCHSTUDIO_REEL_SKILLS=(paper2assets paper2poster paper2video paper2blog paper2reel)
 RESEARCHSTUDIO_REPO_URL="https://github.com/microsoft/ResearchStudio.git"
-
 PUA_SKILLS=(pua pua-en pua-ja)
 SUPERPOWERS_SKILLS=(
   brainstorming dispatching-parallel-agents executing-plans finishing-a-development-branch
@@ -200,6 +194,7 @@ SKILLS_MIN_NODE_MAJOR=20
 SKILLS_NODE_FALLBACK_VERSION="24"
 SKILLS_NODE_FALLBACK_NOTIFIED=false
 SKILLS_NPX_LAUNCHER_ARGS=()
+NPX_VERIFIED_SKILL_NAMES=()
 
 show_mattpocock_quickstart() {
   $MATTPOCOCK_QUICKSTART_READY || return 0
@@ -214,114 +209,77 @@ show_mattpocock_quickstart() {
   echo "  Note: installed skills are not individual root slash commands such as /setup-matt-pocock-skills."
 }
 
-show_researchstudio_quickstart() {
-  $RESEARCHSTUDIO_QUICKSTART_READY || return 0
-  $DRY_RUN && return 0
+replace_literal_in_file() {
+  local file="$1"
+  local old_text="$2"
+  local new_text="$3"
+  local temp_file
 
-  echo ""
-  echo "ResearchStudio Idea quickstart"
-  echo "  1. Restart Codex if it was open during installation."
-  echo '  2. Type $ in the composer and select idea-spark, paper-search, or scoop-check.'
-  echo "  3. The connector self-check ran automatically. Rerun anytime: python3 \"$CODEX_DIR/skills/idea_spark/scripts/run.py\" check_connectors"
-  echo "  If the check asks for credentials, store them in $CODEX_DIR/skills/.env; never paste them into chat."
-  echo "  Idea and Reel both install from the official source repository; Reel remains a separate opt-in menu item."
-}
-
-show_researchstudio_reel_quickstart() {
-  $RESEARCHSTUDIO_REEL_QUICKSTART_READY || return 0
-  $DRY_RUN && return 0
-
-  echo ""
-  echo "ResearchStudio Reel quickstart"
-  echo "  1. Restart Codex if it was open during installation."
-  echo '  2. Type $ in the composer and select paper2assets, paper2poster, paper2video, paper2blog, or paper2reel.'
-  echo "  3. Python dependencies, Playwright Chromium, and the dependency self-check were completed automatically."
-  echo "  Poppler is required. Bundled FFmpeg is supported; LibreOffice is optional for PPTX/DOCX rendering and visual QA."
-  echo "  Paper2Video's advanced deck-authoring route additionally expects ppt-master (select it separately under Slides) or an existing PPTX."
-}
-
-show_ppt_master_quickstart() {
-  $PPT_MASTER_QUICKSTART_READY || return 0
-  $DRY_RUN && return 0
-
-  echo ""
-  echo "PPT Master quickstart"
-  echo "  1. Restart Codex if it was open during installation."
-  echo '  2. Type $ in the composer and select ppt-master, then describe the deck you want.'
-  echo "  3. The full Python requirements and self-check were run automatically; follow any repair steps printed above."
-  echo "  During deck generation, ppt-master opens its confirmation and live-preview panels in your browser on a local loopback address."
-  echo "  Basic deck creation needs no API credential. Optional image providers may ask for their own environment variables; never paste secrets into chat."
-}
-
-run_researchstudio_self_check() {
-  local check_script="$CODEX_DIR/skills/idea_spark/scripts/run.py"
-  local python_cmd=""
-
-  info "Running ResearchStudio connector self-check..."
-
-  if [[ ! -f "$check_script" ]]; then
-    warn "ResearchStudio self-check could not run because $check_script is missing."
-    warn "To restore it, rerun this installer and select ResearchStudio Idea."
-    warn "The installer will copy the Idea allowlist from $RESEARCHSTUDIO_REPO_URL."
-    warn "Then rerun: python3 \"$check_script\" check_connectors"
+  [[ -f "$file" && -n "$old_text" ]] || return 1
+  temp_file="$(mktemp "${TMPDIR:-/tmp}/codex-skill-adapter.XXXXXX")" || return 1
+  if ! OLD_TEXT="$old_text" NEW_TEXT="$new_text" awk '
+    BEGIN {
+      old_text = ENVIRON["OLD_TEXT"]
+      new_text = ENVIRON["NEW_TEXT"]
+    }
+    {
+      rest = $0
+      output = ""
+      while ((position = index(rest, old_text)) > 0) {
+        output = output substr(rest, 1, position - 1) new_text
+        rest = substr(rest, position + length(old_text))
+      }
+      print output rest
+    }
+  ' "$file" > "$temp_file"; then
+    rm -f "$temp_file"
     return 1
   fi
-
-  if command -v python3 >/dev/null 2>&1; then
-    python_cmd="python3"
-  elif command -v python >/dev/null 2>&1; then
-    python_cmd="python"
-  else
-    warn "ResearchStudio self-check could not run: no usable Python 3 was found."
-    warn "Install Python 3, then reopen this terminal:"
-    warn "  Ubuntu/Debian: sudo apt-get install -y python3 python3-venv python3-pip"
-    warn "  macOS: brew install python"
-    warn "  Verify: python3 --version"
-    warn "Then rerun this installer; it will install dependencies without modifying the system Python environment."
+  if ! cp "$temp_file" "$file"; then
+    rm -f "$temp_file"
     return 1
   fi
+  rm -f "$temp_file"
+}
 
-  if ! "$python_cmd" -c 'import feedparser, openreview, bs4, fitz, scholarly, requests' >/dev/null 2>&1; then
-    warn "ResearchStudio self-check found missing Python dependencies."
-    warn "Rerun this installer after installing Python's venv support:"
-    warn "  Ubuntu/Debian: sudo apt-get install -y python3-venv"
-    warn "  macOS: brew install python"
-    warn "The installer will then place dependencies in this interpreter's user site without modifying the system environment."
-    return 1
-  fi
+adapt_researchstudio_idea_for_codex() {
+  local paper_skill="$CODEX_DIR/skills/paper_search/SKILL.md"
+  local scoop_skill="$CODEX_DIR/skills/scoop_check/SKILL.md"
+  local fetch_script="$CODEX_DIR/skills/scoop_check/scripts/fetch_paper.sh"
+  local search_script="$CODEX_DIR/skills/paper_search/scripts/search_papers.py"
+  local scoop_fetch="$CODEX_DIR/skills/scoop_check/scripts/fetch_paper.sh"
 
-  local output=""
-  local exit_code=0
-  if output="$("$python_cmd" "$check_script" check_connectors 2>&1)"; then
-    exit_code=0
-  else
-    exit_code=$?
-  fi
-  [[ -n "$output" ]] && printf '%s\n' "$output"
+  replace_literal_in_file "$paper_skill" '${CLAUDE_PROJECT_DIR}/skills/paper_search/scripts/search_papers.py' "$search_script" &&
+    replace_literal_in_file "$paper_skill" '${CLAUDE_PROJECT_DIR}/allinone.md' '${PWD}/allinone.md' &&
+    replace_literal_in_file "$scoop_skill" '.claude/skills/' 'the installed Codex skills directory' &&
+    replace_literal_in_file "$scoop_skill" '${CLAUDE_PROJECT_DIR}' '${PWD}' &&
+    replace_literal_in_file "$scoop_skill" 'Do **not** use `AskUserQuestion` or pause for confirmation at any point' 'Do **not** ask a blocking clarification question or pause for confirmation at any point' &&
+    replace_literal_in_file "$scoop_skill" 'use `TaskCreate` to register all seven steps as tasks up front' "use Codex's \`update_plan\` tool to register all seven steps up front" &&
+    replace_literal_in_file "$scoop_skill" 'handing the PDF URL to `WebFetch` directly' 'asking Codex web browsing to summarize the PDF directly' &&
+    replace_literal_in_file "$scoop_skill" 'Use `WebFetch` first only to locate the PDF URL' 'Use Codex web browsing only to locate the PDF URL' &&
+    replace_literal_in_file "$scoop_skill" 'Use the `Read` tool on the printed `.txt` path.' "Read the printed \`.txt\` path with Codex's local filesystem tools." &&
+    replace_literal_in_file "$scoop_skill" 'try `WebFetch` on the abstract / HTML version' 'use Codex web browsing on the abstract / HTML version' &&
+    replace_literal_in_file "$scoop_skill" 'scripts/fetch_paper.sh "<PDF_URL>" "<pdf_name>"' "bash \"$scoop_fetch\" \"<PDF_URL>\" \"<pdf_name>\"" &&
+    replace_literal_in_file "$fetch_script" ': "${CLAUDE_PROJECT_DIR:?CLAUDE_PROJECT_DIR must be set}"' 'PROJECT_DIR="${CODEX_PROJECT_DIR:-${CLAUDE_PROJECT_DIR:-$PWD}}"' &&
+    replace_literal_in_file "$fetch_script" '${CLAUDE_PROJECT_DIR}' '${PROJECT_DIR}'
+}
 
-  if [[ $exit_code -eq 0 && "$output" != *"package not installed"* && "$output" != *"not installed (pip install"* ]]; then
-    if [[ "$output" == *"missing env vars"* ]]; then
-      warn "ResearchStudio dependencies passed; OpenReview is disabled until optional credentials are added to $CODEX_DIR/skills/.env."
-    fi
-    ok "ResearchStudio connector self-check passed."
-    return 0
-  fi
+researchstudio_idea_adapter_is_ready() {
+  local paper_search_skill="$CODEX_DIR/skills/paper_search/SKILL.md"
+  local paper_search_script="$CODEX_DIR/skills/paper_search/scripts/search_papers.py"
+  local scoop_skill="$CODEX_DIR/skills/scoop_check/SKILL.md"
+  local scoop_fetch_script="$CODEX_DIR/skills/scoop_check/scripts/fetch_paper.sh"
 
-  warn "ResearchStudio self-check found missing or degraded components."
-  local env_file="$CODEX_DIR/skills/.env"
-  warn "How to fix ResearchStudio:"
-  warn "  1. Ensure Python can create a bootstrap venv, then rerun this installer:"
-  warn "     Ubuntu/Debian: sudo apt-get install -y python3-venv"
-  warn "     macOS: brew install python"
-  warn "  2. If the report says 'missing env vars', open \"$env_file\" and add only the reported names, one KEY=value per line. For example:"
-  warn "     OPENREVIEW_USER=your_email"
-  warn "     OPENREVIEW_PASS=your_password"
-  warn "     SEMANTICSCHOLAR_API_KEY=your_optional_key"
-  warn "     chmod 600 \"$env_file\""
-  warn "     Never paste real credentials into chat or commit this file to Git."
-  warn "  3. Rerun the self-check:"
-  warn "     $python_cmd \"$check_script\" check_connectors"
-  return 1
+  [[ -f "$CODEX_DIR/skills/idea_spark/SKILL.md" &&
+     -f "$paper_search_skill" &&
+     -f "$paper_search_script" &&
+     -f "$scoop_skill" &&
+     -f "$scoop_fetch_script" ]] || return 1
+  grep -Fq "$paper_search_script" "$paper_search_skill" || return 1
+  grep -Fq "bash \"$scoop_fetch_script\"" "$scoop_skill" || return 1
+  grep -Eq 'TaskCreate|AskUserQuestion|WebFetch|`Read` tool' "$scoop_skill" && return 1
+  grep -q 'CLAUDE_PROJECT_DIR must be set' "$scoop_fetch_script" && return 1
+  bash -n "$scoop_fetch_script"
 }
 
 cleanup_menu() {
@@ -347,11 +305,6 @@ cleanup_runtime() {
     REMOTE_TMPDIR=""
   fi
 
-  if [[ -n "$PYTHON_BOOTSTRAP_DIR" ]]; then
-    rm -rf "$PYTHON_BOOTSTRAP_DIR"
-    PYTHON_BOOTSTRAP_DIR=""
-    PYTHON_BOOTSTRAP_PYTHON=""
-  fi
 }
 
 cleanup_and_exit() {
@@ -437,6 +390,7 @@ Options:
   --core                Install AGENTS.md, blank global lessons.md, config.toml, agents/*
   --mcp                 Install MCP servers only
   --skills [GROUP]      Install skills only. GROUP: core, ai-research, all (default: all)
+                        Default-off ResearchStudio/PPT entries require an explicit GROUP or --all
   --uninstall [COMP...] Uninstall managed files. COMP: --core --mcp --skills
   --version             Show source / installed / remote versions
   --dry-run             Preview changes without applying
@@ -496,10 +450,12 @@ parse_args() {
         INTERACTIVE_MODE=false
         INSTALL_SKILLS=true
         shift
+        local skill_group_explicit=false
         if [[ $# -gt 0 && ! "$1" =~ ^-- ]]; then
           case "$1" in
             core|ai-research|all)
               SKILL_GROUP="$1"
+              skill_group_explicit=true
               shift
               ;;
             *)
@@ -508,11 +464,11 @@ parse_args() {
               ;;
           esac
         fi
-        if [[ "$SKILL_GROUP" == "ai-research" || "$SKILL_GROUP" == "all" ]]; then
+        if $skill_group_explicit && [[ "$SKILL_GROUP" == "ai-research" || "$SKILL_GROUP" == "all" ]]; then
           INSTALL_RESEARCHSTUDIO_NONINTERACTIVE=true
           INSTALL_RESEARCHSTUDIO_REEL_NONINTERACTIVE=true
         fi
-        if [[ "$SKILL_GROUP" == "all" ]]; then
+        if $skill_group_explicit && [[ "$SKILL_GROUP" == "all" ]]; then
           INSTALL_PPT_MASTER_NONINTERACTIVE=true
         fi
         ;;
@@ -931,74 +887,21 @@ get_node_major_version() {
 }
 
 resolve_python_command() {
-  if command -v python3 >/dev/null 2>&1; then
-    printf '%s\n' python3
-  elif command -v python >/dev/null 2>&1; then
-    printf '%s\n' python
-  else
-    return 1
-  fi
-}
+  local minimum_major="${1:-3}"
+  local minimum_minor="${2:-0}"
+  local candidate
+  local resolved
 
-get_python_user_site() {
-  local python_cmd="$1"
-  "$python_cmd" -c 'import site; print(site.getusersitepackages()); raise SystemExit(0 if site.ENABLE_USER_SITE else 1)'
-}
-
-ensure_python_bootstrap() {
-  local python_cmd="$1"
-  if [[ -n "$PYTHON_BOOTSTRAP_PYTHON" && -x "$PYTHON_BOOTSTRAP_PYTHON" ]]; then
-    return 0
-  fi
-
-  PYTHON_BOOTSTRAP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/codex-python-bootstrap.XXXXXX")"
-  if ! "$python_cmd" -m venv "$PYTHON_BOOTSTRAP_DIR" >/dev/null 2>&1; then
-    rm -rf "$PYTHON_BOOTSTRAP_DIR"
-    PYTHON_BOOTSTRAP_DIR=""
-    return 1
-  fi
-
-  if [[ -x "$PYTHON_BOOTSTRAP_DIR/bin/python" ]]; then
-    PYTHON_BOOTSTRAP_PYTHON="$PYTHON_BOOTSTRAP_DIR/bin/python"
-  elif [[ -x "$PYTHON_BOOTSTRAP_DIR/Scripts/python.exe" ]]; then
-    PYTHON_BOOTSTRAP_PYTHON="$PYTHON_BOOTSTRAP_DIR/Scripts/python.exe"
-  else
-    rm -rf "$PYTHON_BOOTSTRAP_DIR"
-    PYTHON_BOOTSTRAP_DIR=""
-    return 1
-  fi
-
-  "$PYTHON_BOOTSTRAP_PYTHON" -m pip --version >/dev/null 2>&1
-}
-
-install_python_user_packages() {
-  local python_cmd="$1"
-  shift
-
-  local user_site=""
-  if ! user_site="$(get_python_user_site "$python_cmd" 2>/dev/null)" || [[ -z "$user_site" ]]; then
-    warn "Python user site-packages is unavailable for $python_cmd."
-    return 1
-  fi
-  mkdir -p "$user_site"
-
-  if ensure_python_bootstrap "$python_cmd"; then
-    "$PYTHON_BOOTSTRAP_PYTHON" -m pip install \
-      --disable-pip-version-check \
-      --no-warn-script-location \
-      --upgrade \
-      --target "$user_site" \
-      "$@"
-    return $?
-  fi
-
-  # Some Python distributions omit venv but provide a working, non-PEP-668 pip.
-  if "$python_cmd" -m pip --version >/dev/null 2>&1; then
-    "$python_cmd" -m pip install --user "$@"
-    return $?
-  fi
-
-  warn "Could not create a temporary Python bootstrap environment."
+  for candidate in python3 python; do
+    command -v "$candidate" >/dev/null 2>&1 || continue
+    if "$candidate" -c 'import sys; major=int(sys.argv[1]); minor=int(sys.argv[2]); raise SystemExit(0 if sys.version_info[:2] >= (major, minor) else 1)' \
+      "$minimum_major" "$minimum_minor" >/dev/null 2>&1; then
+      resolved="$(command -v "$candidate")"
+      [[ -n "$resolved" ]] || continue
+      printf '%s\n' "$resolved"
+      return 0
+    fi
+  done
   return 1
 }
 
@@ -1288,6 +1191,44 @@ for name, metadata in skills.items():
 PY
 }
 
+npx_skill_lock_fingerprint() {
+  local skill="$1"
+  local expected_source="$2"
+  [[ -f "$GLOBAL_SKILL_LOCK_FILE" ]] || return 1
+  command -v node >/dev/null 2>&1 || return 1
+
+  node - "$GLOBAL_SKILL_LOCK_FILE" "$skill" "$expected_source" <<'NODE'
+const fs = require("fs");
+
+try {
+  const data = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+  const entry = data && data.skills && data.skills[process.argv[3]];
+  const valid = entry &&
+    entry.source === process.argv[4] &&
+    typeof entry.skillFolderHash === "string" &&
+    entry.skillFolderHash.length > 0;
+  if (!valid) process.exit(1);
+  process.stdout.write(JSON.stringify([
+    entry.source,
+    entry.skillFolderHash,
+    entry.installedAt || "",
+    entry.updatedAt || ""
+  ]));
+} catch (_) {
+  process.exit(1);
+}
+NODE
+}
+
+npx_verified_skill_contains() {
+  local expected="$1"
+  local verified
+  for verified in "${NPX_VERIFIED_SKILL_NAMES[@]}"; do
+    [[ "$verified" == "$expected" ]] && return 0
+  done
+  return 1
+}
+
 superpowers_fallback_is_owned() {
   local git_config="$SUPERPOWERS_DIR/.git/config"
   [[ -f "$git_config" ]] || return 1
@@ -1410,6 +1351,7 @@ install_npx_skill_names() {
   local repo="$1"
   shift
   local -a skill_names=("$@")
+  NPX_VERIFIED_SKILL_NAMES=()
 
   if $DRY_RUN; then
     info "Would install via npx skills: $repo -> $*"
@@ -1427,152 +1369,58 @@ install_npx_skill_names() {
     args+=(--skill "$skill")
   done
 
-  if DO_NOT_TRACK=1 npx "${args[@]}" </dev/null; then
-    local -a installed_names=()
-    local -a missing_names=()
-    for skill in "${skill_names[@]}"; do
-      if installed_skill_exists "$skill"; then
-        installed_names+=("$skill")
-      else
-        missing_names+=("$skill")
-      fi
-    done
-    if [[ ${#installed_names[@]} -gt 0 ]]; then
-      add_managed_skill_ownership "${installed_names[@]}"
-    fi
-    if [[ ${#missing_names[@]} -gt 0 ]]; then
-      warn "npx returned success, but these skills were not installed: ${missing_names[*]}"
-      return 1
-    fi
-    return 0
-  fi
-  return 1
-}
-
-get_ppt_master_skill_dir() {
-  local candidate
-  for candidate in "$CODEX_DIR/skills/ppt-master" "$AGENTS_SKILLS_DIR/ppt-master"; do
-    if [[ -f "$candidate/SKILL.md" ]]; then
-      printf '%s\n' "$candidate"
-      return 0
-    fi
-  done
-  return 1
-}
-
-run_ppt_master_self_check() {
-  info "Running PPT Master environment self-check..."
-
-  local skill_dir=""
-  if ! skill_dir="$(get_ppt_master_skill_dir)"; then
-    warn "PPT Master self-check could not run because the installed skill directory is missing."
-    warn "Rerun this installer and select ppt-master under Slides."
-    return 1
-  fi
-
-  local requirements="$skill_dir/requirements.txt"
-  if [[ ! -f "$requirements" ]]; then
-    warn "PPT Master self-check could not find $requirements."
-    warn "Rerun this installer and select ppt-master under Slides to restore the complete skill."
-    return 1
-  fi
-
-  local python_cmd=""
-  python_cmd="$(resolve_python_command 2>/dev/null || true)"
-
-  if [[ -z "$python_cmd" ]]; then
-    warn "PPT Master self-check found missing or degraded components."
-    warn "Python 3.10+ was not found. Install it, then rerun this installer and select ppt-master:"
-    warn "  Ubuntu/Debian: sudo apt-get install -y python3 python3-venv python3-pip"
-    warn "  macOS: brew install python"
-    warn "  Windows: https://www.python.org/downloads/"
-    return 1
-  fi
-
-  local degraded=false
-  if ! "$python_cmd" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)' >/dev/null 2>&1; then
-    degraded=true
-  fi
-
-  local import_probe='import pptx, xlsxwriter, edge_tts, fitz, mammoth, markdownify, ebooklib, nbconvert, openpyxl, PIL, numpy, requests, bs4, curl_cffi, google.genai, flask'
-  if ! "$python_cmd" -c "$import_probe" >/dev/null 2>&1; then
-    degraded=true
-  fi
-
-  local script_file
-  local -a required_scripts=(
-    "scripts/project_manager.py"
-    "scripts/svg_to_pptx.py"
-    "scripts/svg_editor/server.py"
-    "scripts/confirm_ui/server.py"
-  )
-  for script_file in "${required_scripts[@]}"; do
-    if [[ ! -f "$skill_dir/$script_file" ]]; then
-      degraded=true
-      continue
-    fi
-    if ! "$python_cmd" -m py_compile "$skill_dir/$script_file" >/dev/null 2>&1; then
-      degraded=true
-    fi
+  local -a before_fingerprints=()
+  for skill in "${skill_names[@]}"; do
+    before_fingerprints+=("$(npx_skill_lock_fingerprint "$skill" "$repo" 2>/dev/null || true)")
   done
 
-  if ! $degraded; then
-    ok "PPT Master environment self-check passed."
+  local npx_exit=0
+  DO_NOT_TRACK=1 npx "${args[@]}" </dev/null || npx_exit=$?
+
+  local -a missing_names=()
+  local index after_fingerprint
+  for index in "${!skill_names[@]}"; do
+    skill="${skill_names[$index]}"
+    after_fingerprint="$(npx_skill_lock_fingerprint "$skill" "$repo" 2>/dev/null || true)"
+    if [[ -f "$AGENTS_SKILLS_DIR/$skill/SKILL.md" ]] &&
+       [[ -n "$after_fingerprint" ]] &&
+       [[ "$after_fingerprint" != "${before_fingerprints[$index]}" ]]; then
+      NPX_VERIFIED_SKILL_NAMES+=("$skill")
+    else
+      missing_names+=("$skill")
+    fi
+  done
+  if [[ ${#NPX_VERIFIED_SKILL_NAMES[@]} -gt 0 ]]; then
+    add_managed_skill_ownership "${NPX_VERIFIED_SKILL_NAMES[@]}"
+  fi
+  if [[ ${#missing_names[@]} -gt 0 ]]; then
+    if (( npx_exit == 0 )); then
+      warn "npx returned success, but this run did not freshly verify skill files/source ownership: ${missing_names[*]}"
+    fi
+    return 1
+  fi
+  if (( npx_exit != 0 )); then
+    warn "npx returned non-zero, but every requested skill was freshly verified from $repo"
+  fi
+  if [[ ${#NPX_VERIFIED_SKILL_NAMES[@]} -eq ${#skill_names[@]} ]]; then
     return 0
   fi
-
-  warn "PPT Master self-check found missing or degraded components."
-  warn "How to finish the PPT Master setup:"
-  warn "  1. Ensure Python can create a bootstrap venv:"
-  warn "     Ubuntu/Debian: sudo apt-get install -y python3-venv"
-  warn "     macOS: brew install python"
-  warn "  2. Rerun this installer and select ppt-master under Slides. It will install the official requirements into $python_cmd's user site."
-  warn "  Pandoc is optional and only needed for uncommon document-input formats."
   return 1
 }
 
 install_ppt_master() {
-  info "Installing PPT Master skill and its complete Python environment..."
+  info "Installing PPT Master skill (runtime dependencies deferred until first use)..."
   if $DRY_RUN; then
-    info "Would install hugohe3/ppt-master for Codex, install its requirements.txt, then run the environment self-check"
+    info "Would install the hugohe3/ppt-master skill for Codex without Python packages or browsers"
     return 0
   fi
 
   if ! install_npx_skill_names hugohe3/ppt-master ppt-master; then
-    skip_unsupported_item "ppt-master" "npx skills install failed"
+    skip_unsupported_item "ppt-master" "npx skills install failed or source ownership could not be verified"
     return 0
   fi
 
-  local skill_dir=""
-  if ! skill_dir="$(get_ppt_master_skill_dir)"; then
-    remove_managed_skill_ownership ppt-master
-    skip_unsupported_item "ppt-master" "the installed skill directory could not be found"
-    return 0
-  fi
-
-  local requirements="$skill_dir/requirements.txt"
-  local python_cmd=""
-  python_cmd="$(resolve_python_command 2>/dev/null || true)"
-
-  if [[ ! -f "$requirements" ]]; then
-    warn "PPT Master requirements file is missing: $requirements"
-  elif [[ -z "$python_cmd" ]]; then
-    warn "PPT Master requires Python 3.10+; the self-check will show installation steps"
-  elif "$python_cmd" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)' >/dev/null 2>&1; then
-    if ! install_python_user_packages "$python_cmd" -r "$requirements"; then
-      warn "PPT Master Python dependency installation failed; the self-check will show repair steps"
-    fi
-  else
-    warn "PPT Master requires Python 3.10+; the self-check will show repair steps"
-  fi
-
-  if run_ppt_master_self_check; then
-    PPT_MASTER_QUICKSTART_READY=true
-    ok "PPT Master skill and complete Python environment installed for Codex"
-  else
-    warn "PPT Master skill was copied, but its required environment is incomplete."
-    SKIPPED_COMPONENTS+=("ppt-master environment (self-check failed)")
-  fi
+  ok "PPT Master skill installed for Codex (minimal install; runtime dependencies deferred)"
 }
 
 install_researchstudio() {
@@ -1581,7 +1429,7 @@ install_researchstudio() {
   info "Installing ResearchStudio Idea skills from a full official checkout..."
   if $DRY_RUN; then
     info "Would run: $manual_cmd"
-    info "Would install the Idea Python dependencies, then run the connector self-check"
+    info "Would apply Codex instruction/path adaptation without installing runtime dependencies"
     return 0
   fi
   if ! command -v git >/dev/null 2>&1; then
@@ -1628,107 +1476,29 @@ install_researchstudio() {
     return 0
   fi
 
-  local python_cmd=""
-  python_cmd="$(resolve_python_command 2>/dev/null || true)"
-  if [[ -n "$python_cmd" ]] &&
-     "$python_cmd" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 9) else 1)' >/dev/null 2>&1; then
-    local -a idea_packages=(
-      "feedparser>=6.0.12" "openreview-py>=2.2.3" "beautifulsoup4>=4.13.0"
-      "pymupdf>=1.26.0" "scholarly>=1.7.11" "requests>=2.31.0"
-    )
-    if ! install_python_user_packages "$python_cmd" "${idea_packages[@]}"; then
-      warn "ResearchStudio Idea Python dependency installation failed; the self-check will show repair steps"
-    fi
-  elif [[ -n "$python_cmd" ]]; then
-    warn "ResearchStudio Idea requires Python 3.9+; the self-check will show repair steps"
+  local adapter_ready=false
+  if adapt_researchstudio_idea_for_codex &&
+     researchstudio_idea_adapter_is_ready; then
+    adapter_ready=true
+  else
+    warn "ResearchStudio Idea was copied, but its Codex instruction/path adaptation could not be verified. Rerun this selection to refresh the skill files."
   fi
 
   add_managed_skill_ownership "${RESEARCHSTUDIO_SKILLS[@]}"
-  if run_researchstudio_self_check; then
-    RESEARCHSTUDIO_QUICKSTART_READY=true
-    ok "ResearchStudio Idea skills and Python dependencies installed for Codex"
+  if $adapter_ready; then
+    ok "ResearchStudio Idea skills installed for Codex (minimal install; runtime dependencies deferred)"
   else
-    warn "ResearchStudio Idea skills were copied, but their required environment is incomplete."
-    SKIPPED_COMPONENTS+=("ResearchStudio Idea environment (self-check failed)")
+    SKIPPED_COMPONENTS+=("ResearchStudio Idea Codex adapter (verification failed)")
   fi
-}
-
-researchstudio_reel_command_exists() {
-  command -v "$1" >/dev/null 2>&1
-}
-
-run_researchstudio_reel_self_check() {
-  local python_cmd=""
-  python_cmd="$(resolve_python_command 2>/dev/null || true)"
-
-  info "Running ResearchStudio Reel dependency self-check..."
-  if [[ -z "$python_cmd" ]]; then
-    warn "ResearchStudio Reel self-check could not run: Python 3.10+ was not found."
-    warn "Install Python, then rerun the Reel installer:"
-    warn "  Ubuntu/Debian: sudo apt-get install -y python3 python3-venv python3-pip"
-    warn "  macOS: brew install python"
-    return 1
-  fi
-
-  local degraded=false
-  local libreoffice_missing=false
-  local bundled_ffmpeg=""
-  if ! "$python_cmd" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)' >/dev/null 2>&1; then
-    degraded=true
-  fi
-  local import_probe='import fitz, PIL, numpy, docx, qrcode, playwright, imageio_ffmpeg, edge_tts, pptx, pdf2image, lxml, pyphen, cairosvg'
-  if ! "$python_cmd" -c "$import_probe" >/dev/null 2>&1; then
-    degraded=true
-  fi
-  if ! "$python_cmd" -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); browser=p.chromium.launch(headless=True); browser.close(); p.stop()' >/dev/null 2>&1; then
-    degraded=true
-  fi
-  researchstudio_reel_command_exists pdftotext || degraded=true
-  researchstudio_reel_command_exists pdftoppm || degraded=true
-  if ! researchstudio_reel_command_exists soffice && ! researchstudio_reel_command_exists libreoffice; then
-    libreoffice_missing=true
-  fi
-  if ! researchstudio_reel_command_exists ffmpeg; then
-    bundled_ffmpeg="$($python_cmd -c 'import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())' 2>/dev/null || true)"
-    if [[ -z "$bundled_ffmpeg" || ! -x "$bundled_ffmpeg" ]]; then
-      degraded=true
-    fi
-  fi
-
-  if ! $degraded; then
-    ok "ResearchStudio Reel dependency self-check passed."
-    if [[ -n "$bundled_ffmpeg" ]]; then
-      info "Using imageio-ffmpeg's bundled executable: $bundled_ffmpeg"
-      info "For paper2reel on a machine without system FFmpeg, pass: --ffmpeg \"$bundled_ffmpeg\""
-    fi
-    if $libreoffice_missing; then
-      warn "LibreOffice is not installed. Core poster/blog/video paths are ready; PPTX-to-PDF rendering and DOCX/PPTX visual QA remain optional-unavailable."
-      warn "Install that capability with: sudo apt-get install -y libreoffice (Ubuntu/Debian) or brew install --cask libreoffice (macOS)."
-    fi
-    return 0
-  fi
-
-  warn "ResearchStudio Reel self-check found missing or degraded components."
-  warn "How to finish the Reel setup:"
-  warn "  1. Ensure Python venv support is installed, then rerun this installer:"
-  warn "     Ubuntu/Debian: sudo apt-get install -y python3-venv"
-  warn "     macOS: brew install python"
-  warn "  2. Install Poppler if pdftotext/pdftoppm is missing:"
-  warn "     Ubuntu/Debian: sudo apt-get install -y poppler-utils"
-  warn "     macOS: brew install poppler"
-  warn "  3. The installer will install Playwright Chromium and a bundled FFmpeg automatically."
-  warn "  4. LibreOffice is optional for PPTX-to-PDF rendering and DOCX/PPTX visual QA."
-  warn "  Paper2Video's advanced deck route also needs the external ppt-master project or an existing PPTX."
-  return 1
 }
 
 install_researchstudio_reel() {
-  local manual_cmd="git clone --depth 1 $RESEARCHSTUDIO_REPO_URL <temp> && copy ResearchStudio-Reel/skills/* into $CODEX_DIR/skills"
+  local manual_cmd="git clone --depth 1 $RESEARCHSTUDIO_REPO_URL <temp> && copy the five allowlisted Reel skills into $CODEX_DIR/skills"
 
   info "Installing ResearchStudio Reel skills from a full official checkout..."
   if $DRY_RUN; then
     info "Would run: $manual_cmd"
-    info "Would install Reel Python dependencies and Playwright Chromium, then run the dependency self-check"
+    info "Would install only the five allowlisted Reel skills; runtime dependencies are deferred"
     return 0
   fi
   if ! command -v git >/dev/null 2>&1; then
@@ -1775,33 +1545,8 @@ install_researchstudio_reel() {
     return 0
   fi
 
-  local python_cmd=""
-  python_cmd="$(resolve_python_command 2>/dev/null || true)"
-  if [[ -n "$python_cmd" ]] &&
-     "$python_cmd" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)' >/dev/null 2>&1; then
-    local -a reel_packages=(
-      pymupdf pillow numpy "python-docx>=1.1.2" qrcode playwright imageio-ffmpeg
-      "edge-tts>=7.2.8" "python-pptx>=1.0" "pdf2image>=1.17" "lxml>=5.0"
-      "pyphen>=0.14" cairosvg
-    )
-    if ! install_python_user_packages "$python_cmd" "${reel_packages[@]}"; then
-      warn "ResearchStudio Reel Python dependency installation failed; the self-check will show repair steps"
-    fi
-    if ! "$python_cmd" -m playwright install chromium; then
-      warn "ResearchStudio Reel Chromium installation failed; the self-check will show repair steps"
-    fi
-  elif [[ -n "$python_cmd" ]]; then
-    warn "ResearchStudio Reel requires Python 3.10+; the self-check will show repair steps"
-  fi
-
   add_managed_skill_ownership "${RESEARCHSTUDIO_REEL_SKILLS[@]}"
-  if run_researchstudio_reel_self_check; then
-    RESEARCHSTUDIO_REEL_QUICKSTART_READY=true
-    ok "ResearchStudio Reel skills, Python dependencies, and Chromium installed for Codex"
-  else
-    warn "ResearchStudio Reel skills were copied, but their required environment is incomplete."
-    SKIPPED_COMPONENTS+=("ResearchStudio Reel environment (self-check failed)")
-  fi
+  ok "ResearchStudio Reel skills installed for Codex (minimal install; runtime dependencies deferred)"
 }
 
 selected_managed_skill_names() {
@@ -1844,14 +1589,16 @@ remove_npx_skill_names() {
   if ! prepare_skills_npx_launcher; then
     warn "npx not found; shared/global Codex skill associations could not be removed: $*"
     SKIPPED_COMPONENTS+=("unselected managed skills (npx unavailable): $*")
-    return 0
+    return 1
   fi
 
   local -a args=("${SKILLS_NPX_LAUNCHER_ARGS[@]}" remove "$@" --global --agent codex --yes)
   if ! DO_NOT_TRACK=1 npx "${args[@]}" </dev/null; then
     warn "npx skills could not remove these Codex skills: $*"
     SKIPPED_COMPONENTS+=("unselected managed skills (npx removal failed): $*")
+    return 1
   fi
+  return 0
 }
 
 remove_superpowers_fallback() {
@@ -1897,6 +1644,7 @@ remove_superpowers_fallback() {
 reconcile_interactive_skills() {
   local -a desired=()
   local -a stale=()
+  local -a removed_stale=()
   local skill wanted selected
 
   initialize_managed_skill_ownership
@@ -1930,30 +1678,97 @@ reconcile_interactive_skills() {
       fi
     fi
 
-    local -a installed_stale=()
+    local -a npx_stale=()
+    local -a direct_stale=()
     local researchstudio_removed=false
+    local expected_source=""
     for skill in "${stale[@]}"; do
-      if [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ]]; then
-        if skill_in_array "$skill" "${RESEARCHSTUDIO_SKILLS[@]}" ||
-           skill_in_array "$skill" "${RESEARCHSTUDIO_REEL_SKILLS[@]}"; then
-          researchstudio_removed=true
-        else
-          installed_stale+=("$skill")
-        fi
+      expected_source="$(expected_source_for_skill "$skill")"
+      if skill_in_array "$skill" "${RESEARCHSTUDIO_SKILLS[@]}" ||
+         skill_in_array "$skill" "${RESEARCHSTUDIO_REEL_SKILLS[@]}"; then
+        researchstudio_removed=true
+      fi
+      if [[ "$expected_source" == local:* || "$expected_source" == "microsoft/ResearchStudio" ]]; then
+        direct_stale+=("$skill")
+      else
+        npx_stale+=("$skill")
       fi
     done
-    if [[ ${#installed_stale[@]} -gt 0 ]]; then
-      remove_npx_skill_names "${installed_stale[@]}"
+
+    if [[ ${#npx_stale[@]} -gt 0 ]]; then
+      local protection_dir=""
+      local protection_failed=false
+      local -a protected_npx_skills=()
+      local -a verified_npx_skills=()
+      if ! $DRY_RUN; then
+        protection_dir="$(mktemp -d "${TMPDIR:-/tmp}/codex-skill-protection.XXXXXX")"
+        for skill in "${npx_stale[@]}"; do
+          local codex_skill_path="$CODEX_DIR/skills/$skill"
+          local canonical_skill_path="$AGENTS_SKILLS_DIR/$skill"
+          if [[ ! -e "$codex_skill_path" && ! -L "$codex_skill_path" ]]; then
+            continue
+          fi
+          if managed_directory_trees_equal "$canonical_skill_path" "$codex_skill_path"; then
+            verified_npx_skills+=("$skill")
+            continue
+          fi
+          if mv "$codex_skill_path" "$protection_dir/$skill"; then
+            protected_npx_skills+=("$skill")
+          else
+            protection_failed=true
+            warn "Could not protect the unverified local skill at $codex_skill_path; preserving the whole npx removal batch"
+            break
+          fi
+        done
+      fi
+
+      local npx_removal_succeeded=false
+      if ! $protection_failed && remove_npx_skill_names "${npx_stale[@]}"; then
+        npx_removal_succeeded=true
+      fi
+
+      if $npx_removal_succeeded && ! $DRY_RUN; then
+        for skill in "${verified_npx_skills[@]}"; do
+          rm -rf "$CODEX_DIR/skills/$skill"
+        done
+      fi
+
+      local restoration_failed=false
+      if ! $DRY_RUN && [[ -n "$protection_dir" ]]; then
+        for skill in "${protected_npx_skills[@]}"; do
+          local codex_skill_path="$CODEX_DIR/skills/$skill"
+          rm -rf "$codex_skill_path"
+          mkdir -p "$(dirname "$codex_skill_path")"
+          if ! mv "$protection_dir/$skill" "$codex_skill_path"; then
+            restoration_failed=true
+            warn "Could not restore the protected user skill; recover it from $protection_dir/$skill"
+          fi
+        done
+        if ! $restoration_failed; then
+          rm -rf "$protection_dir"
+        fi
+      fi
+
+      if $npx_removal_succeeded && ! $restoration_failed; then
+        removed_stale+=("${npx_stale[@]}")
+      fi
     fi
 
-    for skill in "${stale[@]}"; do
+    for skill in "${direct_stale[@]}"; do
       if $DRY_RUN; then
         if [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ]]; then
           info "Would remove unselected managed skill: $CODEX_DIR/skills/$skill"
         fi
       elif [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ]]; then
-        rm -rf "$CODEX_DIR/skills/$skill"
-        ok "Removed unselected managed skill: $skill"
+        if rm -rf "$CODEX_DIR/skills/$skill"; then
+          ok "Removed unselected managed skill: $skill"
+          removed_stale+=("$skill")
+        else
+          warn "Could not remove unselected managed skill: $skill"
+          SKIPPED_COMPONENTS+=("unselected managed skill removal failed: $skill")
+        fi
+      else
+        removed_stale+=("$skill")
       fi
     done
     if $researchstudio_removed && [[ -f "$CODEX_DIR/skills/.env" ]]; then
@@ -1965,8 +1780,8 @@ reconcile_interactive_skills() {
     remove_superpowers_fallback
   fi
 
-  if [[ ${#stale[@]} -gt 0 ]] && ! $DRY_RUN; then
-    remove_managed_skill_ownership "${stale[@]}"
+  if [[ ${#removed_stale[@]} -gt 0 ]] && ! $DRY_RUN; then
+    remove_managed_skill_ownership "${removed_stale[@]}"
   fi
 }
 
@@ -1986,7 +1801,7 @@ install_skill_paths_fallback() {
   for path in "$@"; do
     skill_name=$(skill_name_from_path "$path")
     if python3 "$INSTALLER" --repo "$repo" --path "$path" --name "$skill_name" &&
-       installed_skill_exists "$skill_name"; then
+       [[ -f "$CODEX_DIR/skills/$skill_name/SKILL.md" ]]; then
       installed_names+=("$skill_name")
     else
       warn "Could not install $skill_name from $repo path $path"
@@ -2025,21 +1840,26 @@ install_skill_paths() {
   fi
 
   local -a paths=("$@")
-  local -a missing_paths=()
+  local -a fallback_paths=()
+  local -a verified_names=()
   local index
   for index in "${!paths[@]}"; do
-    if ! installed_skill_exists "${names[$index]}"; then
-      missing_paths+=("${paths[$index]}")
+    if npx_verified_skill_contains "${names[$index]}"; then
+      verified_names+=("${names[$index]}")
+    else
+      fallback_paths+=("${paths[$index]}")
     fi
   done
-  if [[ ${#missing_paths[@]} -eq 0 ]]; then
-    add_managed_skill_ownership "${names[@]}"
-    ok "All requested skills are present despite the npx non-zero result: ${names[*]} ($repo)"
+  if [[ ${#verified_names[@]} -gt 0 ]]; then
+    add_managed_skill_ownership "${verified_names[@]}"
+  fi
+  if [[ ${#fallback_paths[@]} -eq 0 ]]; then
+    ok "All requested skills have verified source provenance despite the npx non-zero result: ${names[*]} ($repo)"
     return 0
   fi
 
-  warn "npx skills install was incomplete; trying Python fallback for ${#missing_paths[@]} missing skill(s) from $repo"
-  install_skill_paths_fallback "$repo" "${missing_paths[@]}" || true
+  warn "npx skills install left ${#fallback_paths[@]} source-unverified skill(s); trying the Python fallback for those paths from $repo"
+  install_skill_paths_fallback "$repo" "${fallback_paths[@]}" || true
   return 0
 }
 
@@ -2048,8 +1868,10 @@ reinstall_skill_paths() {
   shift
 
   local path skill_name
+  local -a names=()
   for path in "$@"; do
     skill_name=$(skill_name_from_path "$path")
+    names+=("$skill_name")
     if $DRY_RUN; then
       info "Would remove existing skill before reinstall: $CODEX_DIR/skills/$skill_name"
     elif [[ -e "$CODEX_DIR/skills/$skill_name" ]]; then
@@ -2058,24 +1880,13 @@ reinstall_skill_paths() {
     fi
   done
 
-  local -a names=()
-  for path in "$@"; do
-    names+=("$(skill_name_from_path "$path")")
-  done
-
   if $DRY_RUN; then
     info "Would reinstall via npx skills: $repo -> ${names[*]}"
     info "Fallback if npx fails: install-skill-from-github.py $repo -> $*"
     return 0
   fi
 
-  if install_npx_skill_names "$repo" "${names[@]}"; then
-    ok "Reinstalled skills via npx: ${names[*]} ($repo)"
-    return 0
-  fi
-
-  warn "npx skills reinstall failed or npx is unavailable; trying Python fallback for $repo"
-  install_skill_paths_fallback "$repo" "$@"
+  install_skill_paths "$repo" "$@"
 }
 
 remove_legacy_superpowers_skills() {
@@ -2957,8 +2768,6 @@ main() {
     $INSTALL_SKILLS && install_skills
   fi
 
-  stamp_version
-
   if [[ ${#SKIPPED_COMPONENTS[@]} -gt 0 ]]; then
     echo ""
     warn "Install finished, but some components were skipped:"
@@ -2967,16 +2776,16 @@ main() {
       warn "  - $comp"
     done
     warn "Resolve the issues above and re-run the installer to complete them."
+    warn "The installed-version stamp was not updated."
   else
-    ok "All selected components installed and verified."
+    stamp_version
+    ok "All selected components installed."
   fi
 
   show_mattpocock_quickstart
-  show_researchstudio_quickstart
-  show_researchstudio_reel_quickstart
-  show_ppt_master_quickstart
   if [[ ${#SKIPPED_COMPONENTS[@]} -gt 0 ]]; then
     warn "Done with incomplete components. Restart Codex after resolving and rerunning the installer."
+    return 1
   else
     ok "Done. Restart Codex to load new skills/config if needed."
   fi
