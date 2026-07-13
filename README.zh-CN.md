@@ -12,7 +12,8 @@
 ├── config.toml            # Codex 设置（模型、权限、MCP、lessons 注入）
 ├── agents/                # Multi-agent 角色配置
 ├── docs/                  # 迁移说明与支持文档
-├── lessons.md             # 自我纠正源日志
+├── lessons.md             # 当前项目的纠正日志（按需创建/维护）
+├── templates/             # 安装到 ~/.codex 的空白全局 lessons 模板
 ├── skills/                # 仓库自带本地技能（paper-reading、adversarial-review、handoff、humanizer、update）
 ├── VERSION                # 安装器版本
 └── install.sh / install.ps1
@@ -58,10 +59,10 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 
 行为说明：
 
-- Bash 的纯无参运行在可用终端中会进入交互模式；如果无法打开终端，就会警告并回退到非交互式全量安装。
-- PowerShell 的纯无参运行在可用控制台 I/O 下会进入交互模式；如果无法使用控制台，就会警告并回退到非交互式全量安装。
-- Bash 的 `--dry-run` 会以非交互式方式预览完整安装。
-- PowerShell 的 `-DryRun` 单独使用时，会以非交互式方式预览完整安装。
+- Bash 的纯无参运行在可用终端中会进入交互模式；如果无法打开终端，就会警告并回退到标准非交互式安装，仍不包含默认关闭的 ResearchStudio 与 PPT Master。
+- PowerShell 的纯无参运行在可用控制台 I/O 下会进入交互模式；如果无法使用控制台，就会警告并回退到标准非交互式安装，仍不包含默认关闭的 ResearchStudio 与 PPT Master。
+- Bash 的 `--dry-run` 会以非交互式方式预览标准安装，不会主动选择 ResearchStudio 或 PPT Master。
+- PowerShell 的 `-DryRun` 单独使用时，会以非交互式方式预览标准安装，不会主动选择 ResearchStudio 或 PPT Master。
 - 交互菜单对安装器拥有的 skills 具有最终决定权：重复安装时，之前已安装但本次未勾选的 owned skill 会被移除；未被安装器拥有的自定义 skill 即使与清单条目同名也会保留。所有权记录在 `~/.codex/.awesome-claude-code-config-managed-skills`；首次升级只接管未改动的内置副本、与 canonical 副本内容一致且 lock 来源匹配的旧副本，或来源已验证的 superpowers fallback。已退役 `coding-foundations` 包中来源可验证的残留属于 cleanup-only，因为菜单已无对应选项，会被清理。
 - 如果没有选择任何 skill 且存在待删除的 owned skill，安装器会先二次确认；它不会删除 `.system`、共享 agent 或自定义 skill、Core 文件及 MCP 配置。
 - 显式非交互参数（`--all`、`--core`、`--mcp`、`--skills` 及其 PowerShell 对应参数）仍是增量安装，不会按本次选择清理既有 skill。
@@ -70,14 +71,14 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 
 | 分组 | 条目 | 默认值 |
 |------|------|--------|
-| Core | `AGENTS.md`、`config.toml`、`StatusLine`、`lessons.md`、`explorer`、`reviewer`、`docs-researcher` | 开启 |
-| Review | `code-review`、`adversarial-review` | 开启 |
+| Core | `AGENTS.md`、`config.toml`、`StatusLine`、全局 `lessons.md`、`explorer`、`reviewer`、`docs-researcher` | 开启 |
+| Review | `code-review`、`adversarial-review` | `code-review` 开启；`adversarial-review` 关闭 |
 | Workflow | `andrej-karpathy-skills`、`superpowers`、`mattpocock/skills`、`handoff`、`update-config` | 除 `superpowers` 外均开启 |
 | Development Tools | `context7`、`github`、`playwright`、`openaiDeveloperDocs` | 开启；`github` 需要 `GITHUB_PERSONAL_ACCESS_TOKEN` |
 | Design & Content | `document-skills`、`example-skills`、`frontend-design`、`humanizer`、`humanizer-zh` | 除 `humanizer-zh` 外开启 |
 | Lifestyle | `PUA` | 关闭 |
-| Academic Research | `paper-reading`、`tokenization`、`fine-tuning`、`post-training`、`distributed-training`、`inference-serving`、`optimization`、`deepxiv` | `paper-reading` 开启，其余关闭 |
-| Slides | `frontend-slides` | 关闭 |
+| Academic Research | `paper-reading`、`ResearchStudio Idea`、`ResearchStudio Reel`、`tokenization`、`fine-tuning`、`post-training`、`distributed-training`、`inference-serving`、`optimization`、`deepxiv` | `paper-reading` 开启，其余关闭 |
+| Slides | `frontend-slides`、`ppt-master` | 均关闭 |
 | MCP Servers | `lark-mcp` | 关闭（需凭据） |
 
 ## 安装器参数
@@ -85,7 +86,7 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 ```bash
 ./install.sh                         # 终端可用时进入交互式选择器
 ./install.sh --all                   # 非交互式全量安装
-./install.sh --core                  # 仅 AGENTS.md / lessons.md / config.toml / agents/*
+./install.sh --core                  # AGENTS.md / 空白全局 lessons.md / config.toml / agents/*
 ./install.sh --mcp                   # 仅 MCP 服务
 ./install.sh --skills core           # 仅核心技能集
 ./install.sh --skills ai-research    # 仅 AI 研究技能集
@@ -97,11 +98,12 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 
 ## 核心特性
 
-### 自我改进循环（仅 lessons）
+### 自我改进循环（按作用域分流 lessons）
 
-1. 用户纠正会记录到 `~/.codex/lessons.md`
-2. 新会话自动加载 `~/.codex/lessons.md`
-3. 稳定模式沉淀到 `~/.codex/AGENTS.md`
+1. 与当前仓库相关的纠正写入 `<project-root>/lessons.md`；第一次项目级纠正发生时由 agent 创建，和按需创建 `CHANGELOG.md` 类似。
+2. 只有真正跨项目适用的纠正才写入 `~/.codex/lessons.md`。
+3. 新会话自动加载全局日志；`AGENTS.md` 同时要求 Codex 定位当前项目根目录，并在存在时读取项目 `lessons.md`。
+4. 稳定的跨项目模式可以沉淀到 `~/.codex/AGENTS.md`。
 
 ### lessons 自动注入
 
@@ -111,7 +113,7 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 model_instructions_file = "lessons.md"
 ```
 
-这样在会话开始时就会加载纠错规则。
+这里只注入由安装器初始化为空白的全局纠正日志。项目 lessons 不会复制进 `~/.codex`，而是从当前项目根目录发现。
 
 ### 开箱即用 Multi-Agent
 
@@ -139,13 +141,16 @@ skills/rules  → python-patterns、golang-patterns、frontend-patterns
 
 | 技能集 | 来源 | 覆盖范围 |
 |-------|------|----------|
-| mattpocock/skills | [mattpocock/skills](https://github.com/mattpocock/skills) | 通过 `npx skills` 安装 `ask-matt`、grilling/design、research、PRD/issues、implementation、triage、TDD、架构和领域建模工作流 |
+| mattpocock/skills | [mattpocock/skills](https://github.com/mattpocock/skills) | 通过 `npx skills` 安装 `ask-matt`、grilling/design、research、implementation、triage、TDD、架构和领域建模工作流 |
 | superpowers | [obra/superpowers](https://github.com/obra/superpowers) | 完整原生 superpowers 集合，含 brainstorming、计划执行、review handoff、worktree 等；优先通过 `npx skills` 安装，失败时回退到 git/junction |
 | andrej-karpathy-skills | [forrestchang/andrej-karpathy-skills](https://github.com/forrestchang/andrej-karpathy-skills) | 通过 `npx skills` 安装 Karpathy 风格编码指南 |
 | anthropic skills packs | [anthropics/skills](https://github.com/anthropics/skills) | 文档处理、前端设计、画布/艺术、MCP builder |
 | DeepXiv skills | [DeepXiv/deepxiv_sdk](https://github.com/DeepXiv/deepxiv_sdk) | 安装时始终拉取最新 DeepXiv 研究工作流（`deepxiv-cli`、`deepxiv-baseline-table`、`deepxiv-trending-digest`） |
+| ResearchStudio Idea | [microsoft/ResearchStudio](https://github.com/microsoft/ResearchStudio) | 默认关闭；从官方源码树复制研究创意、论文搜索与新颖性检查 skills |
+| ResearchStudio Reel | [microsoft/ResearchStudio](https://github.com/microsoft/ResearchStudio/tree/main/ResearchStudio-Reel) | 默认关闭；从官方源码树复制 paper-to-assets、poster、video、blog 与 interactive-reel 工作流 |
 | AI research skills | [zechenzhangAGI/AI-research-SKILLs](https://github.com/zechenzhangAGI/AI-research-SKILLs) | 分词、微调、后训练、推理服务、分布式训练、优化 |
 | frontend-slides | [zarazhangrui/frontend-slides](https://github.com/zarazhangrui/frontend-slides) | 通过 `npx skills` 安装幻灯片生成 skill；默认关闭 |
+| ppt-master | [hugohe3/ppt-master](https://github.com/hugohe3/ppt-master) | 生成原生可编辑 PPTX，带浏览器确认与 live preview；显式选择时安装完整 Python 依赖；默认关闭 |
 | PUA | [tanweai/pua](https://github.com/tanweai/pua) | 可选的 productivity coaching skills，通过 `npx skills` 安装；默认关闭 |
 
 远程 skills 默认使用：
@@ -156,7 +161,34 @@ npx -y skills@latest add <repo> --global --agent codex --copy --yes --full-depth
 
 `mattpocock/skills` 安装成功后，安装器会显示一段 30 秒 Codex Quickstart。当前版本的 `skills` CLI 即使指定 `--agent codex --copy`，全局 Codex skill 也可能放在共享目录 `~/.agents/skills`，Codex 会直接发现它们。在 Codex 中输入 `/skills` 并选择 **List skills**，或直接按 `@`，然后搜索 `setup-matt-pocock-skills`。已安装的 skill 不会变成 `/setup-matt-pocock-skills` 这样的根级 slash command。
 
-对于按路径安装的技能包，如果 `npx` 不可用或 `skills` CLI 无法解析指定名称，安装器会回退到内置的 `skill-installer` Python helper。Codex 安装器不会显示没有可安装 Codex target 的 Claude-only plugin 工作流。
+每个远程 skill 只有在 `~/.agents/skills` 或 `~/.codex/skills` 中实际出现对应 `SKILL.md` 后才算安装成功；如果 `npx` 返回 0 但没有落盘，仍会判定为未完成。对于按路径安装的技能包，安装器会把仓库目录名映射到 skill 声明名，并仅对缺少的条目使用内置 `skill-installer` Python helper 重试。Codex 安装器不会显示没有可安装 Codex target 的 Claude-only plugin 工作流。
+
+### ResearchStudio Idea 与 Reel（默认关闭）
+
+两个 ResearchStudio 条目都**默认不安装**，并且可以在 **Academic Research** 中独立选择。显式请求 AI-research 分组或使用全量安装参数时会选择两者。安装器会把官方源码仓库 shallow clone 到临时目录，校验精确的 skill 白名单，拒绝 symlink/reparse point，只复制所选 bundle，最后删除 checkout；不会执行上游 `install.sh`，也不会自行调用 `sudo`。
+
+- **Idea** 安装 `idea-spark`、`paper-search`、`scoop-check`，随后安装其 6 项声明的 Python 依赖并执行 connector 自检。
+- **Reel** 安装 `paper2assets`、`paper2poster`、`paper2video`、`paper2blog`、`paper2reel`，随后安装 Python 依赖与 Playwright Chromium，并检查 Poppler 和 bundled/system FFmpeg 路径。
+
+复制后的 skills 自带 scripts 与 references，不依赖 ResearchStudio 平台服务，也不要求保留源码 checkout。安装器只创建临时 bootstrap venv 来获得 pip，再把依赖安装到当前 Python 的 user site，因此 PEP 668 系统中后续直接调用 `python3` 也能 import；退出前会删除这个临时 venv。缺少 package 或 probe 失败会明确报告为未完成，而不是误报成功；OpenReview 可选凭据仍会显示填写教程：
+
+```bash
+python3 ~/.codex/skills/idea_spark/scripts/run.py check_connectors
+```
+
+如果 Python venv support、Chromium 或 Poppler 不可用，已复制的 skills 会保留，但所选环境会列为未完成并显示准确修复步骤。Reel 核心路径需要 Python 3.10+、Playwright Chromium 与 Poppler；没有系统 FFmpeg 时由 `imageio-ffmpeg` 提供 bundled FFmpeg。LibreOffice 只用于可选的 PPTX-to-PDF 与 DOCX/PPTX visual QA。Paper2Video 的高级 deck 路径还需要 `ppt-master` 或已有 PPTX。
+
+重启 Codex 后，输入 `$` 选择已安装的 skill，也可以直接提出匹配请求让 Codex 自动触发。OpenReview 与可选的高配额 connector 使用环境变量；只把自检要求的凭据加入 `~/.codex/skills/.env`。取消选择或卸载时安装器会保留该文件。请保护它，不要把凭据粘贴进对话。
+
+### PPT Master（默认关闭，完整环境）
+
+`ppt-master` 是 **Slides** 下的独立条目，**默认不安装**。勾选后，安装器会通过受限的 Codex `npx skills` 命令安装官方 `ppt-master` skill，在 `~/.codex/skills` 或共享的 `~/.agents/skills` 中定位真实安装目录，再用 Python 3.10+ 安装上游完整的 `requirements.txt`。显式使用 `--all`、`--skills all`、`-All` 或 `-Skills -SkillGroup all` 也会选择它。
+
+安装器不会创建或激活 Conda 环境。它使用上文相同的“临时 bootstrap venv → 当前 Python user site”方式安装上游完整 `requirements.txt`。安装结束后的自检会验证 Python 版本、所有声明的 runtime import，以及 project manager、SVG 转换、确认 UI 和 live-preview server 的存在与语法；安装阶段不会弹出面板。
+
+真正运行该 skill 生成 deck 时，它会在工作流对应阶段自动用本机 loopback 地址打开浏览器确认页和 live preview/editor。基础 PPT 生成不需要 API 凭据；可选图片 provider 可能要求各自的环境变量。请勿把 secrets 粘贴到聊天中或提交到 Git。
+
+如果无法创建 venv，或 import/script 检查失败，已复制 skill 会保留但明确报告为未完成；安装器会说明如何补充 Python venv support 并重新选择安装。Pandoc 是可选项，只在少见输入格式中需要。
 
 本仓库内置本地技能：
 - `paper-reading`（`skills/paper-reading/SKILL.md`）— 结构化论文阅读与总结
@@ -189,7 +221,7 @@ AGENTS.md 包含 **版本变更日志** 规则：在做版本级改动（新功�
 | Playwright | 浏览器自动化与 E2E 测试（[repo](https://github.com/microsoft/playwright-mcp)） |
 | OpenAI Developer Docs | OpenAI 官方文档 MCP 端点（`https://developers.openai.com/mcp`） |
 
-安装器会固定已验证的 Playwright MCP 版本，并在写入 Codex 前完成 MCP `initialize` 握手。Node.js 20 或更高版本会使用上游标准 `npx` 命令；旧版 Node.js 会显示警告，并仅为 Playwright 使用隔离的 Node.js 24 runtime，不替换用户的系统 Node.js。静态 `config.toml` 模板同样使用该兼容 launcher，因此 Core-only 安装不会重新引入启动故障。仍建议安装受支持的 Node.js 24 LTS；兼容 runtime 依赖 `npx`，首次使用时需要下载对应 package。
+安装器会固定已验证的 Playwright MCP 版本，并在写入 Codex 前完成 MCP `initialize` 握手。Node.js 20 或更高版本会使用上游标准 `npx` 命令；旧版 Node.js 会显示警告，并为 Playwright MCP 与 `npx skills` 使用隔离的 Node.js 24 runtime，不替换系统 Node.js。静态 `config.toml` 模板也使用兼容的 Playwright launcher。仍建议安装受支持的 Node.js 24 LTS；兼容 runtime 依赖 `npx`，首次使用时需要下载对应 package。
 
 ## 安装说明
 
@@ -199,9 +231,9 @@ AGENTS.md 包含 **版本变更日志** 规则：在做版本级改动（新功�
 2. 该配置使用当前 Codex 配置风格（例如顶层 `web_search = "live"`）。
 3. 如果 `~/.codex/config.toml` 已存在，安装器会跳过覆盖；如需更新请手动合并。
 
-### 对抗式代码审查
+### 代码审查
 
-AGENTS.md 包含 **Code Review** 规则：需要代码审查时，调用 `adversarial-review` skill（来自 [poteto/noodle](https://github.com/poteto/noodle/tree/main/.agents/skills/adversarial-review)）。在 Codex 会话中，该 skill 可以调用对侧模型 CLI（`claude -p`）来产出跨模型对抗分析和结构化裁决（PASS / CONTESTED / REJECT）；反向的 `codex exec` 路径仍保留在 skill 文档里，用于兼容其他环境。
+AGENTS.md 规定需要代码审查时使用 Matt Pocock 的 `code-review` Standards/Spec 工作流。`adversarial-review` 仍作为独立可选 skill 保留，但默认关闭，也不是 Codex 的默认 review policy。
 
 ## 面向 Claude Code 主分支迁移用户的兼容说明
 

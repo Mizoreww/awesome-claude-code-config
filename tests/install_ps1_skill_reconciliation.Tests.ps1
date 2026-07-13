@@ -57,6 +57,8 @@ foreach ($name in @(
     "Remove-ManagedSkillOwnership",
     "Confirm-EmptySkillRemoval",
     "Get-SelectedManagedSkills",
+    "Get-NodeMajorVersion",
+    "Get-SkillsNpxLauncherArgs",
     "Remove-NpxSkillNames",
     "Remove-SuperpowersFallback",
     "Sync-InteractiveSkills",
@@ -71,7 +73,7 @@ function Write-Info { param($Message) }
 function Write-Ok { param($Message) }
 function Write-Warn { param($Message) }
 
-$MANAGED_SKILLS = @("humanizer", "humanizer-zh", "handoff", "pua", "brainstorming", "frontend-slides")
+$MANAGED_SKILLS = @("humanizer", "humanizer-zh", "handoff", "pua", "brainstorming", "frontend-slides", "ppt-master")
 $SUPERPOWERS_SKILLS = @("brainstorming")
 $MATTPOCOCK_SKILLS = @("ask-matt")
 $PUA_SKILLS = @("pua", "pua-en", "pua-ja")
@@ -79,6 +81,9 @@ $LOCAL_MANAGED_SKILLS = @("humanizer", "humanizer-zh", "handoff")
 $LEGACY_CLEANUP_SKILLS = @()
 $OWNERSHIP_SKILLS = @($MANAGED_SKILLS)
 $script:SKIPPED_COMPONENTS = @()
+$script:SKILLS_MIN_NODE_MAJOR = 20
+$script:SKILLS_NODE_FALLBACK_VERSION = "24"
+$script:SkillsNodeFallbackNotified = $false
 $script:SCRIPT_DIR = $repoRoot
 $script:MattPocockQuickstartReady = $true
 $DryRun = $false
@@ -103,6 +108,7 @@ $script:SelectSkillMattPocock = $false
 $script:SelectSkillCodeReview = $false
 $script:SelectSkillPUA = $false
 $script:SelectSkillFrontendSlides = $false
+$script:SelectSkillPptMaster = $false
 $script:SelectSkillPaperReading = $false
 $script:SelectSkillHumanizer = $true
 $script:SelectSkillHumanizerZh = $false
@@ -116,6 +122,10 @@ $script:SelectAiDistributedTraining = $false
 $script:SelectAiInferenceServing = $false
 $script:SelectAiOptimization = $false
 $script:SelectAiDeepXiv = $false
+$script:SelectAiResearchStudio = $false
+$script:SelectAiResearchStudioReel = $false
+$RESEARCHSTUDIO_SKILLS = @("idea_spark", "paper_search", "scoop_check")
+$RESEARCHSTUDIO_REEL_SKILLS = @("paper2assets", "paper2poster", "paper2video", "paper2blog", "paper2reel")
 
 $selected = @(Get-SelectedManagedSkills)
 Assert-True ($selected -contains "humanizer") "selected local skill should be desired"

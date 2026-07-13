@@ -1,6 +1,6 @@
 # 更新日志
 
-## [Unreleased] - 2026-07-10
+## [Unreleased] - 2026-07-13
 
 ### 新功能
 - 将 Claude main 的最新安装分类迁移到 Codex 分支，并用 Codex-native 分组呈现：Review、Workflow、Development Tools、Design & Content、Lifestyle、Academic Research、Slides、MCP Servers。
@@ -9,12 +9,18 @@
 - Bash 和 PowerShell 的重复交互安装现在都以本次菜单选择为准：未勾选的 owned skill 会被移除；空 skill 选择在批量删除前需要二次确认。
 - 新增持久化的 managed-skill ownership state；旧 lock 条目只有在来源匹配且 Codex/canonical 副本内容一致时才会被安全接管，此外也支持未改动的内置副本及来源已验证的 `obra/superpowers` fallback；已退役的 `coding-foundations` 名称保留为 provenance-gated cleanup-only 条目，`handoff` 恢复为 Workflow 中可见且默认开启的选项。
 - 两个安装器都会把 statusline 写入 `[tui]`，并在合并现有配置时清理误写到顶层或 project 表里的 `status_line`。
-- 移除没有实际 Codex 安装目标的安装器选项，包括 Claude-only command workflow 插件、`ppt-master`、`claude-mem` 和 `claude-health`。
+- 移除没有实际 Codex 安装目标的安装器选项，包括 Claude-only command workflow 插件、`claude-mem` 和 `claude-health`。
 - GitHub MCP 菜单项默认开启；安装时如果存在 `GITHUB_PERSONAL_ACCESS_TOKEN` 就使用它配置 GitHub MCP，如果没有则跳过且不写入占位 token。
 - 根据 review 结果加固安装器边界：移除 orphaned managed skill 名称、恢复 AI/DeepXiv 的 npx-first 路径，并让 statusline 合并安全处理缺失配置与多行 TOML。
 - 两个安装器都新增了条件式 Matt Pocock 安装后 Quickstart：完整 skill 包安装成功后，引导用户通过 Codex `/skills` 或 `@` 选择 `setup-matt-pocock-skills`，并说明已安装 skill 不会成为独立的根级 slash command。
-- 已安装的 Codex review 规则改为使用 Matt Pocock 的 `code-review` Standards/Spec 工作流，不再调用 `adversarial-review` 或启动 `claude -p` reviewer。
+- 已安装的 Codex review 规则与菜单默认项改为 Matt Pocock 的 `code-review` Standards/Spec 工作流；`adversarial-review` 保持 opt-in，Codex 默认不再启动 `claude -p` reviewer。
 - Bash、PowerShell 安装器与静态 `config.toml` 模板现在都能安全启动 Playwright MCP：固定 `@playwright/mcp@0.0.78`，主机 Node.js 低于 20 时使用隔离的 Node.js 24 launcher，并在 MCP `initialize` 没有返回结果时拒绝写入坏配置。
+- 在 **Academic Research** 中新增彼此独立、默认关闭的 Microsoft ResearchStudio Idea 与 Reel。两套安装器都使用临时的官方源码 checkout：Idea 复制 `idea_spark`、`paper_search`、`scoop_check`；Reel 复制 `paper2assets`、`paper2poster`、`paper2video`、`paper2blog`、`paper2reel`。每个 bundle 都会安装显式依赖、运行各自自检，并记录为安装器 owned skills。
+- 将 `hugohe3/ppt-master` 加入 **Slides**，作为独立且默认关闭的条目。显式选择后会安装官方 skill 与完整 `requirements.txt`，再由 Bash/PowerShell 检查 Python 3.10+、所有 runtime import 和必要的 deck/UI 脚本。
+- 所有 `npx skills` 安装在 Node.js 18 主机上都会使用隔离的 Node.js 24 launcher；Python 依赖则通过临时 bootstrap venv 写入当前解释器的 user site，从而兼容 PEP 668。
+- 远程 skill 只有在实际落盘 `SKILL.md` 后才算成功，不再只信任 `skills` CLI 的退出码。AI research 的路径条目现在会把仓库目录名映射到其声明的 skill 名，并移除当前 Matt Pocock 上游已不再提供的条目。
+- ResearchStudio 与 PPT Master 只有在对应 runtime 自检通过后才报告成功；源码已复制但依赖失败会明确列为未完成。
+- 按作用域拆分纠正记忆：安装到 `~/.codex/lessons.md` 的内容来自专用空白全局模板；项目级纠正写入按需创建的 `<project-root>/lessons.md`，并要求 Codex 主动定位、读取该文件。
 
 ### 设计理由
 - Codex 没有 Claude Code 的同款 plugin runtime，所以迁移目标是保留用户可识别的分类，同时把能力映射到 Codex skills、MCP server 或明确跳过的项目。
@@ -24,16 +30,23 @@
 - 清理范围受经过校验的 ownership 文件约束，目录名本身不再代表删除权限。安装器先通过 `npx skills remove --global --agent codex` 更新 Codex/全局元数据，再只对 Codex 本地目录做 fallback 清理；不会扫描或删除普通的 `~/.agents/skills` 子目录。
 - 当前 `skills@latest` 即使指定 `--agent codex --copy`，全局 Codex skill 也可能安装到规范化的共享目录 `~/.agents/skills`；Codex 会发现该目录，而根 `/` 菜单仍是命令菜单，已安装 skills 通过 `/skills` 或 `@` 进入。
 - `codex mcp add` 只能证明配置已写入，不能证明 stdio 进程能完成初始化。安装前向实际 launcher 发送 JSON-RPC `initialize` 请求，可以阻止不兼容的 Node.js/Playwright 组合被误报为成功；固定 MCP 版本则避免后续 `latest` 发布悄悄改变已验证命令。
+- ResearchStudio 统一使用源码路径，避免同时维护 npx 与 checkout 两套行为。安装器校验固定 skill 白名单、拒绝 links，只复制用户选择的 bundle；不会执行上游脚本或授予其 `sudo`，依赖与诊断逻辑均在本仓库中显式可审查。
+- PPT Master 的完整环境较大，因此继续保持 opt-in。临时 venv 只负责提供 pip，运行环境仍是当前 Python；把依赖安装到其 user site 既符合上游直接调用 `python3` 的模型，也能绕过 PEP 668。
+- 当前 `skills` CLI 可能在静默忽略未知 skill 名后仍返回成功。逐项检查安装目录可关闭这条假成功路径，而使用 frontmatter 声明名可处理“目录 basename 不等于安装名”的上游仓库。
+- 项目 lessons 不进入全局 seed，可防止一个仓库的纠正静默影响无关项目。它与项目 CHANGELOG 使用同一按需原则：第一次项目级纠正发生前，不要求项目预先存在日志。
 
 ### 注意事项
 - `github` 和 `lark-mcp` 仍需要真实凭据；GitHub 使用 `GITHUB_PERSONAL_ACCESS_TOKEN`，lark-mcp 因需要 app credentials 仍保持手动配置。
-- Slides 分组目前只安装 `frontend-slides`；`ppt-master` 因安装路径过重，已从该安装器移除。
+- Slides 的两个条目都默认关闭。选择 `ppt-master` 会安装完整 Python 依赖并执行不启动 UI 的自检；浏览器确认页和 live preview 只会在真实 deck 工作流到达对应阶段时打开。
 - YOLO 自主默认值只适合可信仓库。
 - 已打开的 Codex TUI 可能需要重启或重新运行 `/statusline` 后才会显示新的 footer 字段。
 - Skill 清理只在真实的交互菜单提交后执行；显式非交互参数仍是增量安装，Core 文件、MCP 配置、共享 agent skill、未拥有的自定义 skill 和来源不明的旧条目不会被移除。
 - 重复安装会保留已有的 `model` 与 `model_reasoning_effort`；新默认值只在新建 `config.toml` 时使用，勾选 StatusLine 则会刷新为托管的 footer 布局。
 - Matt Pocock Quickstart 在 dry-run 和安装失败时不会显示；如果 Codex TUI 在安装前已经打开，可能需要重启后才能看到新 skill。
-- Node.js 24 兼容 launcher 只作用于 Playwright MCP，依赖 `npx` 且首次使用需要下载 package。仍优先建议安装受支持的 Node.js 24 LTS；升级后重新运行 MCP 安装并重启 Codex。
+- Node.js 24 兼容 launcher 覆盖 Playwright MCP 与全部 `npx skills` 操作，依赖 `npx` 且首次使用需要下载 package；仍优先建议安装受支持的 Node.js 24 LTS。
+- 只有在 Codex 或共享 agent skill 目录中存在对应 `SKILL.md` 的条目才会写入 installer ownership。`npx` 安装不完整时，按路径的包只重试缺少项；fallback 仍失败则会出现在最终 skipped-components 报告中。
+- 两个 ResearchStudio 条目都默认关闭，可在菜单中独立安装；显式请求 AI-research 分组或使用 `--all` / `-All` 时会选择两者。上游 npx 包仍不包含 Reel，但本集成的两个 bundle 都来自官方源码树，因此不再受此限制。
+- Idea 需要 Python 3.9+，并可能使用 OpenReview 或可选的高配额凭据。Reel 需要 Python 3.10+、Playwright Chromium 与 Poppler；可接受 bundled FFmpeg，LibreOffice 只用于可选的 PPTX/DOCX 渲染和 visual QA。Paper2Video 的高级 deck 路径需要单独选择的 `ppt-master` 或已有 PPTX。不会创建 Conda 环境；取消选择/卸载会保留 `~/.codex/skills/.env`，避免误删用户管理的 secrets。
 
 ## [2.6.1] - 2026-05-25
 

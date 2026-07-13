@@ -13,7 +13,7 @@
   Install everything non-interactively
 
 .PARAMETER Core
-  Install AGENTS.md, lessons.md, config.toml, agents/*
+  Install AGENTS.md, blank global lessons.md, config.toml, agents/*
 
 .PARAMETER Mcp
   Install MCP servers only
@@ -94,6 +94,11 @@ $SUPERPOWERS_LINK     = Join-Path $AGENTS_SKILLS_DIR "superpowers"
 
 $script:InteractiveMode = $false
 $script:InteractiveSelectionHasAny = $false
+$script:ResearchStudioNonInteractiveRequested = [bool](
+    $All -or ($Skills -and ($SkillGroup -eq "ai-research" -or $SkillGroup -eq "all"))
+)
+$script:ResearchStudioReelNonInteractiveRequested = $script:ResearchStudioNonInteractiveRequested
+$script:PptMasterNonInteractiveRequested = [bool]($All -or ($Skills -and $SkillGroup -eq "all"))
 $script:SKIPPED_COMPONENTS = @()
 $script:MCP_FAILED_SERVERS = @()
 $script:LessonsSeeded = $false
@@ -113,11 +118,12 @@ $script:SelectSkillMattPocock = $true
 $script:SelectSkillCodeReview = $true
 $script:SelectSkillPUA = $false
 $script:SelectSkillFrontendSlides = $false
+$script:SelectSkillPptMaster = $false
 $script:SelectSkillPaperReading = $true
 $script:SelectSkillHumanizer = $true
 $script:SelectSkillHumanizerZh = $false
 $script:SelectSkillHandoff = $true
-$script:SelectSkillAdversarialReview = $true
+$script:SelectSkillAdversarialReview = $false
 $script:SelectSkillUpdate = $true
 $script:SelectAiTokenization = $false
 $script:SelectAiFineTuning = $false
@@ -126,6 +132,8 @@ $script:SelectAiDistributedTraining = $false
 $script:SelectAiInferenceServing = $false
 $script:SelectAiOptimization = $false
 $script:SelectAiDeepXiv = $false
+$script:SelectAiResearchStudio = $false
+$script:SelectAiResearchStudioReel = $false
 $script:SelectMcpContext7 = $true
 $script:SelectMcpGithub = $true
 $script:SelectMcpPlaywright = $true
@@ -136,11 +144,11 @@ $MANAGED_SKILLS = @(
     "frontend-design", "pdf", "docx", "pptx", "xlsx", "canvas-design", "algorithmic-art", "mcp-builder",
     "using-superpowers", "systematic-debugging", "writing-plans", "test-driven-development",
     "huggingface-tokenizers", "sentencepiece",
-    "axolotl", "llama-factory", "peft", "unsloth",
-    "grpo-rl-training", "openrlhf", "simpo", "trl-fine-tuning", "verl",
-    "deepspeed", "pytorch-fsdp2", "megatron-core", "ray-train",
-    "awq", "gptq", "gguf", "flash-attention", "bitsandbytes",
-    "vllm", "sglang", "tensorrt-llm", "llama-cpp",
+    "axolotl", "llama-factory", "peft-fine-tuning", "unsloth",
+    "grpo-rl-training", "openrlhf-training", "simpo-training", "fine-tuning-with-trl", "verl-rl-training",
+    "deepspeed", "pytorch-fsdp2", "training-llms-megatron", "ray-train",
+    "awq-quantization", "gptq", "gguf-quantization", "optimizing-attention-flash", "quantizing-models-bitsandbytes",
+    "serving-llms-vllm", "sglang", "tensorrt-llm", "llama-cpp",
     "paper-reading",
     "adversarial-review",
     "handoff",
@@ -150,15 +158,24 @@ $MANAGED_SKILLS = @(
     "deepxiv-cli",
     "deepxiv-baseline-table",
     "deepxiv-trending-digest",
+    "idea_spark",
+    "paper_search",
+    "scoop_check",
+    "paper2assets",
+    "paper2poster",
+    "paper2video",
+    "paper2blog",
+    "paper2reel",
     "code-review",
     "karpathy-guidelines",
     "brainstorming", "dispatching-parallel-agents", "executing-plans", "finishing-a-development-branch",
     "receiving-code-review", "requesting-code-review", "subagent-driven-development", "using-git-worktrees",
     "verification-before-completion", "writing-skills",
     "frontend-slides",
+    "ppt-master",
     "ask-matt", "diagnosing-bugs", "grill-with-docs", "triage",
     "implement", "improve-codebase-architecture", "setup-matt-pocock-skills", "tdd",
-    "to-issues", "to-prd", "prototype", "domain-modeling", "codebase-design",
+    "prototype", "domain-modeling", "codebase-design",
     "grill-me", "grilling", "research", "teach", "writing-great-skills",
     "pua", "pua-en", "pua-ja"
 )
@@ -180,9 +197,13 @@ $LEGACY_SUPERPOWERS_SKILLS = @(
 $MATTPOCOCK_SKILLS = @(
     "ask-matt", "diagnosing-bugs", "grill-with-docs", "triage",
     "implement", "improve-codebase-architecture", "setup-matt-pocock-skills", "tdd",
-    "to-issues", "to-prd", "prototype", "domain-modeling", "codebase-design",
+    "prototype", "domain-modeling", "codebase-design",
     "grill-me", "grilling", "research", "teach", "writing-great-skills"
 )
+
+$RESEARCHSTUDIO_SKILLS = @("idea_spark", "paper_search", "scoop_check")
+$RESEARCHSTUDIO_REEL_SKILLS = @("paper2assets", "paper2poster", "paper2video", "paper2blog", "paper2reel")
+$RESEARCHSTUDIO_REPO_URL = "https://github.com/microsoft/ResearchStudio.git"
 
 $PUA_SKILLS = @("pua", "pua-en", "pua-ja")
 $SUPERPOWERS_SKILLS = @(
@@ -197,11 +218,17 @@ $GLOBAL_SKILL_LOCK_FILE = Join-Path $HOME ".agents/.skill-lock.json"
 $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
 $script:ManagedSkillOwnershipLoaded = $false
 $script:MattPocockQuickstartReady = $false
+$script:ResearchStudioQuickstartReady = $false
+$script:ResearchStudioReelQuickstartReady = $false
+$script:PptMasterQuickstartReady = $false
 $script:CODEX_STATUS_LINE = 'status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 $script:CODEX_STATUS_LINE_USE_COLORS = 'status_line_use_colors = true'
 $script:PLAYWRIGHT_MCP_VERSION = "0.0.78"
 $script:PLAYWRIGHT_MIN_NODE_MAJOR = 20
 $script:PLAYWRIGHT_NODE_FALLBACK_VERSION = "24"
+$script:SKILLS_MIN_NODE_MAJOR = 20
+$script:SKILLS_NODE_FALLBACK_VERSION = "24"
+$script:SkillsNodeFallbackNotified = $false
 
 # ============================================================
 # Output helpers
@@ -225,12 +252,129 @@ function Show-MattPocockQuickstart {
     )
 }
 
+function Show-ResearchStudioQuickstart {
+    if (-not $script:ResearchStudioQuickstartReady -or $DryRun) { return }
+
+    @(
+        "",
+        "ResearchStudio Idea quickstart",
+        "  1. Restart Codex if it was open during installation.",
+        '  2. Type $ in the composer and select idea-spark, paper-search, or scoop-check.',
+        "  3. The connector self-check ran automatically. Rerun anytime: python3 `"$CODEX_DIR/skills/idea_spark/scripts/run.py`" check_connectors",
+        "  If the check asks for credentials, store them in $CODEX_DIR/skills/.env; never paste them into chat.",
+        "  Idea and Reel both install from the official source repository; Reel remains a separate opt-in menu item."
+    ) | ForEach-Object { Write-Host $_ }
+}
+
+function Show-ResearchStudioReelQuickstart {
+    if (-not $script:ResearchStudioReelQuickstartReady -or $DryRun) { return }
+
+    @(
+        "",
+        "ResearchStudio Reel quickstart",
+        "  1. Restart Codex if it was open during installation.",
+        '  2. Type $ in the composer and select paper2assets, paper2poster, paper2video, paper2blog, or paper2reel.',
+        "  3. Python dependencies, Playwright Chromium, and the dependency self-check were completed automatically.",
+        "  Poppler is required. Bundled FFmpeg is supported; LibreOffice is optional for PPTX/DOCX rendering and visual QA.",
+        "  Paper2Video's advanced deck-authoring route additionally expects ppt-master (select it separately under Slides) or an existing PPTX."
+    ) | ForEach-Object { Write-Host $_ }
+}
+
+function Show-PptMasterQuickstart {
+    if (-not $script:PptMasterQuickstartReady -or $DryRun) { return }
+
+    @(
+        "",
+        "PPT Master quickstart",
+        "  1. Restart Codex if it was open during installation.",
+        '  2. Type $ in the composer and select ppt-master, then describe the deck you want.',
+        "  3. The full Python requirements and self-check were run automatically; follow any repair steps printed above.",
+        "  During deck generation, ppt-master opens its confirmation and live-preview panels in your browser on a local loopback address.",
+        "  Basic deck creation needs no API credential. Optional image providers may ask for their own environment variables; never paste secrets into chat."
+    ) | ForEach-Object { Write-Host $_ }
+}
+
+function Invoke-ResearchStudioSelfCheck {
+    $checkScript = Join-Path $CODEX_DIR "skills/idea_spark/scripts/run.py"
+    Write-Info "Running ResearchStudio connector self-check..."
+
+    if (-not (Test-Path -LiteralPath $checkScript -PathType Leaf)) {
+        Write-Warn "ResearchStudio self-check could not run because $checkScript is missing."
+        Write-Warn "To restore it, rerun this installer and select ResearchStudio Idea."
+        Write-Warn "The installer will copy the Idea allowlist from $RESEARCHSTUDIO_REPO_URL."
+        Write-Warn "Then rerun: python3 `"$checkScript`" check_connectors"
+        return $false
+    }
+
+    $py = Resolve-PythonCommand
+    if (-not $py) {
+        Write-Warn "ResearchStudio self-check could not run: no usable Python 3 was found."
+        Write-Warn "Install Python 3 from https://www.python.org/downloads/, reopen PowerShell, and verify:"
+        Write-Warn "  python --version"
+        Write-Warn "Then rerun this installer; it will install dependencies without modifying the system Python environment."
+        return $false
+    }
+
+    $exe = $py[0]
+    $pyArgs = @()
+    if ($py.Count -gt 1) {
+        $pyArgs = $py[1..($py.Count - 1)]
+    }
+    $pythonPreview = (@($exe) + @($pyArgs)) -join " "
+
+    & $exe @pyArgs -c "import feedparser, openreview, bs4, fitz, scholarly, requests" *> $null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "ResearchStudio self-check found missing Python dependencies."
+        Write-Warn "Install Python venv support, then rerun this installer."
+        Write-Warn "  Ubuntu/Debian: sudo apt-get install -y python3-venv"
+        Write-Warn "  macOS: brew install python"
+        return $false
+    }
+
+    $output = @()
+    $exitCode = 1
+    try {
+        $output = @(& $exe @pyArgs $checkScript check_connectors 2>&1 | ForEach-Object { [string]$_ })
+        $exitCode = $LASTEXITCODE
+    } catch {
+        $output = @([string]$_.Exception.Message)
+        $exitCode = 1
+    }
+    $output | ForEach-Object { Write-Host $_ }
+
+    $hasMissingPackage = @($output | Where-Object { $_ -match 'package not installed|not installed \(pip install' }).Count -gt 0
+    if ($exitCode -eq 0 -and -not $hasMissingPackage) {
+        if (@($output | Where-Object { $_ -match 'missing env vars' }).Count -gt 0) {
+            Write-Warn "ResearchStudio dependencies passed; OpenReview is disabled until optional credentials are added to $CODEX_DIR/skills/.env."
+        }
+        Write-Ok "ResearchStudio connector self-check passed."
+        return $true
+    }
+
+    Write-Warn "ResearchStudio self-check found missing or degraded components."
+    $envFile = Join-Path $CODEX_DIR "skills/.env"
+    Write-Warn "How to fix ResearchStudio:"
+    Write-Warn "  1. Ensure Python can create a bootstrap venv, then rerun this installer."
+    Write-Warn "     Ubuntu/Debian: sudo apt-get install -y python3-venv"
+    Write-Warn "     macOS: brew install python"
+    Write-Warn "  2. If the report says 'missing env vars', open `"$envFile`" and add only the reported names, one KEY=value per line. For example:"
+    Write-Warn "     OPENREVIEW_USER=your_email"
+    Write-Warn "     OPENREVIEW_PASS=your_password"
+    Write-Warn "     SEMANTICSCHOLAR_API_KEY=your_optional_key"
+    Write-Warn "     Do not paste this file into chat or commit it to Git."
+    Write-Warn "  3. Rerun the self-check:"
+    Write-Warn "     $pythonPreview `"$checkScript`" check_connectors"
+    return $false
+}
+
 # ============================================================
 # Script directory detection
 # ============================================================
 $script:SCRIPT_DIR   = ""
 $script:REMOTE_MODE  = $false
 $script:TempDir      = $null
+$script:PythonBootstrapDir = $null
+$script:PythonBootstrapCommand = $null
 
 function Detect-ScriptDir {
     # $PSScriptRoot is set when running from a file; empty in piped/iex mode
@@ -278,6 +422,11 @@ function Remove-TempDir {
     if ($script:TempDir -and (Test-Path $script:TempDir)) {
         Remove-Item -Recurse -Force $script:TempDir -ErrorAction SilentlyContinue
     }
+    if ($script:PythonBootstrapDir -and (Test-Path $script:PythonBootstrapDir)) {
+        Remove-Item -Recurse -Force $script:PythonBootstrapDir -ErrorAction SilentlyContinue
+    }
+    $script:PythonBootstrapDir = $null
+    $script:PythonBootstrapCommand = $null
 }
 
 # ============================================================
@@ -337,6 +486,142 @@ function Resolve-PythonCommand {
     return $null
 }
 
+function Get-PythonUserSite {
+    param([string[]]$PythonCommand)
+
+    if (-not $PythonCommand) { return $null }
+    $exe = $PythonCommand[0]
+    $baseArgs = @()
+    if ($PythonCommand.Count -gt 1) {
+        $baseArgs = $PythonCommand[1..($PythonCommand.Count - 1)]
+    }
+    try {
+        $probe = "import site; print(site.getusersitepackages()); raise SystemExit(0 if site.ENABLE_USER_SITE else 1)"
+        $output = @(& $exe @baseArgs -c $probe 2>$null)
+        if ($LASTEXITCODE -eq 0 -and $output.Count -gt 0) {
+            return [string]$output[-1]
+        }
+    } catch {}
+    return $null
+}
+
+function Initialize-PythonBootstrap {
+    param([string[]]$PythonCommand)
+
+    if ($script:PythonBootstrapCommand) { return $true }
+    if (-not $PythonCommand) { return $false }
+
+    $exe = $PythonCommand[0]
+    $baseArgs = @()
+    if ($PythonCommand.Count -gt 1) {
+        $baseArgs = $PythonCommand[1..($PythonCommand.Count - 1)]
+    }
+    $bootstrapDir = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-python-bootstrap-" + [guid]::NewGuid().ToString("N"))
+    try {
+        & $exe @baseArgs -m venv $bootstrapDir *> $null
+        if ($LASTEXITCODE -ne 0) { throw "python -m venv failed" }
+
+        $bootstrapExe = $null
+        foreach ($candidate in @(
+            (Join-Path $bootstrapDir "Scripts/python.exe"),
+            (Join-Path $bootstrapDir "bin/python")
+        )) {
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                $bootstrapExe = $candidate
+                break
+            }
+        }
+        if (-not $bootstrapExe) { throw "bootstrap Python executable is missing" }
+
+        & $bootstrapExe -m pip --version *> $null
+        if ($LASTEXITCODE -ne 0) { throw "bootstrap pip is unavailable" }
+        $script:PythonBootstrapDir = $bootstrapDir
+        $script:PythonBootstrapCommand = @($bootstrapExe)
+        return $true
+    } catch {
+        Remove-Item -LiteralPath $bootstrapDir -Recurse -Force -ErrorAction SilentlyContinue
+        return $false
+    }
+}
+
+function Install-PythonUserPackages {
+    param(
+        [string[]]$PythonCommand,
+        [string[]]$Packages = @(),
+        [string]$RequirementsFile = ""
+    )
+
+    $userSite = Get-PythonUserSite $PythonCommand
+    if (-not $userSite) {
+        Write-Warn "Python user site-packages is unavailable for the selected interpreter."
+        return $false
+    }
+    New-Item -ItemType Directory -Path $userSite -Force | Out-Null
+
+    if (Initialize-PythonBootstrap $PythonCommand) {
+        $bootstrapExe = $script:PythonBootstrapCommand[0]
+        $installArgs = @(
+            "-m", "pip", "install",
+            "--disable-pip-version-check",
+            "--no-warn-script-location",
+            "--upgrade",
+            "--target", $userSite
+        )
+        if ($RequirementsFile) {
+            $installArgs += @("-r", $RequirementsFile)
+        } else {
+            $installArgs += @($Packages)
+        }
+        & $bootstrapExe @installArgs 2>&1 | ForEach-Object { Write-Host $_ }
+        return ($LASTEXITCODE -eq 0)
+    }
+
+    $exe = $PythonCommand[0]
+    $baseArgs = @()
+    if ($PythonCommand.Count -gt 1) {
+        $baseArgs = $PythonCommand[1..($PythonCommand.Count - 1)]
+    }
+    & $exe @baseArgs -m pip --version *> $null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "Could not create a temporary Python bootstrap environment."
+        return $false
+    }
+    $directArgs = @($baseArgs) + @("-m", "pip", "install", "--user")
+    if ($RequirementsFile) {
+        $directArgs += @("-r", $RequirementsFile)
+    } else {
+        $directArgs += @($Packages)
+    }
+    & $exe @directArgs 2>&1 | ForEach-Object { Write-Host $_ }
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Get-SkillsNpxLauncherArgs {
+    if (-not (Get-Command "npx" -ErrorAction SilentlyContinue)) {
+        return $null
+    }
+
+    $nodeMajor = Get-NodeMajorVersion
+    if ($null -eq $nodeMajor) {
+        return $null
+    }
+    if ($nodeMajor -lt $script:SKILLS_MIN_NODE_MAJOR) {
+        if (-not $script:SkillsNodeFallbackNotified) {
+            Write-Warn "Node.js $nodeMajor detected; using an isolated Node.js $($script:SKILLS_NODE_FALLBACK_VERSION) runtime for npx skills"
+            $script:SkillsNodeFallbackNotified = $true
+        }
+        return @(
+            "-y",
+            "--loglevel=error",
+            "--package=node@$($script:SKILLS_NODE_FALLBACK_VERSION)",
+            "--package=skills@latest",
+            "--",
+            "skills"
+        )
+    }
+    return @("-y", "skills@latest")
+}
+
 function Show-Usage {
     @"
 Usage: .\install.ps1 [OPTIONS]
@@ -347,7 +632,7 @@ Use -All for non-interactive full install.
 
 Options:
   -All                       Install everything non-interactively
-  -Core                      Install AGENTS.md, lessons.md, config.toml, agents/*
+  -Core                      Install AGENTS.md, blank global lessons.md, config.toml, agents/*
   -Mcp                       Install MCP servers only
   -Skills [-SkillGroup GROUP] Install skills only. GROUP: core, ai-research, all (default: all)
   -Uninstall [-Core] [-Mcp] [-Skills]
@@ -455,11 +740,12 @@ function Reset-InteractiveSelections {
     $script:SelectSkillCodeReview = $true
     $script:SelectSkillPUA = $false
     $script:SelectSkillFrontendSlides = $false
+    $script:SelectSkillPptMaster = $false
     $script:SelectSkillPaperReading = $true
     $script:SelectSkillHumanizer = $true
     $script:SelectSkillHumanizerZh = $false
     $script:SelectSkillHandoff = $true
-    $script:SelectSkillAdversarialReview = $true
+    $script:SelectSkillAdversarialReview = $false
     $script:SelectSkillUpdate = $true
     $script:SelectAiTokenization = $false
     $script:SelectAiFineTuning = $false
@@ -468,6 +754,8 @@ function Reset-InteractiveSelections {
     $script:SelectAiInferenceServing = $false
     $script:SelectAiOptimization = $false
     $script:SelectAiDeepXiv = $false
+    $script:SelectAiResearchStudio = $false
+    $script:SelectAiResearchStudioReel = $false
     $script:SelectMcpContext7 = $true
     $script:SelectMcpGithub = $true
     $script:SelectMcpPlaywright = $true
@@ -540,9 +828,10 @@ function Copy-SelectedDirectory {
     }
 }
 
-# lessons.md is the user's accumulated correction memory (see AGENTS.md), and
-# config.toml points model_instructions_file at it. Never overwrite an existing
-# copy; only seed the template when the file is absent.
+# ~/.codex/lessons.md is the user's cross-project correction memory (see
+# AGENTS.md), and config.toml points model_instructions_file at it. Never copy
+# this repository's project lessons into global state; seed only the dedicated
+# global template, and never overwrite an existing global log.
 function Install-LessonsIfMissing {
     if ($script:LessonsSeeded) { return }
     $script:LessonsSeeded = $true
@@ -554,11 +843,11 @@ function Install-LessonsIfMissing {
     }
 
     if ($DryRun) {
-        Write-Info "Would copy: lessons.md -> $target"
+        Write-Info "Would copy: templates/global-lessons.md -> $target"
     } else {
         New-Item -ItemType Directory -Path $CODEX_DIR -Force | Out-Null
-        Copy-Item (Join-Path $script:SCRIPT_DIR "lessons.md") $target -Force
-        Write-Ok "lessons.md installed"
+        Copy-Item (Join-Path $script:SCRIPT_DIR "templates/global-lessons.md") $target -Force
+        Write-Ok "Global lessons.md installed"
     }
 }
 
@@ -763,6 +1052,9 @@ function Install-SelectedRecommendedSkills {
             Skip-UnsupportedItem "frontend-slides" "npx skills install failed"
         }
     }
+    if ($script:SelectSkillPptMaster) {
+        Install-PptMaster
+    }
     if ($script:SelectSkillPaperReading -or $script:SelectSkillHumanizer -or $script:SelectSkillHumanizerZh -or
         $script:SelectSkillHandoff -or $script:SelectSkillAdversarialReview -or $script:SelectSkillUpdate) {
         if (-not $DryRun) {
@@ -847,6 +1139,12 @@ function Install-SelectedAiSkills {
         Reinstall-SkillPaths "DeepXiv/deepxiv_sdk" @(
             "skills/deepxiv-cli", "skills/deepxiv-baseline-table", "skills/deepxiv-trending-digest"
         )
+    }
+    if ($script:SelectAiResearchStudio) {
+        Install-ResearchStudio
+    }
+    if ($script:SelectAiResearchStudioReel) {
+        Install-ResearchStudioReel
     }
 }
 
@@ -1003,7 +1301,7 @@ function Show-InteractiveMenu {
                 [pscustomobject]@{ Label = "AGENTS.md"; Description = "Global Codex instructions"; Default = $true;  StateVar = "SelectCoreAgentsMd" },
                 [pscustomobject]@{ Label = "config.toml"; Description = "Codex runtime config template"; Default = $true; StateVar = "SelectCoreConfig" },
                 [pscustomobject]@{ Label = "StatusLine"; Description = "Codex footer: model, reasoning, branch, context"; Default = $true; StateVar = "SelectCoreStatusLine" },
-                [pscustomobject]@{ Label = "lessons.md"; Description = "Lessons source-of-truth"; Default = $true; StateVar = "SelectCoreLessons" }
+                [pscustomobject]@{ Label = "lessons.md"; Description = "Blank global correction log"; Default = $true; StateVar = "SelectCoreLessons" }
                 [pscustomobject]@{ Label = "explorer"; Description = "Code-path exploration agent"; Default = $true; StateVar = "SelectAgentExplorer" },
                 [pscustomobject]@{ Label = "reviewer"; Description = "Review/regression agent"; Default = $true; StateVar = "SelectAgentReviewer" },
                 [pscustomobject]@{ Label = "docs-researcher"; Description = "Docs/API verification agent"; Default = $true; StateVar = "SelectAgentDocsResearcher" }
@@ -1014,7 +1312,7 @@ function Show-InteractiveMenu {
             Hint = "Claude parity; Codex-native where available"
             Items = @(
                 [pscustomobject]@{ Label = "code-review"; Description = "PR code review skill or Codex /review fallback"; Default = $true; StateVar = "SelectSkillCodeReview" },
-                [pscustomobject]@{ Label = "adversarial-review"; Description = "Cross-model adversarial review"; Default = $true; StateVar = "SelectSkillAdversarialReview" }
+                [pscustomobject]@{ Label = "adversarial-review"; Description = "Cross-model adversarial review"; Default = $false; StateVar = "SelectSkillAdversarialReview" }
             )
         },
         [pscustomobject]@{
@@ -1058,9 +1356,11 @@ function Show-InteractiveMenu {
         },
         [pscustomobject]@{
             Label = "Academic Research"
-            Hint = "training/inference skills + paper-reading & DeepXiv"
+            Hint = "research ideation, literature, training/inference"
             Items = @(
                 [pscustomobject]@{ Label = "paper-reading"; Description = "Research paper summarization"; Default = $true; StateVar = "SelectSkillPaperReading" },
+                [pscustomobject]@{ Label = "ResearchStudio Idea"; Description = "Research ideation: idea-spark, paper-search, scoop-check"; Default = $false; StateVar = "SelectAiResearchStudio" },
+                [pscustomobject]@{ Label = "ResearchStudio Reel"; Description = "Paper-to-poster, video, blog, and interactive reel"; Default = $false; StateVar = "SelectAiResearchStudioReel" },
                 [pscustomobject]@{ Label = "tokenization"; Description = "Tokenizer training and usage"; Default = $false; StateVar = "SelectAiTokenization" },
                 [pscustomobject]@{ Label = "fine-tuning"; Description = "Fine-tuning workflows"; Default = $false; StateVar = "SelectAiFineTuning" },
                 [pscustomobject]@{ Label = "post-training"; Description = "RLHF / DPO / GRPO workflows"; Default = $false; StateVar = "SelectAiPostTraining" },
@@ -1074,7 +1374,8 @@ function Show-InteractiveMenu {
             Label = "Slides"
             Hint = "AI slide / PPTX generation; default off"
             Items = @(
-                [pscustomobject]@{ Label = "frontend-slides"; Description = "HTML slide generator with PPT conversion"; Default = $false; StateVar = "SelectSkillFrontendSlides" }
+                [pscustomobject]@{ Label = "frontend-slides"; Description = "HTML slide generator with PPT conversion"; Default = $false; StateVar = "SelectSkillFrontendSlides" },
+                [pscustomobject]@{ Label = "ppt-master"; Description = "Native editable PPTX generation with live preview"; Default = $false; StateVar = "SelectSkillPptMaster" }
             )
         },
         [pscustomobject]@{
@@ -1341,6 +1642,7 @@ function Show-InteractiveMenu {
                 'SelectSkillUpdate' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillPUA' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillFrontendSlides' { if ($selected) { $skillsSelected = $true } }
+                'SelectSkillPptMaster' { if ($selected) { $skillsSelected = $true } }
                 'SelectAiTokenization' { if ($selected) { $skillsSelected = $true } }
                 'SelectAiFineTuning' { if ($selected) { $skillsSelected = $true } }
                 'SelectAiPostTraining' { if ($selected) { $skillsSelected = $true } }
@@ -1348,6 +1650,8 @@ function Show-InteractiveMenu {
                 'SelectAiInferenceServing' { if ($selected) { $skillsSelected = $true } }
                 'SelectAiOptimization' { if ($selected) { $skillsSelected = $true } }
                 'SelectAiDeepXiv' { if ($selected) { $skillsSelected = $true } }
+                'SelectAiResearchStudio' { if ($selected) { $skillsSelected = $true } }
+                'SelectAiResearchStudioReel' { if ($selected) { $skillsSelected = $true } }
                 'SelectMcpContext7' { if ($selected) { $mcpSelected = $true } }
                 'SelectMcpGithub' { if ($selected) { $mcpSelected = $true } }
                 'SelectMcpPlaywright' { if ($selected) { $mcpSelected = $true } }
@@ -1442,7 +1746,32 @@ function Install-Mcp {
 
 function Get-SkillNameFromPath {
     param([string]$Path)
-    return (Split-Path $Path -Leaf)
+    $leaf = Split-Path $Path -Leaf
+    $mappedNames = @{
+        "peft" = "peft-fine-tuning"
+        "openrlhf" = "openrlhf-training"
+        "simpo" = "simpo-training"
+        "trl-fine-tuning" = "fine-tuning-with-trl"
+        "verl" = "verl-rl-training"
+        "megatron-core" = "training-llms-megatron"
+        "awq" = "awq-quantization"
+        "gguf" = "gguf-quantization"
+        "flash-attention" = "optimizing-attention-flash"
+        "bitsandbytes" = "quantizing-models-bitsandbytes"
+        "vllm" = "serving-llms-vllm"
+    }
+    if ($mappedNames.ContainsKey($leaf)) {
+        return $mappedNames[$leaf]
+    }
+    return $leaf
+}
+
+function Test-InstalledSkill {
+    param([string]$Skill)
+    return (
+        (Test-Path -LiteralPath (Join-Path $CODEX_DIR "skills/$Skill/SKILL.md") -PathType Leaf) -or
+        (Test-Path -LiteralPath (Join-Path $AGENTS_SKILLS_DIR "$Skill/SKILL.md") -PathType Leaf)
+    )
 }
 
 function Test-SkillInList {
@@ -1479,11 +1808,18 @@ function Get-ExpectedSkillSource {
     if ($Skill -ceq "frontend-slides") {
         return "zarazhangrui/frontend-slides"
     }
-    if ($Skill -cmatch '^(huggingface-tokenizers|sentencepiece|axolotl|llama-factory|peft|unsloth|grpo-rl-training|openrlhf|simpo|trl-fine-tuning|verl|deepspeed|pytorch-fsdp2|megatron-core|ray-train|awq|gptq|gguf|flash-attention|bitsandbytes|vllm|sglang|tensorrt-llm|llama-cpp)$') {
+    if ($Skill -ceq "ppt-master") {
+        return "hugohe3/ppt-master"
+    }
+    if ($Skill -cmatch '^(huggingface-tokenizers|sentencepiece|axolotl|llama-factory|peft-fine-tuning|unsloth|grpo-rl-training|openrlhf-training|simpo-training|fine-tuning-with-trl|verl-rl-training|deepspeed|pytorch-fsdp2|training-llms-megatron|ray-train|awq-quantization|gptq|gguf-quantization|optimizing-attention-flash|quantizing-models-bitsandbytes|serving-llms-vllm|sglang|tensorrt-llm|llama-cpp)$') {
         return "zechenzhangAGI/AI-research-SKILLs"
     }
     if ($Skill -cmatch '^(deepxiv-cli|deepxiv-baseline-table|deepxiv-trending-digest)$') {
         return "DeepXiv/deepxiv_sdk"
+    }
+    if ((Test-SkillInList $Skill $RESEARCHSTUDIO_SKILLS) -or
+        (Test-SkillInList $Skill $RESEARCHSTUDIO_REEL_SKILLS)) {
+        return "microsoft/ResearchStudio"
     }
     if (Test-SkillInList $Skill $LEGACY_CLEANUP_SKILLS) {
         return "affaan-m/everything-claude-code"
@@ -1661,11 +1997,12 @@ function Install-NpxSkillNames {
         return $true
     }
 
-    if (-not (Get-Command "npx" -ErrorAction SilentlyContinue)) {
+    $launcherArgs = Get-SkillsNpxLauncherArgs
+    if (-not $launcherArgs) {
         return $false
     }
 
-    $npxArgs = @("-y", "skills@latest", "add", $Repo, "--global", "--agent", "codex", "--copy", "--yes", "--full-depth")
+    $npxArgs = @($launcherArgs) + @("add", $Repo, "--global", "--agent", "codex", "--copy", "--yes", "--full-depth")
     foreach ($skill in $SkillNames) {
         $npxArgs += @("--skill", $skill)
     }
@@ -1676,7 +2013,22 @@ function Install-NpxSkillNames {
         & npx @npxArgs 2>&1 | ForEach-Object { Write-Host $_ }
         $exitCode = $LASTEXITCODE
         if ($exitCode -eq 0) {
-            Add-ManagedSkillOwnership $SkillNames
+            $installedNames = @()
+            $missingNames = @()
+            foreach ($skill in $SkillNames) {
+                if (Test-InstalledSkill $skill) {
+                    $installedNames += $skill
+                } else {
+                    $missingNames += $skill
+                }
+            }
+            if ($installedNames.Count -gt 0) {
+                Add-ManagedSkillOwnership $installedNames
+            }
+            if ($missingNames.Count -gt 0) {
+                Write-Warn "npx returned success, but these skills were not installed: $($missingNames -join ', ')"
+                return $false
+            }
             return $true
         }
         return $false
@@ -1686,6 +2038,398 @@ function Install-NpxSkillNames {
         } else {
             $env:DO_NOT_TRACK = $oldDoNotTrack
         }
+    }
+}
+
+function Get-PptMasterSkillDir {
+    foreach ($candidate in @(
+        (Join-Path $CODEX_DIR "skills/ppt-master"),
+        (Join-Path $AGENTS_SKILLS_DIR "ppt-master")
+    )) {
+        if (Test-Path -LiteralPath (Join-Path $candidate "SKILL.md") -PathType Leaf) {
+            return $candidate
+        }
+    }
+    return $null
+}
+
+function Invoke-PptMasterSelfCheck {
+    Write-Info "Running PPT Master environment self-check..."
+
+    $skillDir = Get-PptMasterSkillDir
+    if (-not $skillDir) {
+        Write-Warn "PPT Master self-check could not run because the installed skill directory is missing."
+        Write-Warn "Rerun this installer and select ppt-master under Slides."
+        return $false
+    }
+
+    $requirements = Join-Path $skillDir "requirements.txt"
+    if (-not (Test-Path -LiteralPath $requirements -PathType Leaf)) {
+        Write-Warn "PPT Master self-check could not find $requirements."
+        Write-Warn "Rerun this installer and select ppt-master under Slides to restore the complete skill."
+        return $false
+    }
+
+    $py = Resolve-PythonCommand
+    if (-not $py) {
+        Write-Warn "PPT Master self-check found missing or degraded components."
+        Write-Warn "Python 3.10+ was not found. Install it from https://www.python.org/downloads/, reopen PowerShell, then rerun this installer and select ppt-master."
+        return $false
+    }
+
+    $exe = $py[0]
+    $pyArgs = @()
+    if ($py.Count -gt 1) {
+        $pyArgs = $py[1..($py.Count - 1)]
+    }
+    $pythonPreview = (@($exe) + @($pyArgs)) -join " "
+    $degraded = $false
+
+    & $exe @pyArgs -c "import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)" *> $null
+    if ($LASTEXITCODE -ne 0) { $degraded = $true }
+
+    $importProbe = "import pptx, xlsxwriter, edge_tts, fitz, mammoth, markdownify, ebooklib, nbconvert, openpyxl, PIL, numpy, requests, bs4, curl_cffi, google.genai, flask"
+    & $exe @pyArgs -c $importProbe *> $null
+    if ($LASTEXITCODE -ne 0) { $degraded = $true }
+
+    foreach ($scriptFile in @(
+        "scripts/project_manager.py",
+        "scripts/svg_to_pptx.py",
+        "scripts/svg_editor/server.py",
+        "scripts/confirm_ui/server.py"
+    )) {
+        $scriptPath = Join-Path $skillDir $scriptFile
+        if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
+            $degraded = $true
+            continue
+        }
+        & $exe @pyArgs -m py_compile $scriptPath *> $null
+        if ($LASTEXITCODE -ne 0) { $degraded = $true }
+    }
+
+    if (-not $degraded) {
+        Write-Ok "PPT Master environment self-check passed."
+        return $true
+    }
+
+    Write-Warn "PPT Master self-check found missing or degraded components."
+    Write-Warn "How to finish the PPT Master setup:"
+    Write-Warn "  1. Ensure Python can create a bootstrap venv."
+    Write-Warn "     Ubuntu/Debian: sudo apt-get install -y python3-venv"
+    Write-Warn "     macOS: brew install python"
+    Write-Warn "  2. Rerun this installer and select ppt-master under Slides. It will install the official requirements into $pythonPreview's user site."
+    Write-Warn "  Pandoc is optional and only needed for uncommon document-input formats."
+    return $false
+}
+
+function Install-PptMaster {
+    Write-Info "Installing PPT Master skill and its complete Python environment..."
+    if ($DryRun) {
+        Write-Info "Would install hugohe3/ppt-master for Codex, install its requirements.txt, then run the environment self-check"
+        return
+    }
+
+    if (-not (Install-NpxSkillNames "hugohe3/ppt-master" @("ppt-master"))) {
+        Skip-UnsupportedItem "ppt-master" "npx skills install failed"
+        return
+    }
+
+    $skillDir = Get-PptMasterSkillDir
+    if (-not $skillDir) {
+        Remove-ManagedSkillOwnership @("ppt-master")
+        Skip-UnsupportedItem "ppt-master" "the installed skill directory could not be found"
+        return
+    }
+
+    $requirements = Join-Path $skillDir "requirements.txt"
+    $py = Resolve-PythonCommand
+    $pythonVersionOk = $false
+    if ($py) {
+        $exe = $py[0]
+        $pyArgs = @()
+        if ($py.Count -gt 1) {
+            $pyArgs = $py[1..($py.Count - 1)]
+        }
+        & $exe @pyArgs -c "import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)" *> $null
+        $pythonVersionOk = ($LASTEXITCODE -eq 0)
+    }
+
+    if (-not (Test-Path -LiteralPath $requirements -PathType Leaf)) {
+        Write-Warn "PPT Master requirements file is missing: $requirements"
+    } elseif (-not $py) {
+        Write-Warn "PPT Master requires Python 3.10+; the self-check will show installation steps"
+    } elseif ($pythonVersionOk) {
+        if (-not (Install-PythonUserPackages -PythonCommand $py -RequirementsFile $requirements)) {
+            Write-Warn "PPT Master Python dependency installation failed; the self-check will show repair steps"
+        }
+    } else {
+        Write-Warn "PPT Master requires Python 3.10+; the self-check will show repair steps"
+    }
+
+    if (Invoke-PptMasterSelfCheck) {
+        $script:PptMasterQuickstartReady = $true
+        Write-Ok "PPT Master skill and complete Python environment installed for Codex"
+    } else {
+        Write-Warn "PPT Master skill was copied, but its required environment is incomplete."
+        $script:SKIPPED_COMPONENTS += "ppt-master environment (self-check failed)"
+    }
+}
+
+function Install-ResearchStudio {
+    Write-Info "Installing ResearchStudio Idea skills from a full official checkout..."
+    if ($DryRun) {
+        Write-Info "Would clone $RESEARCHSTUDIO_REPO_URL, copy the three allowlisted ResearchStudio-Idea skills, install Python dependencies, then run the connector self-check"
+        return
+    }
+    if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
+        Write-Warn "Skipping ResearchStudio Idea: git is unavailable. Install Git and retry."
+        $script:SKIPPED_COMPONENTS += "ResearchStudio Idea (git unavailable)"
+        return
+    }
+
+    $checkout = Join-Path ([System.IO.Path]::GetTempPath()) ("researchstudio-idea-" + [guid]::NewGuid().ToString("N"))
+    try {
+        & git clone --depth 1 $RESEARCHSTUDIO_REPO_URL $checkout 2>&1 | ForEach-Object { Write-Host $_ }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn "Skipping ResearchStudio Idea: official repository checkout failed."
+            $script:SKIPPED_COMPONENTS += "ResearchStudio Idea (official checkout failed)"
+            return
+        }
+
+        foreach ($skill in $RESEARCHSTUDIO_SKILLS) {
+            $sourceDir = Join-Path $checkout "ResearchStudio-Idea/skills/$skill"
+            $skillFile = Join-Path $sourceDir "SKILL.md"
+            if (-not (Test-Path -LiteralPath $skillFile -PathType Leaf)) {
+                Write-Warn "Skipping ResearchStudio Idea: official checkout did not contain $skillFile"
+                $script:SKIPPED_COMPONENTS += "ResearchStudio Idea (missing source skill: $skill)"
+                return
+            }
+        }
+        $unexpectedLink = Get-ChildItem -LiteralPath (Join-Path $checkout "ResearchStudio-Idea/skills") -Recurse -Force |
+            Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 } |
+            Select-Object -First 1
+        if ($unexpectedLink) {
+            Write-Warn "Skipping ResearchStudio Idea: official checkout contains symlinks/reparse points; refusing an unexpected source shape."
+            $script:SKIPPED_COMPONENTS += "ResearchStudio Idea (unexpected source links)"
+            return
+        }
+
+        New-Item -ItemType Directory -Path (Join-Path $CODEX_DIR "skills") -Force | Out-Null
+        foreach ($skill in $RESEARCHSTUDIO_SKILLS) {
+            $sourceDir = Join-Path $checkout "ResearchStudio-Idea/skills/$skill"
+            $destination = Join-Path $CODEX_DIR "skills/$skill"
+            Remove-Item -LiteralPath $destination -Recurse -Force -ErrorAction SilentlyContinue
+            Copy-Item -LiteralPath $sourceDir -Destination $destination -Recurse -Force
+        }
+    } catch {
+        Write-Warn "Skipping ResearchStudio Idea: failed to copy the allowlisted skills: $_"
+        $script:SKIPPED_COMPONENTS += "ResearchStudio Idea (copy failed)"
+        return
+    } finally {
+        Remove-Item -LiteralPath $checkout -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    $py = Resolve-PythonCommand
+    $pythonVersionOk = $false
+    if ($py) {
+        $exe = $py[0]
+        $pyArgs = @()
+        if ($py.Count -gt 1) {
+            $pyArgs = $py[1..($py.Count - 1)]
+        }
+        & $exe @pyArgs -c "import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 9) else 1)" *> $null
+        $pythonVersionOk = ($LASTEXITCODE -eq 0)
+    }
+    if ($py -and $pythonVersionOk) {
+        $packages = @(
+            "feedparser>=6.0.12", "openreview-py>=2.2.3", "beautifulsoup4>=4.13.0",
+            "pymupdf>=1.26.0", "scholarly>=1.7.11", "requests>=2.31.0"
+        )
+        if (-not (Install-PythonUserPackages -PythonCommand $py -Packages $packages)) {
+            Write-Warn "ResearchStudio Idea Python dependency installation failed; the self-check will show repair steps"
+        }
+    } elseif ($py) {
+        Write-Warn "ResearchStudio Idea requires Python 3.9+; the self-check will show repair steps"
+    }
+
+    Add-ManagedSkillOwnership $RESEARCHSTUDIO_SKILLS
+    if (Invoke-ResearchStudioSelfCheck) {
+        $script:ResearchStudioQuickstartReady = $true
+        Write-Ok "ResearchStudio Idea skills and Python dependencies installed for Codex"
+    } else {
+        Write-Warn "ResearchStudio Idea skills were copied, but their required environment is incomplete."
+        $script:SKIPPED_COMPONENTS += "ResearchStudio Idea environment (self-check failed)"
+    }
+}
+
+function Test-ResearchStudioReelCommand {
+    param([string]$Name)
+    return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
+}
+
+function Invoke-ResearchStudioReelSelfCheck {
+    Write-Info "Running ResearchStudio Reel dependency self-check..."
+    $py = Resolve-PythonCommand
+    if (-not $py) {
+        Write-Warn "ResearchStudio Reel self-check could not run: Python 3.10+ was not found."
+        Write-Warn "Install Python from https://www.python.org/downloads/, reopen PowerShell, verify with 'python --version', and rerun the Reel installer."
+        return $false
+    }
+
+    $exe = $py[0]
+    $pyArgs = @()
+    if ($py.Count -gt 1) {
+        $pyArgs = $py[1..($py.Count - 1)]
+    }
+    $pythonPreview = (@($exe) + @($pyArgs)) -join " "
+    $degraded = $false
+    $libreOfficeMissing = $false
+    $bundledFfmpeg = ""
+
+    & $exe @pyArgs -c "import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)" *> $null
+    if ($LASTEXITCODE -ne 0) { $degraded = $true }
+
+    $importProbe = "import fitz, PIL, numpy, docx, qrcode, playwright, imageio_ffmpeg, edge_tts, pptx, pdf2image, lxml, pyphen, cairosvg"
+    & $exe @pyArgs -c $importProbe *> $null
+    if ($LASTEXITCODE -ne 0) { $degraded = $true }
+
+    $chromiumProbe = "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); browser=p.chromium.launch(headless=True); browser.close(); p.stop()"
+    & $exe @pyArgs -c $chromiumProbe *> $null
+    if ($LASTEXITCODE -ne 0) { $degraded = $true }
+
+    if (-not (Test-ResearchStudioReelCommand "pdftotext")) { $degraded = $true }
+    if (-not (Test-ResearchStudioReelCommand "pdftoppm")) { $degraded = $true }
+    if (-not (Test-ResearchStudioReelCommand "soffice") -and
+        -not (Test-ResearchStudioReelCommand "libreoffice")) { $libreOfficeMissing = $true }
+    if (-not (Test-ResearchStudioReelCommand "ffmpeg")) {
+        try {
+            $ffmpegOutput = @(& $exe @pyArgs -c "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())" 2>$null)
+            if ($LASTEXITCODE -eq 0 -and $ffmpegOutput.Count -gt 0) {
+                $bundledFfmpeg = [string]$ffmpegOutput[-1]
+            }
+        } catch {}
+        if (-not $bundledFfmpeg -or -not (Test-Path -LiteralPath $bundledFfmpeg -PathType Leaf)) {
+            $degraded = $true
+        }
+    }
+
+    if (-not $degraded) {
+        Write-Ok "ResearchStudio Reel dependency self-check passed."
+        if ($bundledFfmpeg) {
+            Write-Info "Using imageio-ffmpeg's bundled executable: $bundledFfmpeg"
+            Write-Info "For paper2reel on a machine without system FFmpeg, pass: --ffmpeg `"$bundledFfmpeg`""
+        }
+        if ($libreOfficeMissing) {
+            Write-Warn "LibreOffice is not installed. Core poster/blog/video paths are ready; PPTX-to-PDF rendering and DOCX/PPTX visual QA remain optional-unavailable."
+            Write-Warn "Install it with winget install --id TheDocumentFoundation.LibreOffice -e, sudo apt-get install -y libreoffice, or brew install --cask libreoffice."
+        }
+        return $true
+    }
+
+    Write-Warn "ResearchStudio Reel self-check found missing or degraded components."
+    Write-Warn "How to finish the Reel setup:"
+    Write-Warn "  1. Ensure Python venv support is installed, then rerun this installer."
+    Write-Warn "     Ubuntu/Debian: sudo apt-get install -y python3-venv"
+    Write-Warn "     macOS: brew install python"
+    Write-Warn "  2. Install Poppler if pdftotext/pdftoppm is missing:"
+    Write-Warn "     Windows: winget install --id oschwartz10612.Poppler -e"
+    Write-Warn "     Linux: sudo apt-get install -y poppler-utils"
+    Write-Warn "     macOS: brew install poppler"
+    Write-Warn "  3. The installer will install Playwright Chromium and a bundled FFmpeg automatically."
+    Write-Warn "  4. LibreOffice is optional for PPTX-to-PDF rendering and DOCX/PPTX visual QA."
+    Write-Warn "  Paper2Video's advanced deck route also needs the external ppt-master project or an existing PPTX."
+    return $false
+}
+
+function Install-ResearchStudioReel {
+    Write-Info "Installing ResearchStudio Reel skills from a full official checkout..."
+    if ($DryRun) {
+        Write-Info "Would clone $RESEARCHSTUDIO_REPO_URL, copy the five allowlisted Reel skills, install Python dependencies and Chromium, then run the dependency self-check"
+        return
+    }
+    if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
+        Write-Warn "Skipping ResearchStudio Reel: git is unavailable. Install Git and retry."
+        $script:SKIPPED_COMPONENTS += "ResearchStudio Reel (git unavailable)"
+        return
+    }
+
+    $checkout = Join-Path ([System.IO.Path]::GetTempPath()) ("researchstudio-reel-" + [guid]::NewGuid().ToString("N"))
+    try {
+        & git clone --depth 1 $RESEARCHSTUDIO_REPO_URL $checkout 2>&1 | ForEach-Object { Write-Host $_ }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn "Skipping ResearchStudio Reel: official repository checkout failed."
+            $script:SKIPPED_COMPONENTS += "ResearchStudio Reel (official checkout failed)"
+            return
+        }
+
+        foreach ($skill in $RESEARCHSTUDIO_REEL_SKILLS) {
+            $sourceDir = Join-Path $checkout "ResearchStudio-Reel/skills/$skill"
+            $skillFile = Join-Path $sourceDir "SKILL.md"
+            if (-not (Test-Path -LiteralPath $skillFile -PathType Leaf)) {
+                Write-Warn "Skipping ResearchStudio Reel: official checkout did not contain $skillFile"
+                $script:SKIPPED_COMPONENTS += "ResearchStudio Reel (missing source skill: $skill)"
+                return
+            }
+        }
+        $unexpectedLink = Get-ChildItem -LiteralPath (Join-Path $checkout "ResearchStudio-Reel/skills") -Recurse -Force |
+            Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 } |
+            Select-Object -First 1
+        if ($unexpectedLink) {
+            Write-Warn "Skipping ResearchStudio Reel: official checkout contains symlinks/reparse points; refusing an unexpected source shape."
+            $script:SKIPPED_COMPONENTS += "ResearchStudio Reel (unexpected source links)"
+            return
+        }
+
+        New-Item -ItemType Directory -Path (Join-Path $CODEX_DIR "skills") -Force | Out-Null
+        foreach ($skill in $RESEARCHSTUDIO_REEL_SKILLS) {
+            $sourceDir = Join-Path $checkout "ResearchStudio-Reel/skills/$skill"
+            $destination = Join-Path $CODEX_DIR "skills/$skill"
+            Remove-Item -LiteralPath $destination -Recurse -Force -ErrorAction SilentlyContinue
+            Copy-Item -LiteralPath $sourceDir -Destination $destination -Recurse -Force
+        }
+    } catch {
+        Write-Warn "Skipping ResearchStudio Reel: failed to copy the allowlisted skills: $_"
+        $script:SKIPPED_COMPONENTS += "ResearchStudio Reel (copy failed)"
+        return
+    } finally {
+        Remove-Item -LiteralPath $checkout -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    $py = Resolve-PythonCommand
+    $pythonVersionOk = $false
+    if ($py) {
+        $exe = $py[0]
+        $pyArgs = @()
+        if ($py.Count -gt 1) {
+            $pyArgs = $py[1..($py.Count - 1)]
+        }
+        & $exe @pyArgs -c "import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 10) else 1)" *> $null
+        $pythonVersionOk = ($LASTEXITCODE -eq 0)
+    }
+    if ($py -and $pythonVersionOk) {
+        $packages = @(
+            "pymupdf", "pillow", "numpy", "python-docx>=1.1.2", "qrcode", "playwright",
+            "imageio-ffmpeg", "edge-tts>=7.2.8", "python-pptx>=1.0", "pdf2image>=1.17",
+            "lxml>=5.0", "pyphen>=0.14", "cairosvg"
+        )
+        if (-not (Install-PythonUserPackages -PythonCommand $py -Packages $packages)) {
+            Write-Warn "ResearchStudio Reel Python dependency installation failed; the self-check will show repair steps"
+        }
+        & $exe @pyArgs -m playwright install chromium 2>&1 | ForEach-Object { Write-Host $_ }
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn "ResearchStudio Reel Chromium installation failed; the self-check will show repair steps"
+        }
+    } elseif ($py) {
+        Write-Warn "ResearchStudio Reel requires Python 3.10+; the self-check will show repair steps"
+    }
+
+    Add-ManagedSkillOwnership $RESEARCHSTUDIO_REEL_SKILLS
+    if (Invoke-ResearchStudioReelSelfCheck) {
+        $script:ResearchStudioReelQuickstartReady = $true
+        Write-Ok "ResearchStudio Reel skills, Python dependencies, and Chromium installed for Codex"
+    } else {
+        Write-Warn "ResearchStudio Reel skills were copied, but their required environment is incomplete."
+        $script:SKIPPED_COMPONENTS += "ResearchStudio Reel environment (self-check failed)"
     }
 }
 
@@ -1710,6 +2454,7 @@ function Get-SelectedManagedSkills {
     Add-Names $script:SelectSkillFrontendDesign @("frontend-design")
     Add-Names $script:SelectSkillPUA $PUA_SKILLS
     Add-Names $script:SelectSkillFrontendSlides @("frontend-slides")
+    Add-Names $script:SelectSkillPptMaster @("ppt-master")
     Add-Names $script:SelectSkillPaperReading @("paper-reading")
     Add-Names $script:SelectSkillHumanizer @("humanizer")
     Add-Names $script:SelectSkillHumanizerZh @("humanizer-zh")
@@ -1717,12 +2462,14 @@ function Get-SelectedManagedSkills {
     Add-Names $script:SelectSkillAdversarialReview @("adversarial-review")
     Add-Names $script:SelectSkillUpdate @("update")
     Add-Names $script:SelectAiTokenization @("huggingface-tokenizers", "sentencepiece")
-    Add-Names $script:SelectAiFineTuning @("axolotl", "llama-factory", "peft", "unsloth")
-    Add-Names $script:SelectAiPostTraining @("grpo-rl-training", "openrlhf", "simpo", "trl-fine-tuning", "verl")
-    Add-Names $script:SelectAiDistributedTraining @("deepspeed", "pytorch-fsdp2", "megatron-core", "ray-train")
-    Add-Names $script:SelectAiInferenceServing @("vllm", "sglang", "tensorrt-llm", "llama-cpp")
-    Add-Names $script:SelectAiOptimization @("awq", "gptq", "gguf", "flash-attention", "bitsandbytes")
+    Add-Names $script:SelectAiFineTuning @("axolotl", "llama-factory", "peft-fine-tuning", "unsloth")
+    Add-Names $script:SelectAiPostTraining @("grpo-rl-training", "openrlhf-training", "simpo-training", "fine-tuning-with-trl", "verl-rl-training")
+    Add-Names $script:SelectAiDistributedTraining @("deepspeed", "pytorch-fsdp2", "training-llms-megatron", "ray-train")
+    Add-Names $script:SelectAiInferenceServing @("serving-llms-vllm", "sglang", "tensorrt-llm", "llama-cpp")
+    Add-Names $script:SelectAiOptimization @("awq-quantization", "gptq", "gguf-quantization", "optimizing-attention-flash", "quantizing-models-bitsandbytes")
     Add-Names $script:SelectAiDeepXiv @("deepxiv-cli", "deepxiv-baseline-table", "deepxiv-trending-digest")
+    Add-Names $script:SelectAiResearchStudio $RESEARCHSTUDIO_SKILLS
+    Add-Names $script:SelectAiResearchStudioReel $RESEARCHSTUDIO_REEL_SKILLS
 
     return @($selected | Sort-Object)
 }
@@ -1736,13 +2483,14 @@ function Remove-NpxSkillNames {
         return
     }
 
-    if (-not (Get-Command "npx" -ErrorAction SilentlyContinue)) {
+    $launcherArgs = Get-SkillsNpxLauncherArgs
+    if (-not $launcherArgs) {
         Write-Warn "npx not found; shared/global Codex skill associations could not be removed: $($SkillNames -join ', ')"
         $script:SKIPPED_COMPONENTS += "unselected managed skills (npx unavailable): $($SkillNames -join ', ')"
         return
     }
 
-    $npxArgs = @("-y", "skills@latest", "remove") + $SkillNames + @("--global", "--agent", "codex", "--yes")
+    $npxArgs = @($launcherArgs) + @("remove") + $SkillNames + @("--global", "--agent", "codex", "--yes")
     $oldDoNotTrack = $env:DO_NOT_TRACK
     $env:DO_NOT_TRACK = "1"
     try {
@@ -1822,9 +2570,17 @@ function Sync-InteractiveSkills {
         }
 
         $installedStale = @()
+        $researchStudioRemoved = $false
         foreach ($skill in $stale) {
             $codexPath = Join-Path $CODEX_DIR "skills/$skill"
-            if (Test-Path $codexPath) { $installedStale += $skill }
+            if (Test-Path $codexPath) {
+                if ((Test-SkillInList $skill $RESEARCHSTUDIO_SKILLS) -or
+                    (Test-SkillInList $skill $RESEARCHSTUDIO_REEL_SKILLS)) {
+                    $researchStudioRemoved = $true
+                } else {
+                    $installedStale += $skill
+                }
+            }
         }
         if ($installedStale.Count -gt 0) {
             Remove-NpxSkillNames $installedStale
@@ -1840,6 +2596,10 @@ function Sync-InteractiveSkills {
                 Remove-Item -Recurse -Force $codexPath
                 Write-Ok "Removed unselected managed skill: $skill"
             }
+        }
+        $researchStudioEnv = Join-Path $CODEX_DIR "skills/.env"
+        if ($researchStudioRemoved -and (Test-Path $researchStudioEnv -PathType Leaf)) {
+            Write-Warn "Preserving $researchStudioEnv because it may contain user-managed ResearchStudio credentials; remove it manually if no other skill uses it"
         }
     }
 
@@ -1858,14 +2618,14 @@ function Install-SkillPathsFallback {
     if (-not (Test-Path $INSTALLER)) {
         Write-Warn "skill-installer not found at $INSTALLER"
         $script:SKIPPED_COMPONENTS += "skill pack from $Repo (no npx and fallback installer not found)"
-        return
+        return $false
     }
 
     $py = Resolve-PythonCommand
     if (-not $py) {
         Write-Warn "No usable Python 3 found. Install Python 3 or set PYTHON to a working interpreter."
         $script:SKIPPED_COMPONENTS += "skill pack from $Repo (Python 3 not found)"
-        return
+        return $false
     }
 
     $exe = $py[0]
@@ -1873,17 +2633,28 @@ function Install-SkillPathsFallback {
     if ($py.Count -gt 1) {
         $pyArgs = $py[1..($py.Count - 1)]
     }
-    & $exe @pyArgs $INSTALLER --repo $Repo --path @Paths
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warn "Skill install from $Repo returned non-zero (possibly already installed)"
-        $script:SKIPPED_COMPONENTS += "skill pack from $Repo (fallback installer returned non-zero)"
-        return
-    }
     $installedNames = @()
+    $failed = $false
     foreach ($path in $Paths) {
-        $installedNames += Get-SkillNameFromPath $path
+        $skillName = Get-SkillNameFromPath $path
+        & $exe @pyArgs $INSTALLER --repo $Repo --path $path --name $skillName 2>&1 |
+            ForEach-Object { Write-Host $_ }
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -eq 0 -and (Test-InstalledSkill $skillName)) {
+            $installedNames += $skillName
+        } else {
+            Write-Warn "Could not install $skillName from $Repo path $path"
+            $failed = $true
+        }
     }
-    Add-ManagedSkillOwnership $installedNames
+    if ($installedNames.Count -gt 0) {
+        Add-ManagedSkillOwnership $installedNames
+    }
+    if ($failed) {
+        $script:SKIPPED_COMPONENTS += "skill pack from $Repo (fallback installer incomplete)"
+        return $false
+    }
+    return $true
 }
 
 function Install-SkillPaths {
@@ -1905,15 +2676,30 @@ function Install-SkillPaths {
         return
     }
 
-    Write-Warn "npx skills install failed or npx is unavailable; trying Python fallback for $Repo"
-    Install-SkillPathsFallback $Repo $Paths
+    $missingPaths = @()
+    for ($index = 0; $index -lt $Paths.Count; $index++) {
+        if (-not (Test-InstalledSkill $names[$index])) {
+            $missingPaths += $Paths[$index]
+        }
+    }
+    if ($missingPaths.Count -eq 0) {
+        Add-ManagedSkillOwnership $names
+        Write-Ok "All requested skills are present despite the npx non-zero result: $($names -join ', ') ($Repo)"
+        return
+    }
+
+    Write-Warn "npx skills install was incomplete; trying Python fallback for $($missingPaths.Count) missing skill(s) from $Repo"
+    $fallbackSucceeded = Install-SkillPathsFallback $Repo $missingPaths
+    if ($fallbackSucceeded) {
+        Write-Ok "Installed missing skills with the Python fallback: $Repo"
+    }
 }
 
 function Reinstall-SkillPaths {
     param([string]$Repo, [string[]]$Paths)
 
     foreach ($path in $Paths) {
-        $skill = Split-Path $path -Leaf
+        $skill = Get-SkillNameFromPath $path
         $dest = Join-Path $CODEX_DIR "skills/$skill"
         if ($DryRun) {
             Write-Info "Would remove existing skill before reinstall: $dest"
@@ -1953,7 +2739,7 @@ function Remove-LegacySuperPowersSkills {
 
 function Skip-UnsupportedItem {
     param([string]$Item, [string]$Reason)
-    Write-Warn "$Item is listed for category parity with the Claude installer but is not installed automatically for Codex: $Reason"
+    Write-Warn "Could not install ${Item}: $Reason"
     $script:SKIPPED_COMPONENTS += "$Item ($Reason)"
 }
 
@@ -2039,7 +2825,9 @@ function Install-LocalSkills {
     $skillsDir = Join-Path $script:SCRIPT_DIR "skills"
     if (-not (Test-Path $skillsDir)) { return }
 
-    Get-ChildItem -Path $skillsDir -Directory | ForEach-Object {
+    Get-ChildItem -Path $skillsDir -Directory |
+        Where-Object { $_.Name -ne "adversarial-review" } |
+        ForEach-Object {
         $skill = $_.Name
         $dest  = Join-Path $CODEX_DIR "skills/$skill"
         if ($DryRun) {
@@ -2099,6 +2887,9 @@ function Install-Skills {
         if (-not (Install-NpxSkillNames "zarazhangrui/frontend-slides" @("frontend-slides"))) {
             Skip-UnsupportedItem "frontend-slides" "npx skills install failed"
         }
+        if ($script:PptMasterNonInteractiveRequested) {
+            Install-PptMaster
+        }
     }
 
     if ($SkillGroup -eq "ai-research" -or $SkillGroup -eq "all") {
@@ -2120,6 +2911,13 @@ function Install-Skills {
         Reinstall-SkillPaths "DeepXiv/deepxiv_sdk" @(
             "skills/deepxiv-cli", "skills/deepxiv-baseline-table", "skills/deepxiv-trending-digest"
         )
+
+        if ($script:ResearchStudioNonInteractiveRequested) {
+            Install-ResearchStudio
+        }
+        if ($script:ResearchStudioReelNonInteractiveRequested) {
+            Install-ResearchStudioReel
+        }
     }
 }
 
@@ -2293,10 +3091,19 @@ try {
             Write-Warn "  - $comp"
         }
         Write-Warn "Resolve the issues above and re-run the installer to complete them."
+    } else {
+        Write-Ok "All selected components installed and verified."
     }
 
     Show-MattPocockQuickstart
-    Write-Ok "Done. Restart Codex to load new skills/config if needed."
+    Show-ResearchStudioQuickstart
+    Show-ResearchStudioReelQuickstart
+    Show-PptMasterQuickstart
+    if ($script:SKIPPED_COMPONENTS.Count -gt 0) {
+        Write-Warn "Done with incomplete components. Restart Codex after resolving and rerunning the installer."
+    } else {
+        Write-Ok "Done. Restart Codex to load new skills/config if needed."
+    }
 } finally {
     Remove-TempDir
 }

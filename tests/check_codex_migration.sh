@@ -95,7 +95,7 @@ assert_file_contains "install.ps1" "GITHUB_PERSONAL_ACCESS_TOKEN is not set; ski
 assert_file_not_contains "install.sh" "GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB_PAT"
 assert_file_not_contains "install.ps1" "GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB_PAT"
 
-assert_file_contains "install.sh" "npx -y skills@latest add"
+assert_file_contains "install.sh" 'SKILLS_NPX_LAUNCHER_ARGS[@]}" add'
 assert_file_contains "install.sh" "--agent codex"
 assert_file_contains "install.sh" "--full-depth"
 assert_file_contains "install.sh" "selected_managed_skill_names"
@@ -110,7 +110,7 @@ assert_file_contains "install.sh" "Matt Pocock skills quickstart (30-second setu
 assert_file_contains "install.sh" "Type /skills (or press @)"
 assert_file_contains "install.sh" "not individual root slash commands"
 assert_file_contains "install.sh" "superpowers_ownership_is_recorded"
-assert_file_contains "install.sh" "skills@latest remove"
+assert_file_contains "install.sh" 'SKILLS_NPX_LAUNCHER_ARGS[@]}" remove'
 assert_file_contains "install.sh" "--global --agent codex --yes"
 assert_file_not_contains "install.sh" "SELECT_SKILL_CODING_FOUNDATIONS"
 assert_file_contains "install.sh" "handoff|Conversation handoff skill|1|skill-handoff"
@@ -144,20 +144,6 @@ assert_file_contains "install.sh" "affaan-m/everything-claude-code"
 assert_file_contains "install.ps1" "affaan-m/everything-claude-code"
 assert_file_not_contains "README.md" "Claude-only plugin command workflows"
 assert_file_not_contains "README.zh-CN.md" "Claude-only plugin command 工作流"
-
-for removed in \
-  "ppt-master" \
-  "hugohe3/ppt-master" \
-  "PptMaster" \
-  "PPT_MASTER" \
-  "SelectSkillPptMaster" \
-  "SELECT_SKILL_PPT_MASTER" \
-  "skill-ppt-master"; do
-  assert_file_not_contains "install.sh" "$removed"
-  assert_file_not_contains "install.ps1" "$removed"
-  assert_file_not_contains "README.md" "$removed"
-  assert_file_not_contains "README.zh-CN.md" "$removed"
-done
 
 for removed in \
   "claude-mem" \

@@ -5,22 +5,27 @@
 ### Architecture
 
 - `~/.codex/AGENTS.md`: global instructions, auto-loaded
-- `~/.codex/lessons.md`: correction source-of-truth (append-only)
+- `~/.codex/lessons.md`: cross-project/global correction source-of-truth (append-only)
+- `<project-root>/lessons.md`: project-specific correction source-of-truth (append-only)
 
 ### Session Startup Flow
 
 Before the first substantive response in a session, ensure lessons context is loaded from:
 
 - `~/.codex/lessons.md` (via `model_instructions_file`)
+- When working in a project, locate its root with `git rev-parse --show-toplevel` (fall back to the current workspace root when it is not a Git repository), then read `<project-root>/lessons.md` if it exists
+- Repeat the project-lessons check whenever work moves to a different project root during the session
 
 ### Self-Correction
 
 **Identify corrections early**: user says something is wrong, says "remember / don't do this again", expresses frustration, or same operation fails repeatedly.
 
 **After a correction**:
-1. Immediately write a lesson to `~/.codex/lessons.md` (date, context, mistake, rule)
-2. Make the rule concrete and actionable
-3. Continue task execution only after recording
+1. Classify the correction's scope before continuing: a correction tied to the current repository, its code, branches, tooling, or workflow is project-specific by default; only a rule that genuinely applies across projects is global
+2. Immediately append a project-specific lesson to `<project-root>/lessons.md`; create the correction log there when absent while preserving any existing content
+3. Append to `~/.codex/lessons.md` only when the correction is genuinely global; when uncertain, prefer the project log
+4. Record date, context, mistake, and a concrete actionable rule
+5. Continue task execution only after recording
 
 ## Core Settings
 

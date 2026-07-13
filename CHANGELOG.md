@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] - 2026-07-10
+## [Unreleased] - 2026-07-13
 
 ### Features
 - Migrated the latest Claude main installer categories into the Codex branch as Codex-native groups: Review, Workflow, Development Tools, Design & Content, Lifestyle, Academic Research, Slides, and MCP Servers.
@@ -9,12 +9,18 @@
 - Made repeat interactive installs selection-authoritative for installer-owned skills in both Bash and PowerShell: unchecked owned skills are removed, while an empty skill selection requires confirmation before bulk removal.
 - Added persistent managed-skill ownership state plus safe adoption of legacy lock sources only when Codex/canonical copies match, unchanged bundled copies, and the verified `obra/superpowers` fallback; retired `coding-foundations` names remain provenance-gated cleanup-only entries, and `handoff` is restored as a visible default-on Workflow choice.
 - Updated both installers to ensure statusline settings inside `[tui]`, removing misplaced top-level or project-scoped `status_line` entries during the merge.
-- Removed Codex installer entries that have no practical Codex install target, including Claude-only command workflow plugins, `ppt-master`, `claude-mem`, and `claude-health`.
+- Removed Codex installer entries that have no practical Codex install target, including Claude-only command workflow plugins, `claude-mem`, and `claude-health`.
 - Enabled the GitHub MCP menu item by default; installation uses `GITHUB_PERSONAL_ACCESS_TOKEN` when present and skips GitHub MCP without writing a placeholder token when absent.
 - Hardened installer edge cases found in review: removed orphaned managed skill names, restored npx-first AI/DeepXiv paths, and made statusline merging handle missing or multi-line config safely.
 - Added a conditional Matt Pocock post-install quickstart to both installers: after the full pack succeeds, it points users to Codex `/skills` or `@`, names `setup-matt-pocock-skills`, and explains that installed skills are not individual root slash commands.
-- Changed the installed Codex review policy to use Matt Pocock's `code-review` Standards/Spec workflow instead of invoking `adversarial-review` or spawning `claude -p` reviewers.
+- Changed the installed Codex review policy and menu default to Matt Pocock's `code-review` Standards/Spec workflow; `adversarial-review` remains opt-in and Codex no longer spawns `claude -p` reviewers by default.
 - Made Playwright MCP runtime-safe across both installers and the static `config.toml` template: pin `@playwright/mcp@0.0.78`, use an isolated Node.js 24 launcher when the host Node.js is older than 20, and refuse to register the server unless it returns an MCP `initialize` result.
+- Added separate, default-off Microsoft ResearchStudio Idea and Reel entries to **Academic Research**. Both installers use a temporary official source checkout: Idea copies `idea_spark`, `paper_search`, and `scoop_check`; Reel copies `paper2assets`, `paper2poster`, `paper2video`, `paper2blog`, and `paper2reel`. Each bundle installs its explicit dependencies, runs its own self-check, and is tracked as installer-owned.
+- Added `hugohe3/ppt-master` as a separate, default-off **Slides** item. Explicit selection installs the official skill plus its complete `requirements.txt`, then checks Python 3.10+, every runtime import, and the required deck/UI scripts in Bash and PowerShell.
+- Made all `npx skills` installs work on Node.js 18 hosts by supplying an isolated Node.js 24 launcher, and made Python dependency installation PEP 668-safe by using a temporary bootstrap venv to populate the ambient interpreter's user site.
+- Made remote skill completion depend on an actual installed `SKILL.md`, rather than the `skills` CLI exit code alone. Path-based AI research entries now map repository folder names to their declared skill names, and removed Matt Pocock entries that current upstream no longer exposes.
+- Changed ResearchStudio and PPT Master completion reporting so copied source plus failed dependencies is reported as incomplete; success now requires the corresponding runtime self-check to pass.
+- Split correction memory by scope: the installed `~/.codex/lessons.md` is seeded from a dedicated blank global template, while project-specific corrections live in an on-demand `<project-root>/lessons.md` that Codex is instructed to discover and read.
 
 ### Design Rationale
 - Codex does not have Claude Code's plugin runtime, so the migration preserves user-facing categories while mapping installable capabilities to Codex skills, MCP servers, or explicit skipped items.
@@ -24,16 +30,23 @@
 - A validated ownership file bounds reconciliation so a generic catalogue name is never treated as deletion authority by itself. `npx skills remove --global --agent codex` updates Codex/global metadata before Codex-local fallback cleanup, and generic `~/.agents/skills` children are never scanned or deleted.
 - Current `skills@latest` global Codex installs can use the canonical shared `~/.agents/skills` directory even with `--agent codex --copy`; Codex discovers that directory, while its root `/` menu remains a command menu and exposes installed skills through `/skills` or `@`.
 - `codex mcp add` proves that configuration was written, not that the stdio process can initialize. Sending the exact launcher a JSON-RPC `initialize` request first prevents an incompatible Node.js/Playwright combination from being reported as a successful install, while pinning the MCP version prevents a later `latest` release from silently changing a validated command.
+- One source-based ResearchStudio path avoids maintaining separate npx and checkout behavior. The installers validate a fixed skill allowlist, reject links, and copy only the selected bundle without executing upstream scripts or granting them `sudo`; dependencies and diagnostics remain explicit and reviewable in this repository.
+- PPT Master remains opt-in because its full environment is comparatively large. A temporary venv provides pip without becoming the runtime environment; installing into the ambient Python user site still matches the upstream skill's literal `python3` execution model and works around PEP 668.
+- The current `skills` CLI can exit successfully after silently ignoring an unknown requested name. Verifying each requested directory closes that false-success path, while using declared frontmatter names handles upstream repositories whose folder basename is not the install name.
+- Keeping project lessons out of the global seed prevents one repository's corrections from silently affecting unrelated work. The same on-demand principle used for project changelogs applies: no project log is required until the first project-scoped correction occurs.
 
 ### Notes & Caveats
 - `github` and `lark-mcp` remain credential-gated; GitHub uses `GITHUB_PERSONAL_ACCESS_TOKEN`, while lark-mcp stays manual because it needs app credentials.
-- The Slides group currently installs `frontend-slides` only; `ppt-master` is intentionally omitted because its setup path is too heavy for this installer.
+- Both Slides entries are default off. Selecting `ppt-master` installs its full Python dependency set and runs a non-UI self-check; browser confirmation and live preview open later when a real deck workflow reaches those stages.
 - The autonomous YOLO defaults should only be used in trusted repositories.
 - Existing Codex TUI sessions may need a restart or `/statusline` refresh before the new footer fields appear.
 - Skill reconciliation runs only after a real interactive menu submission. Explicit non-interactive flags remain additive, and core files, MCP configuration, shared-agent skills, unowned/custom skills, and ambiguous legacy entries are not removed.
 - Repeat installs preserve existing `model` and `model_reasoning_effort` values; the new defaults apply only when creating `config.toml`, while a selected StatusLine is refreshed to the managed footer layout.
 - The Matt Pocock quickstart is suppressed for dry-runs and failed installs, and an already-open Codex TUI may need to be restarted before newly installed skills appear.
-- The Node.js 24 compatibility launcher is scoped to Playwright MCP and requires `npx` plus a first-use package download. Installing a supported Node.js 24 LTS runtime remains preferable; rerun the MCP installer and restart Codex after upgrading.
+- The Node.js 24 compatibility launcher covers Playwright MCP and all `npx skills` operations and requires `npx` plus a first-use package download. Installing a supported Node.js 24 LTS runtime remains preferable.
+- Installer ownership is recorded only for requested skills whose `SKILL.md` exists under the Codex or shared-agent skill directory. An incomplete `npx` result is retried only for missing path-based entries and remains visible in the final skipped-components report if fallback also fails.
+- Both ResearchStudio entries are default off. They install independently after explicit menu selection; an explicit AI-research group request or `--all` / `-All` selects both. The upstream npx package still omits Reel, which no longer affects this integration because both bundles come from the official source tree.
+- Idea needs Python 3.9+ and may use OpenReview or optional rate-limit credentials. Reel needs Python 3.10+, Playwright Chromium, and Poppler; bundled FFmpeg is accepted, while LibreOffice remains optional for PPTX/DOCX rendering and visual QA. Paper2Video's advanced deck route needs the separately selectable `ppt-master` or an existing PPTX. No Conda environment is created. Deselect/uninstall preserves `~/.codex/skills/.env` to avoid deleting user-managed secrets.
 
 ## [1.7.3] - 2026-04-09
 

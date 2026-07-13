@@ -48,6 +48,7 @@ clear_skill_selections() {
   SELECT_SKILL_CODE_REVIEW=false
   SELECT_SKILL_PUA=false
   SELECT_SKILL_FRONTEND_SLIDES=false
+  SELECT_SKILL_PPT_MASTER=false
   SELECT_SKILL_PAPER_READING=false
   SELECT_SKILL_HUMANIZER=false
   SELECT_SKILL_HUMANIZER_ZH=false
@@ -61,6 +62,8 @@ clear_skill_selections() {
   SELECT_AI_INFERENCE_SERVING=false
   SELECT_AI_OPTIMIZATION=false
   SELECT_AI_DEEPXIV=false
+  SELECT_AI_RESEARCHSTUDIO=false
+  SELECT_AI_RESEARCHSTUDIO_REEL=false
 }
 
 write_owned_skills() {
@@ -85,11 +88,13 @@ selection_vars=(
   SELECT_SKILL_CODE_REVIEW SELECT_SKILL_KARPATHY SELECT_SKILL_SUPERPOWERS
   SELECT_SKILL_MATTPOCOCK SELECT_SKILL_DOCUMENTS SELECT_SKILL_EXAMPLES
   SELECT_SKILL_FRONTEND_DESIGN SELECT_SKILL_PUA SELECT_SKILL_FRONTEND_SLIDES
+  SELECT_SKILL_PPT_MASTER
   SELECT_SKILL_PAPER_READING SELECT_SKILL_HUMANIZER SELECT_SKILL_HUMANIZER_ZH
   SELECT_SKILL_HANDOFF SELECT_SKILL_ADVERSARIAL_REVIEW SELECT_SKILL_UPDATE
   SELECT_AI_TOKENIZATION SELECT_AI_FINE_TUNING SELECT_AI_POST_TRAINING
   SELECT_AI_DISTRIBUTED_TRAINING SELECT_AI_INFERENCE_SERVING
-  SELECT_AI_OPTIMIZATION SELECT_AI_DEEPXIV
+  SELECT_AI_OPTIMIZATION SELECT_AI_DEEPXIV SELECT_AI_RESEARCHSTUDIO
+  SELECT_AI_RESEARCHSTUDIO_REEL
 )
 reachable_file="$TMP/reachable-managed-skills"
 : > "$reachable_file"
@@ -119,7 +124,7 @@ assert_missing "$CODEX_DIR/skills/humanizer-zh"
 assert_missing "$CODEX_DIR/skills/frontend-slides"
 assert_exists "$CODEX_DIR/skills/private-skill"
 assert_exists "$AGENTS_SKILLS_DIR/research"
-grep -Fq -- 'skills@latest remove' "$NPX_LOG" || fail "npx removal was not invoked"
+grep -Eq -- '(skills@latest|-- skills) remove' "$NPX_LOG" || fail "npx removal was not invoked"
 grep -Fq -- '--global --agent codex --yes' "$NPX_LOG" || fail "npx removal was not Codex-scoped"
 grep -Fq -- 'frontend-slides' "$NPX_LOG" || fail "stale npx skill was not requested for removal"
 
