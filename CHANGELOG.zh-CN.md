@@ -1,5 +1,21 @@
 # 更新日志
 
+## [2.9.0] - 2026-07-13
+
+### 功能
+- **Academic Research 组新增 `ResearchStudio` 条目（默认关闭）：** 通过官方 npx 安装器（`npx github:microsoft/ResearchStudio`）安装微软 [ResearchStudio](https://github.com/microsoft/ResearchStudio) 的 *Idea* skills —— `idea-spark`、`paper-search`、`scoop-check`。skill 安装到 Claude Code 的 `~/.claude/skills/`，与现有的 DeepXiv、paper-reading 条目并列。`install.sh` 与 `install.ps1` 均支持，显式 `--all` / `-All` 时默认开启。
+
+### 设计考量
+- **沿用 `mattpocock/skills` 的 npx 方式，而非 vendoring。** ResearchStudio 自带 Node.js 安装器,仓库无需内置 skill 目录。调用时带 `DO_NOT_TRACK=1`（关闭遥测）、`RS_PLUGINS=idea`（仅 Idea 包）、`RS_SCOPE=global`、`RS_AGENTS=claude`,使文件写入 Claude Code 的全局 skills 目录。
+- **`RS_PIP=1` 实现开箱即用,与 codex 分支一致。** Idea skills 会调用 Python 辅助脚本,因此安装时让 ResearchStudio 用 `pip install --user` 装好依赖。`--user` 不影响系统 Python / conda,pip 失败也不会中断安装。
+- **默认关闭,归入 Academic Research。** 与 DeepXiv 一样为可选项(菜单勾选或显式 `--all`),不属于默认安装。
+
+### 注意事项
+- 安装时需要 Node.js / `npx` 及网络。若缺少 `npx`,安装器会打印 Node.js 提示与完整命令后跳过,不阻断其余安装或版本戳(可选附加项)。
+- 安装后的 quickstart 提示会给出连接器自检命令:`python3 ~/.claude/skills/idea_spark/scripts/run.py check_connectors`。上游安装器收集的凭据存于 `~/.claude/skills/.env` —— 切勿粘贴到聊天中。
+- 当前 npx 版本仅含 Idea 包,不安装 ResearchStudio-Reel。
+- `--uninstall` 只删除安装清单(`~/.claude/.researchstudio-skills`,成功安装时写入)中记录的 skill,并**保留 `~/.claude/skills/.env`**(可能含用户凭据),提示用户如不再使用请手动删除。
+
 ## [2.8.0] - 2026-06-29
 
 ### 功能

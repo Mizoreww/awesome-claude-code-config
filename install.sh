@@ -334,6 +334,11 @@ SELECTED_SKILLS=()
 SELECTED_PLUGINS=()
 SELECTED_DEEPXIV_SKILLS=()
 DEEPXIV_KNOWN_SKILLS=("deepxiv-cli" "deepxiv-trending-digest" "deepxiv-baseline-table")
+INSTALL_RESEARCHSTUDIO=false
+RESEARCHSTUDIO_QUICKSTART_READY=false
+# ResearchStudio Idea skills (installed via `npx github:microsoft/ResearchStudio`, NOT vendored).
+# Directory names use underscores; menu/quickstart text uses hyphens. Used for uninstall cleanup.
+RESEARCHSTUDIO_SKILLS=("idea_spark" "paper_search" "scoop_check")
 
 # Skills shipped by mattpocock/skills (installed via `npx skills`, NOT vendored).
 # Snapshot of the plugin.json skill list at integration time; used for uninstall cleanup.
@@ -566,7 +571,8 @@ distributed-training|Distributed training (DeepSpeed, FSDP, Megatron)|0|plug-dis
 optimization|Quantization & optimization (GPTQ, AWQ, Flash Attn)|0|plug-optimization
 deepxiv-cli|arXiv/PMC paper search & reading CLI skill|0|deepxiv-cli
 deepxiv-trending-digest|Trending paper digest generation|0|deepxiv-trending-digest
-deepxiv-baseline-table|Baseline comparison table from papers|0|deepxiv-baseline-table")
+deepxiv-baseline-table|Baseline comparison table from papers|0|deepxiv-baseline-table
+researchstudio|Research ideation (Microsoft): idea-spark, paper-search, scoop-check|0|ai-researchstudio")
 
     # Group 9: MCP Servers
     GROUP_LABELS+=("MCP Servers")
@@ -978,6 +984,8 @@ deepxiv-baseline-table|Baseline comparison table from papers|0|deepxiv-baseline-
             deepxiv-cli)            INSTALL_DEEPXIV=true; SELECTED_DEEPXIV_SKILLS+=("deepxiv-cli") ;;
             deepxiv-trending-digest) INSTALL_DEEPXIV=true; SELECTED_DEEPXIV_SKILLS+=("deepxiv-trending-digest") ;;
             deepxiv-baseline-table) INSTALL_DEEPXIV=true; SELECTED_DEEPXIV_SKILLS+=("deepxiv-baseline-table") ;;
+            # ResearchStudio
+            ai-researchstudio)      INSTALL_RESEARCHSTUDIO=true ;;
             # MCP
             mcp)                    INSTALL_MCP=true ;;
             # Plugins (all plug-* ids)
@@ -1540,6 +1548,71 @@ install_deepxiv() {
     rm -rf "$deepxiv_tmp"
 }
 
+# Install ResearchStudio Idea skills via the official npx installer
+# (github:microsoft/ResearchStudio). Copies idea_spark/paper_search/scoop_check into
+# ~/.claude/skills/ and writes a shared skills/.env. RS_PIP=1 also pip-installs the
+# skills' Python deps to the user site (--user), matching the codex branch behavior.
+# Optional add-on: a missing npx or a failed installer is non-fatal (must not block the
+# version stamp), mirroring install_mattpocock_skills.
+install_researchstudio() {
+    local -a npx_args=(-y github:microsoft/ResearchStudio --yes)
+    local manual_cmd="DO_NOT_TRACK=1 RS_PLUGINS=idea RS_SCOPE=global RS_AGENTS=claude RS_PIP=1 npx ${npx_args[*]}"
+
+    info "Installing ResearchStudio Idea skills via the official npx installer..."
+    if ! command -v npx &>/dev/null; then
+        warn "npx not found (needs Node.js) — skipping ResearchStudio (optional)."
+        warn "  Install Node.js to get npx: https://nodejs.org"
+        warn "  Then run: $manual_cmd"
+        # Optional add-on: do NOT count as an install warning (would block the version stamp).
+        return 0
+    fi
+    if $DRY_RUN; then
+        info "Would run: $manual_cmd"
+        return 0
+    fi
+
+    _researchstudio_npx() {
+        env DO_NOT_TRACK=1 RS_PLUGINS=idea RS_SCOPE=global RS_AGENTS=claude RS_PIP=1 \
+            npx "${npx_args[@]}" </dev/null
+    }
+    if ! retry 3 5 "ResearchStudio" _researchstudio_npx; then
+        warn "Failed to install ResearchStudio via npx (optional — install skipped)."
+        warn "  Retry manually: $manual_cmd"
+        # Optional add-on failure is non-fatal: do NOT block the version stamp.
+        return 0
+    fi
+
+    # Verify the upstream installer actually wrote the skills into Claude Code's dir.
+    local skill
+    for skill in "${RESEARCHSTUDIO_SKILLS[@]}"; do
+        if [[ ! -f "$CLAUDE_DIR/skills/$skill/SKILL.md" ]]; then
+            warn "ResearchStudio: upstream installer did not produce $CLAUDE_DIR/skills/$skill/SKILL.md (optional — skipped)."
+            warn "  Retry manually: $manual_cmd"
+            return 0
+        fi
+    done
+
+    ok "ResearchStudio Idea skills installed (~/.claude/skills/)"
+    # Record what we installed so uninstall removes only these (provenance), never a
+    # user-authored skill that merely shares a name.
+    printf '%s\n' "${RESEARCHSTUDIO_SKILLS[@]}" > "$CLAUDE_DIR/.researchstudio-skills" 2>/dev/null || true
+    RESEARCHSTUDIO_QUICKSTART_READY=true
+}
+
+# Post-install hint shown once when ResearchStudio was installed this run.
+show_researchstudio_quickstart() {
+    $RESEARCHSTUDIO_QUICKSTART_READY || return 0
+    $DRY_RUN && return 0
+
+    echo ""
+    echo "ResearchStudio Idea quickstart"
+    echo "  1. Restart Claude Code if it was open during installation."
+    echo '  2. Type $ in the composer and select idea-spark, paper-search, or scoop-check.'
+    echo "  3. Verify connectors: python3 \"$CLAUDE_DIR/skills/idea_spark/scripts/run.py\" check_connectors"
+    echo "  Credentials may be stored by the upstream installer in $CLAUDE_DIR/skills/.env; never paste them into chat."
+    echo "  The current npx release contains the Idea bundle only; ResearchStudio-Reel is not installed."
+}
+
 install_lessons() {
     info "Installing lessons.md template..."
     local target="$CLAUDE_DIR/lessons.md"
@@ -1738,6 +1811,7 @@ uninstall() {
     echo "  - $CLAUDE_DIR/rules/"
     echo "  - $CLAUDE_DIR/skills/ (installer-managed only)"
     echo "  - $CLAUDE_DIR/skills/deepxiv-* (DeepXiv skills)"
+    echo "  - $CLAUDE_DIR/skills/{idea_spark,paper_search,scoop_check} (ResearchStudio, .env preserved)"
     echo "  - $CLAUDE_DIR/lessons.md"
     echo "  - $CLAUDE_DIR/hooks/ (installer-managed only)"
     echo "  - Installed plugins (requires claude CLI)"
@@ -1782,6 +1856,22 @@ uninstall() {
         [[ -d "$deepxiv_skill" ]] || continue
         rm -rf "$deepxiv_skill" && ok "Removed DeepXiv skill: $(basename "$deepxiv_skill")"
     done
+
+    # Remove ResearchStudio skills we installed, tracked via the install manifest. The
+    # shared skills/.env may hold user credentials, so it is deliberately preserved.
+    local rs_manifest rs_skill rs_removed=false
+    rs_manifest="$CLAUDE_DIR/.researchstudio-skills"
+    if [[ -f "$rs_manifest" ]]; then
+        while IFS= read -r rs_skill; do
+            [[ -n "$rs_skill" ]] || continue
+            [[ -d "$CLAUDE_DIR/skills/$rs_skill" ]] || continue
+            rm -rf "$CLAUDE_DIR/skills/$rs_skill" && ok "Removed ResearchStudio skill: $rs_skill" && rs_removed=true
+        done < "$rs_manifest"
+        rm -f "$rs_manifest"
+    fi
+    if $rs_removed && [[ -f "$CLAUDE_DIR/skills/.env" ]]; then
+        warn "Preserving $CLAUDE_DIR/skills/.env — it may contain ResearchStudio credentials; remove it manually if unused."
+    fi
 
     # Remove mattpocock/skills we installed, tracked via the install manifest written at
     # install time — so we never delete a user-authored skill that merely shares a
@@ -1876,6 +1966,7 @@ main() {
             INSTALL_MCP=true
             INSTALL_DEEPXIV=true
             SELECTED_DEEPXIV_SKILLS=("${DEEPXIV_KNOWN_SKILLS[@]}")
+            INSTALL_RESEARCHSTUDIO=true
             PLUGIN_GROUPS=("all")
             # Add code-review plugin (normally from Review group)
             SELECTED_PLUGINS+=("code-review@claude-plugins-official")
@@ -1888,7 +1979,8 @@ main() {
     # Check if anything was selected
     if ! $INSTALL_CLAUDE_MD && ! $INSTALL_SETTINGS && ! $INSTALL_RULES && \
        ! $INSTALL_SKILLS && ! $INSTALL_MATTPOCOCK && ! $INSTALL_LESSONS && \
-       ! $INSTALL_STATUSLINE && ! $INSTALL_PLUGINS && ! $INSTALL_MCP && ! $INSTALL_DEEPXIV; then
+       ! $INSTALL_STATUSLINE && ! $INSTALL_PLUGINS && ! $INSTALL_MCP && ! $INSTALL_DEEPXIV && \
+       ! $INSTALL_RESEARCHSTUDIO; then
         warn "Nothing selected to install."
         exit 0
     fi
@@ -1923,6 +2015,7 @@ main() {
     $INSTALL_MCP && install_mcp
     $INSTALL_PLUGINS && install_plugins
     $INSTALL_DEEPXIV && install_deepxiv
+    $INSTALL_RESEARCHSTUDIO && install_researchstudio
 
     # Stamp version (skip if there were critical warnings)
     if ! $DRY_RUN; then
@@ -1947,6 +2040,8 @@ main() {
         echo "  3. Replace YOUR_APP_ID/YOUR_APP_SECRET in Lark MCP config"
     fi
     echo ""
+
+    show_researchstudio_quickstart
 }
 
 main "$@"

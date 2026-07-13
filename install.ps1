@@ -180,6 +180,10 @@ $MATTPOCOCK_SKILLS = @(
     "grill-me", "grilling", "handoff", "teach", "writing-great-skills"
 )
 
+# ResearchStudio Idea skills (installed via `npx github:microsoft/ResearchStudio`, NOT vendored).
+# Directory names use underscores; menu/quickstart text uses hyphens. Used for uninstall cleanup.
+$RESEARCHSTUDIO_SKILLS = @("idea_spark", "paper_search", "scoop_check")
+
 $PLUGINS_ESSENTIAL = @(
     "andrej-karpathy-skills@karpathy-skills"
     "context7@claude-plugins-official"
@@ -305,6 +309,7 @@ function Show-InteractiveMenu {
             @{ Label = "deepxiv-cli";      Desc = "arXiv/PMC paper search & reading CLI skill"; Default = $false; Id = "deepxiv-cli" }
             @{ Label = "deepxiv-trending-digest"; Desc = "Trending paper digest generation"; Default = $false; Id = "deepxiv-trending-digest" }
             @{ Label = "deepxiv-baseline-table"; Desc = "Baseline comparison table from papers"; Default = $false; Id = "deepxiv-baseline-table" }
+            @{ Label = "researchstudio";  Desc = "Research ideation (Microsoft): idea-spark, paper-search, scoop-check"; Default = $false; Id = "ai-researchstudio" }
         )}
         @{ Label = "MCP Servers"; Hint = ""; Items = @(
             @{ Label = "Lark MCP server"; Desc = "Feishu/Lark integration";           Default = $false; Id = "mcp" }
@@ -545,6 +550,7 @@ function Show-InteractiveMenu {
         Mcp                = $false
         DeepXiv            = $false
         DeepXivSkills      = @()
+        ResearchStudio     = $false
         ReviewAdversarial  = $false
         ReviewCodex        = $false
         ReviewCodeReview   = $false
@@ -574,6 +580,7 @@ function Show-InteractiveMenu {
             "deepxiv-cli"          { $result.DeepXiv = $true; $result.DeepXivSkills += "deepxiv-cli" }
             "deepxiv-trending-digest" { $result.DeepXiv = $true; $result.DeepXivSkills += "deepxiv-trending-digest" }
             "deepxiv-baseline-table"  { $result.DeepXiv = $true; $result.DeepXivSkills += "deepxiv-baseline-table" }
+            "ai-researchstudio"  { $result.ResearchStudio = $true }
             "mcp"                { $result.Mcp = $true }
             "plug-*"             {
                 $result.Plugins = $true
@@ -1061,6 +1068,75 @@ function Install-DeepXiv {
     if (Test-Path $deepxivTmp) { Remove-Item $deepxivTmp -Recurse -Force }
 }
 
+# Install ResearchStudio Idea skills via the official npx installer
+# (github:microsoft/ResearchStudio). Copies idea_spark/paper_search/scoop_check into
+# ~/.claude/skills/ and writes a shared skills/.env. RS_PIP=1 also pip-installs the
+# skills' Python deps to the user site (--user), matching the codex branch behavior.
+# Optional add-on: a missing npx or a failed installer is non-fatal (must not block the
+# version stamp), mirroring Install-MattpocockSkills.
+$script:ResearchStudioQuickstartReady = $false
+function Install-ResearchStudio {
+    Write-Info "Installing ResearchStudio Idea skills via the official npx installer..."
+    $npxArgs = @("-y", "github:microsoft/ResearchStudio", "--yes")
+    $cmdPreview = "`$env:DO_NOT_TRACK='1'; `$env:RS_PLUGINS='idea'; `$env:RS_SCOPE='global'; `$env:RS_AGENTS='claude'; `$env:RS_PIP='1'; npx " + ($npxArgs -join " ")
+    $npx = Get-Command npx -ErrorAction SilentlyContinue
+    if (-not $npx) {
+        Write-Warn "npx not found (needs Node.js) - skipping ResearchStudio (optional)."
+        Write-Warn "  Install Node.js to get npx: https://nodejs.org"
+        Write-Warn "  e.g. run 'winget install OpenJS.NodeJS' (or download the installer from the link above)"
+        Write-Warn "  Then run: $cmdPreview"
+        # Optional add-on: do NOT count as an install warning (would block the version stamp).
+        return
+    }
+    if ($DryRun) {
+        Write-Info "Would run: $cmdPreview"
+        return
+    }
+
+    $prev = @{ Dnt = $env:DO_NOT_TRACK; Plugins = $env:RS_PLUGINS; Scope = $env:RS_SCOPE; Agents = $env:RS_AGENTS; Pip = $env:RS_PIP }
+    $env:DO_NOT_TRACK = "1"; $env:RS_PLUGINS = "idea"; $env:RS_SCOPE = "global"; $env:RS_AGENTS = "claude"; $env:RS_PIP = "1"
+    try {
+        $ok = Invoke-Retry -MaxAttempts 3 -DelaySeconds 5 -Description "ResearchStudio" -Action {
+            & npx @npxArgs
+            if ($LASTEXITCODE -ne 0) { throw "npx ResearchStudio exited with code $LASTEXITCODE" }
+        }
+    } finally {
+        $env:DO_NOT_TRACK = $prev.Dnt; $env:RS_PLUGINS = $prev.Plugins; $env:RS_SCOPE = $prev.Scope; $env:RS_AGENTS = $prev.Agents; $env:RS_PIP = $prev.Pip
+    }
+    if (-not $ok) {
+        Write-Warn "Failed to install ResearchStudio via npx (optional - install skipped)."
+        Write-Warn "  Retry manually: $cmdPreview"
+        # Optional add-on failure is non-fatal: do NOT block the version stamp.
+        return
+    }
+
+    # Verify the upstream installer actually wrote the skills into Claude Code's dir.
+    foreach ($skill in $RESEARCHSTUDIO_SKILLS) {
+        if (-not (Test-Path (Join-Path $CLAUDE_DIR "skills\$skill\SKILL.md"))) {
+            Write-Warn "ResearchStudio: upstream installer did not produce skills\$skill\SKILL.md (optional - skipped)."
+            Write-Warn "  Retry manually: $cmdPreview"
+            return
+        }
+    }
+
+    Write-Ok "ResearchStudio Idea skills installed (~/.claude/skills/)"
+    # Record what we installed so uninstall removes only these (provenance).
+    try { $RESEARCHSTUDIO_SKILLS | Set-Content -Path (Join-Path $CLAUDE_DIR ".researchstudio-skills") -Encoding UTF8 } catch {}
+    $script:ResearchStudioQuickstartReady = $true
+}
+
+# Post-install hint shown once when ResearchStudio was installed this run.
+function Show-ResearchStudioQuickstart {
+    if (-not $script:ResearchStudioQuickstartReady -or $DryRun) { return }
+    Write-Host ""
+    Write-Host "ResearchStudio Idea quickstart"
+    Write-Host "  1. Restart Claude Code if it was open during installation."
+    Write-Host '  2. Type $ in the composer and select idea-spark, paper-search, or scoop-check.'
+    Write-Host "  3. Verify connectors: python3 `"$CLAUDE_DIR/skills/idea_spark/scripts/run.py`" check_connectors"
+    Write-Host "  Credentials may be stored by the upstream installer in $CLAUDE_DIR/skills/.env; never paste them into chat."
+    Write-Host "  The current npx release contains the Idea bundle only; ResearchStudio-Reel is not installed."
+}
+
 function Install-Lessons {
     Write-Info "Installing lessons.md template..."
     $target = Join-Path $CLAUDE_DIR "lessons.md"
@@ -1296,6 +1372,7 @@ function Invoke-Uninstall {
     Write-Host "  - $CLAUDE_DIR\rules\"
     Write-Host "  - $CLAUDE_DIR\skills\ (installer-managed only)"
     Write-Host "  - $CLAUDE_DIR\skills\deepxiv-* (DeepXiv skills)"
+    Write-Host "  - $CLAUDE_DIR\skills\{idea_spark,paper_search,scoop_check} (ResearchStudio, .env preserved)"
     Write-Host "  - $CLAUDE_DIR\lessons.md"
     Write-Host "  - $CLAUDE_DIR\hooks\ (installer-managed only)"
     Write-Host "  - Installed plugins (requires claude CLI)"
@@ -1344,6 +1421,23 @@ function Invoke-Uninstall {
     $deepxivPattern = Join-Path $CLAUDE_DIR "skills\deepxiv-*"
     Get-ChildItem $deepxivPattern -Directory -ErrorAction SilentlyContinue | ForEach-Object {
         Remove-Item $_.FullName -Recurse -Force; Write-Ok "Removed DeepXiv skill: $($_.Name)"
+    }
+
+    # Remove ResearchStudio skills we installed, tracked via the install manifest. The
+    # shared skills\.env may hold user credentials, so it is deliberately preserved.
+    $rsManifest = Join-Path $CLAUDE_DIR ".researchstudio-skills"
+    $rsRemoved = $false
+    if (Test-Path $rsManifest) {
+        foreach ($rsSkill in (Get-Content $rsManifest)) {
+            $rsSkill = $rsSkill.Trim()
+            if (-not $rsSkill) { continue }
+            $rs = Join-Path $CLAUDE_DIR "skills\$rsSkill"
+            if (Test-Path $rs) { Remove-Item $rs -Recurse -Force; Write-Ok "Removed ResearchStudio skill: $rsSkill"; $rsRemoved = $true }
+        }
+        Remove-Item $rsManifest -Force
+    }
+    if ($rsRemoved -and (Test-Path (Join-Path $CLAUDE_DIR "skills\.env"))) {
+        Write-Warn "Preserving $CLAUDE_DIR\skills\.env — it may contain ResearchStudio credentials; remove it manually if unused."
     }
 
     # Remove mattpocock/skills we installed, tracked via the install manifest written at
@@ -1458,6 +1552,7 @@ function Main {
     $doPlugins = $false
     $doMcp = $false
     $doDeepXiv = $false
+    $doResearchStudio = $false
     $doMattpocock = $false
     $deepXivSkills = @()
     $ruleLangs = @()
@@ -1482,6 +1577,7 @@ function Main {
         $doMcp = $true
         $doDeepXiv = $true
         $deepXivSkills = @("deepxiv-cli", "deepxiv-trending-digest", "deepxiv-baseline-table")
+        $doResearchStudio = $true
         $pluginGroups = @("all")
         $reviewAdversarial = $true
         $reviewCodex = $false
@@ -1508,6 +1604,7 @@ function Main {
             $doMcp = $menuResult.Mcp
             $doDeepXiv = $menuResult.DeepXiv
             $deepXivSkills = $menuResult.DeepXivSkills
+            $doResearchStudio = $menuResult.ResearchStudio
             $ruleLangs = $menuResult.RuleLangs
             $ruleLangsExplicit = $menuResult.RuleLangsExplicit
             $pluginGroups = $menuResult.PluginGroups
@@ -1543,7 +1640,7 @@ function Main {
     # Check if anything was selected
     if (-not $doClaudeMd -and -not $doSettings -and -not $doRules -and
         -not $doSkills -and -not $doMattpocock -and -not $doLessons -and -not $doHooks -and
-        -not $doPlugins -and -not $doMcp -and -not $doDeepXiv) {
+        -not $doPlugins -and -not $doMcp -and -not $doDeepXiv -and -not $doResearchStudio) {
         Write-Warn "Nothing selected to install."
         return
     }
@@ -1580,6 +1677,7 @@ function Main {
     if ($doMcp) { Install-Mcp }
     if ($doPlugins) { Install-Plugins -Groups $pluginGroups -SelectedPluginsList $selectedPlugins }
     if ($doDeepXiv) { Install-DeepXiv -SelectedDeepXivSkills $deepXivSkills }
+    if ($doResearchStudio) { Install-ResearchStudio }
 
     if (-not $DryRun) {
         if ($InstallWarnings -eq 0) {
@@ -1603,6 +1701,8 @@ function Main {
         Write-Host "  3. Replace YOUR_APP_ID/YOUR_APP_SECRET in Lark MCP config"
     }
     Write-Host ""
+
+    Show-ResearchStudioQuickstart
 }
 
 Main

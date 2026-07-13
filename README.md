@@ -40,7 +40,7 @@ Launches a two-level interactive selector. Append `--all` / `-All` to skip the m
     [4/5] Design & Content        document-skills, frontend-design, humanizer...
     [0/2] Slides                  frontend-slides, ppt-master
     [0/3] Memory & Lifestyle      claude-mem, claude-health, PUA
-    [1/10] Academic Research      paper-reading, deepxiv-cli...
+    [1/11] Academic Research      paper-reading, deepxiv-cli, researchstudio...
     [0/1] MCP Servers             Lark/Feishu
 ```
 
@@ -121,7 +121,7 @@ Launches a two-level interactive selector. Append `--all` / `-All` to skip the m
 | [**claude-health**](https://github.com/tw93/claude-health) | claude-health | Health check & wellness dashboard for Claude Code sessions | off |
 | [**PUA**](https://github.com/tanweai/pua) | pua-skills | AI agent productivity booster (CN / EN / JA) | off |
 
-**Academic Research (10)** — training / inference plugins + paper-reading skills, off by default except `paper-reading`.
+**Academic Research (11)** — training / inference plugins + paper-reading, DeepXiv & ResearchStudio skills, off by default except `paper-reading`.
 
 | Item | Source | What It Does | Default |
 |------|--------|--------------|---------|
@@ -135,6 +135,7 @@ Launches a two-level interactive selector. Append `--all` / `-All` to skip the m
 | [**deepxiv-cli**](https://github.com/DeepXiv/deepxiv_sdk) | DeepXiv (GitHub) | arXiv/PMC paper search & reading CLI (hybrid BM25+Vector, 2M+ papers) | off |
 | [**deepxiv-trending-digest**](https://github.com/DeepXiv/deepxiv_sdk) | DeepXiv (GitHub) | Markdown digests of trending papers (last 7 days) | off |
 | [**deepxiv-baseline-table**](https://github.com/DeepXiv/deepxiv_sdk) | DeepXiv (GitHub) | Build baseline comparison tables from research papers | off |
+| [**researchstudio**](https://github.com/microsoft/ResearchStudio) | ResearchStudio (Microsoft, npx) | Research ideation Idea skills: idea-spark, paper-search, scoop-check | off |
 
 **MCP Servers (1)** — non-plugin MCP integrations, off by default.
 

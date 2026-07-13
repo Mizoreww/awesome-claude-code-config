@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.9.0] - 2026-07-13
+
+### Features
+- **New `ResearchStudio` item in the Academic Research group (default OFF):** installs Microsoft's [ResearchStudio](https://github.com/microsoft/ResearchStudio) *Idea* skills — `idea-spark`, `paper-search`, `scoop-check` — via the official npx installer (`npx github:microsoft/ResearchStudio`). The skills land in `~/.claude/skills/` for Claude Code, alongside the existing DeepXiv and paper-reading entries. Available in both `install.sh` and `install.ps1`, and turned on by an explicit `--all` / `-All`.
+
+### Design Rationale
+- **npx over vendoring, like `mattpocock/skills`.** ResearchStudio ships its own Node.js installer, so the repo stays free of vendored skill directories. The installer is invoked with `DO_NOT_TRACK=1` (telemetry off), `RS_PLUGINS=idea` (Idea bundle only), `RS_SCOPE=global`, and `RS_AGENTS=claude` so files are written into Claude Code's global skills dir.
+- **`RS_PIP=1` for out-of-the-box use, matching the codex branch.** The Idea skills call Python helper scripts, so the installer lets ResearchStudio `pip install --user` their dependencies at install time. `--user` keeps this out of system Python / conda, and a pip failure does not abort the install.
+- **Default OFF, in Academic Research.** Like the DeepXiv skills, ResearchStudio is opt-in (menu pick or explicit `--all`), not part of the default install.
+
+### Notes & Caveats
+- Requires Node.js / `npx` and network access at install time. If `npx` is missing the installer prints a Node.js hint and the exact command, then skips it without blocking the rest of the install or the version stamp (optional add-on).
+- After install, a quickstart hint points to a connector self-check: `python3 ~/.claude/skills/idea_spark/scripts/run.py check_connectors`. Credentials the upstream installer collects are stored in `~/.claude/skills/.env` — never paste them into chat.
+- The current npx release contains the Idea bundle only; ResearchStudio-Reel is not installed.
+- `--uninstall` removes only the skills recorded in an install manifest (`~/.claude/.researchstudio-skills`, written on a successful install) and **preserves `~/.claude/skills/.env`** (it may hold user credentials), warning the user to remove it manually if unused.
+
 ## [2.8.0] - 2026-06-29
 
 ### Features

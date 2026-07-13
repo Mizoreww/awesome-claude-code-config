@@ -40,7 +40,7 @@ irm https://raw.githubusercontent.com/Mizoreww/awesome-claude-code-config/main/i
     [4/5] Design & Content        document-skills、frontend-design、humanizer...
     [0/2] Slides                  frontend-slides、ppt-master
     [0/3] Memory & Lifestyle      claude-mem、claude-health、PUA
-    [1/10] Academic Research      paper-reading、deepxiv-cli...
+    [1/11] Academic Research      paper-reading、deepxiv-cli、researchstudio...
     [0/1] MCP Servers             Lark/飞书
 ```
 
@@ -121,7 +121,7 @@ irm https://raw.githubusercontent.com/Mizoreww/awesome-claude-code-config/main/i
 | [**claude-health**](https://github.com/tw93/claude-health) | claude-health | Claude Code 会话健康检查与状态面板 | 关闭 |
 | [**PUA**](https://github.com/tanweai/pua) | pua-skills | AI Agent 生产力倍增器（中 / 英 / 日） | 关闭 |
 
-**Academic Research (10)** — 训练 / 推理插件 + 论文阅读 skill，默认除 `paper-reading` 外全部关闭。
+**Academic Research (11)** — 训练 / 推理插件 + 论文阅读、DeepXiv、ResearchStudio skill，默认除 `paper-reading` 外全部关闭。
 
 | 项目 | 来源 | 功能 | 默认 |
 |------|------|------|------|
@@ -135,6 +135,7 @@ irm https://raw.githubusercontent.com/Mizoreww/awesome-claude-code-config/main/i
 | [**deepxiv-cli**](https://github.com/DeepXiv/deepxiv_sdk) | DeepXiv (GitHub) | arXiv/PMC 论文搜索与阅读 CLI（BM25+Vector 混合，200 万+ 论文） | 关闭 |
 | [**deepxiv-trending-digest**](https://github.com/DeepXiv/deepxiv_sdk) | DeepXiv (GitHub) | 近 7 天热门论文 Markdown 摘要 | 关闭 |
 | [**deepxiv-baseline-table**](https://github.com/DeepXiv/deepxiv_sdk) | DeepXiv (GitHub) | 从论文构建 Baseline 对比表 | 关闭 |
+| [**researchstudio**](https://github.com/microsoft/ResearchStudio) | ResearchStudio（微软，npx） | 研究选题 Idea skill：idea-spark、paper-search、scoop-check | 关闭 |
 
 **MCP Servers (1)** — 非插件的 MCP 集成，默认关闭。
 
