@@ -129,6 +129,8 @@ For `blocked`, replace execution fields that cannot exist with:
 ```json
 {
   "status": "blocked",
+  "repository": "https://github.com/org/repo",
+  "commit": "full-or-unambiguous-hex-revision",
   "claim": "C1",
   "environment": "audited local environment",
   "artifacts": ["audit.log"],

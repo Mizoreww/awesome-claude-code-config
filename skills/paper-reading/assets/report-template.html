@@ -8,11 +8,11 @@
   <style data-report-style>{{REPORT_STYLE}}</style>
 </head>
 <body>
-  <a class="skip-link" href="#report-content">跳到正文</a>
+  <a class="skip-link" href="#report-content">{{SKIP_LINK}}</a>
 
   <article data-paper-report data-level="{{LEVEL}}" data-paper-type="{{PAPER_TYPE}}">
     <header class="report-hero">
-      <div class="paper-fingerprint" aria-label="本文概念指纹">
+      <div class="paper-fingerprint" aria-label="{{FINGERPRINT_LABEL}}">
         {{FINGERPRINTS}}
       </div>
       <p class="eyebrow">{{LEVEL_LABEL}} · {{PAPER_TYPE_LABEL}}</p>
@@ -25,22 +25,22 @@
       </div>
     </header>
 
-    <div class="lens-bar reading-lenses" aria-label="阅读视角">
-      <button type="button" data-lens="all" class="active">全部</button>
-      <button type="button" data-lens="method">方法</button>
-      <button type="button" data-lens="evidence">证据</button>
-      <button type="button" data-lens="critique">批判</button>
+    <div class="lens-bar reading-lenses" aria-label="{{READING_LENSES_LABEL}}">
+      <button type="button" data-lens="all" class="active">{{ALL_LABEL}}</button>
+      <button type="button" data-lens="method">{{METHOD_LABEL}}</button>
+      <button type="button" data-lens="evidence">{{EVIDENCE_LABEL}}</button>
+      <button type="button" data-lens="critique">{{CRITIQUE_LABEL}}</button>
       {{REPRODUCTION_LENS}}
     </div>
 
     <div class="proof-layout">
-      <nav class="outline" aria-label="文章目录">
-        <p class="utility-label">Argument map</p>
+      <nav class="outline" aria-label="{{OUTLINE_LABEL}}">
+        <p class="utility-label">{{ARGUMENT_MAP_LABEL}}</p>
         {{OUTLINE}}
-        <div class="mode-key" aria-label="坐标图例">
-          <span><i class="claim-dot"></i>主张 C</span>
-          <span><i class="evidence-dot"></i>证据 E</span>
-          <span><i class="limitation-dot"></i>限制 L</span>
+        <div class="mode-key" aria-label="{{COORDINATE_KEY_LABEL}}">
+          <span><i class="claim-dot"></i>{{CLAIM_KEY}}</span>
+          <span><i class="evidence-dot"></i>{{EVIDENCE_KEY}}</span>
+          <span><i class="limitation-dot"></i>{{LIMITATION_KEY}}</span>
           {{REPRODUCTION_KEY}}
         </div>
       </nav>
@@ -49,15 +49,15 @@
         {{REPORT_SECTIONS}}
       </main>
 
-      <aside class="evidence-rail" aria-label="证据索引">
-        <p class="utility-label">Evidence</p>
+      <aside class="evidence-rail" aria-label="{{EVIDENCE_INDEX_LABEL}}">
+        <p class="utility-label">{{EVIDENCE_RAIL_LABEL}}</p>
         {{EVIDENCE_RAIL}}
       </aside>
     </div>
   </article>
 
-  <dialog id="lightbox" class="lightbox" aria-label="大图查看器">
-    <button type="button" class="lightbox-close" data-lightbox-close aria-label="关闭大图">×</button>
+  <dialog id="lightbox" class="lightbox" aria-label="{{LIGHTBOX_LABEL}}">
+    <button type="button" class="lightbox-close" data-lightbox-close aria-label="{{CLOSE_LIGHTBOX_LABEL}}">×</button>
     <div class="lightbox-stage"></div>
     <p class="lightbox-caption" aria-live="polite"></p>
   </dialog>

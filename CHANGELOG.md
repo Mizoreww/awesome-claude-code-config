@@ -4,7 +4,7 @@
 
 ### Features
 - Rebuilt `paper-reading` as a portable layered skill with explicit Markdown/HTML choice and three work scopes: brief, compact close-reading, and deep reproduction.
-- Added a shared claim/evidence/limitation/reproduction ledger, paper-type references, immutable PDF extraction, a tested Proof Spine HTML scaffold, purposeful visual/SVG audit, click-to-enlarge visuals, and structural report validation.
+- Added a shared claim/evidence/limitation/reproduction ledger, paper-type references, immutable PDF extraction, a tested bilingual Proof Spine HTML scaffold, purposeful visual/SVG audit, click-to-enlarge visuals, bidirectional evidence tracing, and structural report validation.
 - Added bounded deep reproduction with pinned provenance, isolated `uv`/`venv` environments, an execution confirmation gate, and machine-readable run/blocker manifests.
 
 ### Design Rationale
@@ -14,7 +14,8 @@
 
 ### Notes & Caveats
 - This is an approval candidate on an isolated feature branch; `main` and `codex` remain unchanged until the user approves the generated reports.
-- PDF extraction uses `pymupdf4llm` in an isolated environment and preserves raw assets/graphics metadata; final visual selection still requires human/agent render inspection.
+- PDF extraction pins `pymupdf4llm==1.28.0` in a project-independent isolated environment and records that version while preserving raw assets/graphics metadata; final visual selection still requires human/agent render inspection.
+- The validator rejects unwrapped visuals, remote `srcset`/SVG image fetches, unsafe or escaping local links, and empty deep-reproduction evidence manifests; the enforced browser test covers lightboxes, lenses, and claim↔evidence tracing.
 - Deep mode reproduces the smallest representative central claim by default. Full training or benchmark reproduction requires a separate resource confirmation.
 
 ## [2.9.0] - 2026-07-13

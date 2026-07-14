@@ -7,6 +7,52 @@
   const stage = lightbox?.querySelector(".lightbox-stage");
   const caption = lightbox?.querySelector(".lightbox-caption");
   let previousFocus = null;
+  let svgCloneSerial = 0;
+
+  function cloneSvgForLightbox(svg) {
+    const expanded = svg.cloneNode(true);
+    const serial = ++svgCloneSerial;
+    const idMap = new Map();
+    const identified = [expanded, ...expanded.querySelectorAll("[id]")]
+      .filter((element) => element.id);
+
+    identified.forEach((element, index) => {
+      const oldId = element.id;
+      const newId = `lightbox-svg-${serial}-${index}`;
+      idMap.set(oldId, newId);
+      element.id = newId;
+    });
+
+    [expanded, ...expanded.querySelectorAll("*")].forEach((element) => {
+      element.getAttributeNames().forEach((name) => {
+        const value = element.getAttribute(name);
+        if (!value) return;
+        let rewritten = value.replace(/url\((['"]?)#([^)'"]+)\1\)/g, (match, quote, id) => {
+          const replacement = idMap.get(id);
+          return replacement ? `url(${quote}#${replacement}${quote})` : match;
+        });
+        if (rewritten.startsWith("#") && idMap.has(rewritten.slice(1))) {
+          rewritten = `#${idMap.get(rewritten.slice(1))}`;
+        }
+        if (name === "aria-labelledby" || name === "aria-describedby") {
+          rewritten = rewritten
+            .split(/\s+/)
+            .map((id) => idMap.get(id) || id)
+            .join(" ");
+        }
+        if (rewritten !== value) element.setAttribute(name, rewritten);
+      });
+    });
+
+    expanded.querySelectorAll("style").forEach((style) => {
+      let css = style.textContent || "";
+      idMap.forEach((newId, oldId) => {
+        css = css.replaceAll(`url(#${oldId})`, `url(#${newId})`);
+      });
+      style.textContent = css;
+    });
+    return expanded;
+  }
 
   function openLightbox(figure) {
     if (!lightbox || !stage || !caption) return;
@@ -21,9 +67,7 @@
       expanded.alt = visual.alt;
       stage.append(expanded);
     } else {
-      const expanded = visual.cloneNode(true);
-      expanded.removeAttribute("id");
-      stage.append(expanded);
+      stage.append(cloneSvgForLightbox(visual));
     }
     caption.textContent = figure.querySelector("figcaption")?.textContent?.trim()
       || visual.getAttribute("aria-label")
@@ -87,11 +131,28 @@
     observedSections.forEach((section) => observer.observe(section));
   }
 
-  document.querySelectorAll("[data-trace]").forEach((control) => {
-    control.addEventListener("click", () => {
-      const coordinate = control.dataset.trace;
-      document.querySelectorAll(".trace-active").forEach((item) => item.classList.remove("trace-active"));
-      document.querySelector(`[data-coordinate='${CSS.escape(coordinate)}']`)?.classList.add("trace-active");
+  function traceCoordinate(coordinate) {
+    const blocks = [...document.querySelectorAll("[data-coordinate]")];
+    blocks.forEach((block) => block.classList.remove("trace-active", "trace-origin"));
+    document.querySelectorAll("[data-trace]").forEach((control) => {
+      control.classList.toggle("trace-active", control.dataset.trace === coordinate);
     });
+
+    const origin = blocks.find((block) => block.dataset.coordinate === coordinate);
+    if (!origin) return;
+    origin.classList.add("trace-active", "trace-origin");
+
+    const related = new Set((origin.dataset.supports || "").split(/\s+/).filter(Boolean));
+    blocks.forEach((block) => {
+      const supports = (block.dataset.supports || "").split(/\s+/).filter(Boolean);
+      if (supports.includes(coordinate)) related.add(block.dataset.coordinate);
+    });
+    blocks.forEach((block) => {
+      if (related.has(block.dataset.coordinate)) block.classList.add("trace-active");
+    });
+  }
+
+  document.querySelectorAll("[data-trace]").forEach((control) => {
+    control.addEventListener("click", () => traceCoordinate(control.dataset.trace));
   });
 })();

@@ -4,20 +4,22 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass, field
-from html.parser import HTMLParser
 import json
-from pathlib import Path
 import re
 import sys
+from dataclasses import dataclass, field
+from html.parser import HTMLParser
+from pathlib import Path
 from urllib.parse import unquote, urlsplit
-
 
 COORDINATE_RE = re.compile(r"^[CELR][1-9][0-9]*$")
 COMMIT_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
 REMOTE_ASSET_RE = re.compile(r"^(?:https?:)?//", re.IGNORECASE)
+REMOTE_REFERENCE_RE = re.compile(r"(?:https?:)?//", re.IGNORECASE)
 PLACEHOLDER_RE = re.compile(
-    r"\{\{[A-Z0-9_]+\}\}|\[请用有证据锚点的高密度内容替换本段。\]"
+    r"\{\{[A-Z0-9_]+\}\}|"
+    r"\[请用有证据锚点的高密度内容替换本段。\]|"
+    r"\[Replace this paragraph with dense, evidence-anchored content\.\]"
 )
 KIND_PREFIX = {"claim": "C", "evidence": "E", "limitation": "L", "reproduction": "R"}
 COMMON_SECTIONS = {
@@ -53,7 +55,10 @@ class VisualRecord:
 class ReportDocument:
     ids: dict[str, list[int]] = field(default_factory=dict)
     anchors: list[tuple[str, int]] = field(default_factory=list)
+    hyperlinks: list[tuple[str, int]] = field(default_factory=list)
     assets: list[tuple[str, str, int]] = field(default_factory=list)
+    srcsets: list[tuple[str, str, int]] = field(default_factory=list)
+    unwrapped_visuals: list[ElementRecord] = field(default_factory=list)
     sections: list[ElementRecord] = field(default_factory=list)
     coordinates: list[ElementRecord] = field(default_factory=list)
     figures: list[VisualRecord] = field(default_factory=list)
@@ -80,72 +85,82 @@ class ReportParser(HTMLParser):
         self.document = ReportDocument()
         self._figure_stack: list[int] = []
 
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        attributes = dict(attrs)
-        line = self.getpos()[0]
-        record = ElementRecord(tag=tag, attrs=attributes, line=line)
-        identifier = attributes.get("id")
-        if identifier:
-            self.document.ids.setdefault(identifier, []).append(line)
-
-        if tag == "article":
-            self.document.articles.append(record)
-        elif tag == "header":
-            self.document.headers.append(record)
-        elif tag == "nav":
-            self.document.navs.append(record)
-        elif tag == "main":
-            self.document.mains.append(record)
-        elif tag == "aside":
-            self.document.asides.append(record)
-        elif tag == "dialog":
-            self.document.dialogs.append(record)
-        elif tag == "meta":
-            self.document.metas.append(record)
-        elif tag == "link":
-            self.document.links.append(record)
-        elif tag == "script":
-            self.document.scripts.append(record)
-        elif tag == "style":
-            self.document.styles.append(record)
-        elif tag == "title":
+    def _record_structure(self, record: ElementRecord) -> None:
+        collection = {
+            "article": self.document.articles,
+            "header": self.document.headers,
+            "nav": self.document.navs,
+            "main": self.document.mains,
+            "aside": self.document.asides,
+            "dialog": self.document.dialogs,
+            "meta": self.document.metas,
+            "link": self.document.links,
+            "script": self.document.scripts,
+            "style": self.document.styles,
+            "section": self.document.sections,
+        }.get(record.tag)
+        if collection is not None:
+            collection.append(record)
+        elif record.tag == "title":
             self.document.title_count += 1
-        elif tag == "section":
-            self.document.sections.append(record)
 
-        coordinate = attributes.get("data-coordinate")
-        if coordinate:
-            self.document.coordinates.append(record)
-
-        if tag == "a":
-            href = attributes.get("href") or ""
-            if href.startswith("#") and len(href) > 1:
-                self.document.anchors.append((href[1:], line))
-
-        if tag == "figure":
-            self.document.figures.append(VisualRecord(attrs=attributes, line=line))
+    def _record_visual(self, record: ElementRecord) -> None:
+        if record.tag == "figure":
+            self.document.figures.append(VisualRecord(record.attrs, record.line))
             self._figure_stack.append(len(self.document.figures) - 1)
-        elif tag in {"img", "svg"}:
-            if self._figure_stack:
-                self.document.figures[self._figure_stack[-1]].contains_visual = True
-            if tag == "img":
-                self.document.images.append(record)
-            else:
-                self.document.svgs.append(record)
+            return
+        if record.tag not in {"img", "svg"}:
+            return
+        if self._figure_stack:
+            self.document.figures[self._figure_stack[-1]].contains_visual = True
+        else:
+            self.document.unwrapped_visuals.append(record)
+        target = self.document.images if record.tag == "img" else self.document.svgs
+        target.append(record)
 
+    def _record_assets(self, record: ElementRecord) -> None:
+        attributes = record.attrs
         asset_attribute = {
             "img": "src",
             "source": "src",
             "video": "src",
             "audio": "src",
             "object": "data",
-        }.get(tag)
+        }.get(record.tag)
         if asset_attribute and attributes.get(asset_attribute):
-            self.document.assets.append((attributes[asset_attribute] or "", tag, line))
-        if tag == "video" and attributes.get("poster"):
             self.document.assets.append(
-                (attributes["poster"] or "", "video poster", line)
+                (attributes[asset_attribute] or "", record.tag, record.line)
             )
+        if record.tag in {"img", "source"} and attributes.get("srcset"):
+            self.document.srcsets.append(
+                (attributes["srcset"] or "", record.tag, record.line)
+            )
+        if record.tag == "video" and attributes.get("poster"):
+            self.document.assets.append(
+                (attributes["poster"] or "", "video poster", record.line)
+            )
+        if record.tag == "image":
+            href = attributes.get("href") or attributes.get("xlink:href")
+            if href:
+                self.document.assets.append((href, "SVG image", record.line))
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        record = ElementRecord(tag=tag, attrs=dict(attrs), line=self.getpos()[0])
+        identifier = record.attrs.get("id")
+        if identifier:
+            self.document.ids.setdefault(identifier, []).append(record.line)
+        self._record_structure(record)
+        coordinate = record.attrs.get("data-coordinate")
+        if coordinate:
+            self.document.coordinates.append(record)
+        if tag == "a":
+            href = record.attrs.get("href") or ""
+            if href:
+                self.document.hyperlinks.append((href, record.line))
+            if href.startswith("#") and len(href) > 1:
+                self.document.anchors.append((href[1:], record.line))
+        self._record_visual(record)
+        self._record_assets(record)
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self.handle_starttag(tag, attrs)
@@ -176,8 +191,41 @@ def _inside_report(path: Path, report_root: Path) -> bool:
     return True
 
 
-def _validate_manifest(report_path: Path, known_coordinates: set[str]) -> list[str]:
+def _nonempty_string(value: object) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _valid_repository(value: object) -> bool:
+    if not _nonempty_string(value):
+        return False
+    assert isinstance(value, str)
+    parsed = urlsplit(value)
+    return parsed.scheme.lower() in {"http", "https"} and bool(parsed.netloc)
+
+
+def _validate_artifacts(manifest: dict[str, object], manifest_path: Path) -> list[str]:
+    artifacts = manifest.get("artifacts")
+    if (
+        not isinstance(artifacts, list)
+        or not artifacts
+        or not all(_nonempty_string(item) for item in artifacts)
+    ):
+        return [
+            "reproduction manifest artifacts must be a non-empty list of local paths"
+        ]
     errors: list[str] = []
+    reproduction_root = manifest_path.parent.resolve()
+    for item in artifacts:
+        assert isinstance(item, str)
+        artifact = (manifest_path.parent / item).resolve()
+        if not _inside_report(artifact, reproduction_root) or not artifact.is_file():
+            errors.append(
+                f"reproduction artifact is missing or escapes its directory: {item}"
+            )
+    return errors
+
+
+def _validate_manifest(report_path: Path, known_coordinates: set[str]) -> list[str]:
     manifest_path = report_path.parent / "reproduction" / "manifest.json"
     if not manifest_path.is_file():
         return ["deep report requires reproduction/manifest.json"]
@@ -187,7 +235,15 @@ def _validate_manifest(report_path: Path, known_coordinates: set[str]) -> list[s
         return [f"reproduction/manifest.json is not valid JSON: {exc}"]
     if not isinstance(manifest, dict):
         return ["reproduction/manifest.json must contain a JSON object"]
+    errors = _validate_manifest_fields(manifest, known_coordinates)
+    errors.extend(_validate_artifacts(manifest, manifest_path))
+    return errors
 
+
+def _validate_manifest_identity(
+    manifest: dict[str, object], known_coordinates: set[str]
+) -> list[str]:
+    errors: list[str] = []
     status = manifest.get("status")
     if status not in {"passed", "partial", "blocked"}:
         errors.append(
@@ -202,71 +258,56 @@ def _validate_manifest(report_path: Path, known_coordinates: set[str]) -> list[s
         errors.append(
             "reproduction manifest claim must reference a report C-coordinate"
         )
-    if (
-        not isinstance(manifest.get("environment"), str)
-        or not manifest["environment"].strip()
-    ):
-        errors.append("reproduction manifest requires a non-empty environment")
-    artifacts = manifest.get("artifacts")
-    if not isinstance(artifacts, list) or not all(
-        isinstance(item, str) and item for item in artifacts
-    ):
-        errors.append("reproduction manifest artifacts must be a list of local paths")
-    else:
-        reproduction_root = manifest_path.parent.resolve()
-        for item in artifacts:
-            artifact = (manifest_path.parent / item).resolve()
-            if (
-                not _inside_report(artifact, reproduction_root)
-                or not artifact.is_file()
-            ):
-                errors.append(
-                    f"reproduction artifact is missing or escapes its directory: {item}"
-                )
-
-    if status in {"passed", "partial"}:
-        for field_name in ("repository", "command", "result"):
-            value = manifest.get(field_name)
-            if not isinstance(value, str) or not value.strip():
-                errors.append(
-                    f"reproduction manifest requires a non-empty {field_name}"
-                )
-        commit = manifest.get("commit")
-        if not isinstance(commit, str) or not COMMIT_RE.fullmatch(commit):
-            errors.append(
-                "reproduction manifest commit must be a 7-64 digit hexadecimal revision"
-            )
-    elif status == "blocked":
-        if (
-            not isinstance(manifest.get("blocker"), str)
-            or not manifest["blocker"].strip()
-        ):
-            errors.append("blocked reproduction manifest requires a concrete blocker")
-        audited = manifest.get("audited_sources")
-        if not isinstance(audited, list) or not audited:
-            errors.append("blocked reproduction manifest requires audited_sources")
+    for field_name in ("repository", "environment"):
+        if not _nonempty_string(manifest.get(field_name)):
+            errors.append(f"reproduction manifest requires a non-empty {field_name}")
+    repository = manifest.get("repository")
+    if _nonempty_string(repository) and not _valid_repository(repository):
+        errors.append(
+            "reproduction manifest repository must be a canonical http(s) URL"
+        )
+    commit = manifest.get("commit")
+    if not isinstance(commit, str) or not COMMIT_RE.fullmatch(commit):
+        errors.append(
+            "reproduction manifest commit must be a 7-64 digit hexadecimal revision"
+        )
     return errors
 
 
-def validate_report(report_path: Path) -> list[str]:
-    """Return contract violations for one summary.html file."""
-    report_path = Path(report_path)
-    if not report_path.is_file():
-        return [f"report does not exist: {report_path}"]
-    try:
-        source = report_path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
-        return [f"report is not readable UTF-8: {exc}"]
-
-    parser = ReportParser()
-    try:
-        parser.feed(source)
-        parser.close()
-    except Exception as exc:  # HTMLParser can surface malformed entity errors.
-        return [f"report HTML could not be parsed: {exc}"]
-    document = parser.document
+def _validate_manifest_status(manifest: dict[str, object]) -> list[str]:
     errors: list[str] = []
+    status = manifest.get("status")
+    if status in {"passed", "partial"}:
+        for field_name in ("command", "result"):
+            if not _nonempty_string(manifest.get(field_name)):
+                errors.append(
+                    f"reproduction manifest requires a non-empty {field_name}"
+                )
+    elif status == "blocked":
+        if not _nonempty_string(manifest.get("blocker")):
+            errors.append("blocked reproduction manifest requires a concrete blocker")
+        audited = manifest.get("audited_sources")
+        if (
+            not isinstance(audited, list)
+            or not audited
+            or not all(_nonempty_string(item) for item in audited)
+        ):
+            errors.append(
+                "blocked reproduction manifest requires non-empty audited_sources"
+            )
+    return errors
 
+
+def _validate_manifest_fields(
+    manifest: dict[str, object], known_coordinates: set[str]
+) -> list[str]:
+    errors = _validate_manifest_identity(manifest, known_coordinates)
+    errors.extend(_validate_manifest_status(manifest))
+    return errors
+
+
+def _validate_shell(source: str, document: ReportDocument) -> list[str]:
+    errors: list[str] = []
     if not source.lstrip().lower().startswith("<!doctype html>"):
         errors.append("report must begin with <!doctype html>")
     if PLACEHOLDER_RE.search(source):
@@ -297,26 +338,29 @@ def validate_report(report_path: Path) -> list[str]:
             errors.append(f"line {link.line}: stylesheet must be inlined")
     if re.search(r"@import\s|url\(\s*['\"]?(?:https?:)?//", source, re.IGNORECASE):
         errors.append("CSS contains a network dependency")
+    return errors
 
-    report_articles = [
+
+def _report_identity(document: ReportDocument) -> tuple[list[str], str, str]:
+    errors: list[str] = []
+    articles = [
         record for record in document.articles if "data-paper-report" in record.attrs
     ]
-    if len(report_articles) != 1:
-        errors.append("report requires exactly one <article data-paper-report>")
-        article = None
-        level = ""
-        paper_type = ""
-    else:
-        article = report_articles[0]
-        level = article.attrs.get("data-level") or ""
-        paper_type = article.attrs.get("data-paper-type") or ""
-        if level not in {"brief", "compact", "deep"}:
-            errors.append("data-level must be brief, compact, or deep")
-        if paper_type not in TYPE_SECTIONS:
-            errors.append(
-                "data-paper-type must be empirical, theoretical, survey, or systems"
-            )
+    if len(articles) != 1:
+        return ["report requires exactly one <article data-paper-report>"], "", ""
+    level = articles[0].attrs.get("data-level") or ""
+    paper_type = articles[0].attrs.get("data-paper-type") or ""
+    if level not in {"brief", "compact", "deep"}:
+        errors.append("data-level must be brief, compact, or deep")
+    if paper_type not in TYPE_SECTIONS:
+        errors.append(
+            "data-paper-type must be empirical, theoretical, survey, or systems"
+        )
+    return errors, level, paper_type
 
+
+def _validate_landmarks(document: ReportDocument) -> list[str]:
+    errors: list[str] = []
     if not any("report-hero" in _classes(record) for record in document.headers):
         errors.append("report requires a header.report-hero")
     if not document.navs:
@@ -329,7 +373,11 @@ def validate_report(report_path: Path) -> list[str]:
         errors.append("report requires an aria-labelled evidence index")
     if not _has_landmark(document.dialogs, id="lightbox"):
         errors.append('report requires <dialog id="lightbox">')
+    return errors
 
+
+def _validate_hyperlinks(document: ReportDocument, report_path: Path) -> list[str]:
+    errors: list[str] = []
     for identifier, lines in sorted(document.ids.items()):
         if len(lines) > 1:
             errors.append(
@@ -338,23 +386,80 @@ def validate_report(report_path: Path) -> list[str]:
     for target, line in document.anchors:
         if target not in document.ids:
             errors.append(f"line {line}: local anchor target does not exist: #{target}")
-
     report_root = report_path.parent.resolve()
-    for asset_value, tag, line in document.assets:
-        if asset_value.startswith("data:"):
-            continue
-        if REMOTE_ASSET_RE.match(asset_value):
-            errors.append(f"line {line}: {tag} uses a network asset: {asset_value}")
-            continue
-        asset_path = unquote(urlsplit(asset_value).path)
-        resolved = (report_path.parent / asset_path).resolve()
-        if not _inside_report(resolved, report_root):
-            errors.append(
-                f"line {line}: asset escapes the report directory: {asset_value}"
-            )
-        elif not resolved.is_file():
-            errors.append(f"line {line}: local asset does not exist: {asset_value}")
+    for href, line in document.hyperlinks:
+        errors.extend(_validate_hyperlink(href, line, report_path, report_root))
+    return errors
 
+
+def _validate_hyperlink(
+    href: str, line: int, report_path: Path, report_root: Path
+) -> list[str]:
+    if href.startswith("#"):
+        return []
+    parsed = urlsplit(href)
+    scheme = parsed.scheme.lower()
+    if scheme in {"http", "https", "mailto"} or href.startswith("//"):
+        return []
+    if scheme:
+        return [f"line {line}: hyperlink uses an unsafe scheme: {href}"]
+    link_path = unquote(parsed.path)
+    if not link_path:
+        return []
+    resolved = (report_path.parent / link_path).resolve()
+    if not _inside_report(resolved, report_root):
+        return [f"line {line}: hyperlink escapes the report directory: {href}"]
+    if not resolved.is_file():
+        return [f"line {line}: local hyperlink does not exist: {href}"]
+    return []
+
+
+def _srcset_candidates(srcset: str) -> list[str]:
+    return [part.strip().split()[0] for part in srcset.split(",") if part.strip()]
+
+
+def _validate_asset(
+    value: str, tag: str, line: int, report_path: Path, report_root: Path
+) -> list[str]:
+    if value.startswith("data:"):
+        return []
+    if REMOTE_ASSET_RE.match(value):
+        return [f"line {line}: {tag} uses a network asset: {value}"]
+    parsed = urlsplit(value)
+    if parsed.scheme:
+        return [f"line {line}: {tag} uses an unsafe asset scheme: {value}"]
+    resolved = (report_path.parent / unquote(parsed.path)).resolve()
+    if not _inside_report(resolved, report_root):
+        return [f"line {line}: asset escapes the report directory: {value}"]
+    if not resolved.is_file():
+        return [f"line {line}: local asset does not exist: {value}"]
+    return []
+
+
+def _validate_assets(document: ReportDocument, report_path: Path) -> list[str]:
+    errors: list[str] = []
+    report_root = report_path.parent.resolve()
+    for value, tag, line in document.assets:
+        errors.extend(_validate_asset(value, tag, line, report_path, report_root))
+    for srcset, tag, line in document.srcsets:
+        if REMOTE_REFERENCE_RE.search(srcset):
+            errors.append(f"line {line}: {tag} srcset uses a network asset: {srcset}")
+            continue
+        for candidate in _srcset_candidates(srcset):
+            errors.extend(
+                _validate_asset(
+                    candidate, f"{tag} srcset", line, report_path, report_root
+                )
+            )
+    return errors
+
+
+def _validate_visuals(document: ReportDocument) -> list[str]:
+    errors: list[str] = []
+    for visual in document.unwrapped_visuals:
+        errors.append(
+            f"line {visual.line}: every img/svg visual must be inside a lightbox figure"
+        )
     for image in document.images:
         if not (image.attrs.get("alt") or "").strip():
             errors.append(f"line {image.line}: image requires non-empty alt text")
@@ -367,24 +472,27 @@ def validate_report(report_path: Path) -> list[str]:
                 f'line {svg.line}: inline SVG requires role="img" and an aria-label'
             )
     for figure in document.figures:
-        if not figure.contains_visual:
-            continue
-        if "data-lightbox" not in figure.attrs:
-            errors.append(
-                f"line {figure.line}: every visual figure requires data-lightbox"
-            )
-        if figure.attrs.get("tabindex") != "0":
-            errors.append(f'line {figure.line}: lightbox trigger requires tabindex="0"')
-        if figure.attrs.get("role") != "button":
-            errors.append(
-                f'line {figure.line}: lightbox trigger requires role="button"'
-            )
-        if not (figure.attrs.get("aria-label") or "").strip():
-            errors.append(
-                f"line {figure.line}: lightbox trigger requires an aria-label"
-            )
+        if figure.contains_visual:
+            errors.extend(_validate_lightbox_figure(figure))
+    return errors
 
-    known_coordinates: set[str] = set()
+
+def _validate_lightbox_figure(figure: VisualRecord) -> list[str]:
+    errors: list[str] = []
+    if "data-lightbox" not in figure.attrs:
+        errors.append(f"line {figure.line}: every visual figure requires data-lightbox")
+    if figure.attrs.get("tabindex") != "0":
+        errors.append(f'line {figure.line}: lightbox trigger requires tabindex="0"')
+    if figure.attrs.get("role") != "button":
+        errors.append(f'line {figure.line}: lightbox trigger requires role="button"')
+    if not (figure.attrs.get("aria-label") or "").strip():
+        errors.append(f"line {figure.line}: lightbox trigger requires an aria-label")
+    return errors
+
+
+def _validate_coordinates(document: ReportDocument) -> tuple[list[str], set[str]]:
+    errors: list[str] = []
+    known: set[str] = set()
     for record in document.coordinates:
         coordinate = record.attrs.get("data-coordinate") or ""
         if not COORDINATE_RE.fullmatch(coordinate):
@@ -392,55 +500,98 @@ def validate_report(report_path: Path) -> list[str]:
                 f"line {record.line}: malformed evidence coordinate: {coordinate!r}"
             )
             continue
-        if coordinate in known_coordinates:
+        if coordinate in known:
             errors.append(f"duplicate evidence coordinate: {coordinate}")
-        known_coordinates.add(coordinate)
-        if record.attrs.get("id") != coordinate:
-            errors.append(
-                f"line {record.line}: coordinate {coordinate} must also be the element id"
-            )
-        kind = record.attrs.get("data-kind") or ""
-        if kind not in KIND_PREFIX or not coordinate.startswith(
-            KIND_PREFIX.get(kind, "?")
-        ):
-            errors.append(
-                f"line {record.line}: {coordinate} does not match data-kind={kind!r}"
-            )
-        supports = (record.attrs.get("data-supports") or "").split()
-        if kind in {"claim", "limitation"} and not supports:
-            errors.append(
-                f"line {record.line}: {coordinate} requires data-supports evidence links"
-            )
-
+        known.add(coordinate)
+        errors.extend(_validate_coordinate_record(record, coordinate))
     for record in document.coordinates:
         for support in (record.attrs.get("data-supports") or "").split():
-            if support not in known_coordinates:
+            if support not in known:
                 errors.append(
                     f"line {record.line}: data-supports target does not exist: {support}"
                 )
-
-    required_prefixes = {"C", "E", "L"}
-    present_prefixes = {coordinate[0] for coordinate in known_coordinates if coordinate}
-    for prefix in sorted(required_prefixes - present_prefixes):
+    present = {coordinate[0] for coordinate in known}
+    for prefix in sorted({"C", "E", "L"} - present):
         errors.append(f"report requires at least one {prefix}-coordinate")
+    return errors, known
 
-    section_names = {record.attrs.get("data-section") for record in document.sections}
-    for section_name in sorted(COMMON_SECTIONS - section_names):
+
+def _validate_coordinate_record(record: ElementRecord, coordinate: str) -> list[str]:
+    errors: list[str] = []
+    if record.attrs.get("id") != coordinate:
+        errors.append(
+            f"line {record.line}: coordinate {coordinate} must also be the element id"
+        )
+    kind = record.attrs.get("data-kind") or ""
+    if kind not in KIND_PREFIX or not coordinate.startswith(KIND_PREFIX.get(kind, "?")):
+        errors.append(
+            f"line {record.line}: {coordinate} does not match data-kind={kind!r}"
+        )
+    if (
+        kind in {"claim", "limitation"}
+        and not (record.attrs.get("data-supports") or "").split()
+    ):
+        errors.append(
+            f"line {record.line}: {coordinate} requires data-supports evidence links"
+        )
+    return errors
+
+
+def _validate_sections(
+    document: ReportDocument,
+    level: str,
+    paper_type: str,
+    known: set[str],
+    report_path: Path,
+) -> list[str]:
+    errors: list[str] = []
+    names = {record.attrs.get("data-section") for record in document.sections}
+    for section_name in sorted(COMMON_SECTIONS - names):
         errors.append(f"report is missing required section: {section_name}")
-    if level == "brief" and "headline-evidence" not in section_names:
+    if level == "brief" and "headline-evidence" not in names:
         errors.append("brief report requires a headline-evidence section")
     if level in {"compact", "deep"} and paper_type in TYPE_SECTIONS:
-        for section_name in sorted(TYPE_SECTIONS[paper_type] - section_names):
+        for section_name in sorted(TYPE_SECTIONS[paper_type] - names):
             errors.append(
                 f"{paper_type} {level} report is missing section: {section_name}"
             )
     if level == "deep":
-        if "reproduction" not in section_names or "R" not in present_prefixes:
+        if "reproduction" not in names or not any(
+            item.startswith("R") for item in known
+        ):
             errors.append(
                 "deep report requires a reproduction section with an R-coordinate"
             )
-        errors.extend(_validate_manifest(report_path, known_coordinates))
+        errors.extend(_validate_manifest(report_path, known))
+    return errors
 
+
+def validate_report(report_path: Path) -> list[str]:
+    """Return contract violations for one summary.html file."""
+    report_path = Path(report_path)
+    if not report_path.is_file():
+        return [f"report does not exist: {report_path}"]
+    try:
+        source = report_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        return [f"report is not readable UTF-8: {exc}"]
+    parser = ReportParser()
+    try:
+        parser.feed(source)
+        parser.close()
+    except Exception as exc:
+        return [f"report HTML could not be parsed: {exc}"]
+    document = parser.document
+    errors = _validate_shell(source, document)
+    identity_errors, level, paper_type = _report_identity(document)
+    errors.extend(identity_errors)
+    errors.extend(_validate_landmarks(document))
+    errors.extend(_validate_hyperlinks(document, report_path))
+    errors.extend(_validate_assets(document, report_path))
+    errors.extend(_validate_visuals(document))
+    coordinate_errors, known = _validate_coordinates(document)
+    errors.extend(coordinate_errors)
+    errors.extend(_validate_sections(document, level, paper_type, known, report_path))
     return errors
 
 
