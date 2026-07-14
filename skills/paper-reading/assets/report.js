@@ -7,51 +7,19 @@
   const stage = lightbox?.querySelector(".lightbox-stage");
   const caption = lightbox?.querySelector(".lightbox-caption");
   let previousFocus = null;
-  let svgCloneSerial = 0;
+  let movedSvg = null;
+  let svgPlaceholder = null;
 
-  function cloneSvgForLightbox(svg) {
-    const expanded = svg.cloneNode(true);
-    const serial = ++svgCloneSerial;
-    const idMap = new Map();
-    const identified = [expanded, ...expanded.querySelectorAll("[id]")]
-      .filter((element) => element.id);
+  function restoreMovedSvg() {
+    if (movedSvg && svgPlaceholder?.isConnected) svgPlaceholder.replaceWith(movedSvg);
+    movedSvg = null;
+    svgPlaceholder = null;
+  }
 
-    identified.forEach((element, index) => {
-      const oldId = element.id;
-      const newId = `lightbox-svg-${serial}-${index}`;
-      idMap.set(oldId, newId);
-      element.id = newId;
-    });
-
-    [expanded, ...expanded.querySelectorAll("*")].forEach((element) => {
-      element.getAttributeNames().forEach((name) => {
-        const value = element.getAttribute(name);
-        if (!value) return;
-        let rewritten = value.replace(/url\((['"]?)#([^)'"]+)\1\)/g, (match, quote, id) => {
-          const replacement = idMap.get(id);
-          return replacement ? `url(${quote}#${replacement}${quote})` : match;
-        });
-        if (rewritten.startsWith("#") && idMap.has(rewritten.slice(1))) {
-          rewritten = `#${idMap.get(rewritten.slice(1))}`;
-        }
-        if (name === "aria-labelledby" || name === "aria-describedby") {
-          rewritten = rewritten
-            .split(/\s+/)
-            .map((id) => idMap.get(id) || id)
-            .join(" ");
-        }
-        if (rewritten !== value) element.setAttribute(name, rewritten);
-      });
-    });
-
-    expanded.querySelectorAll("style").forEach((style) => {
-      let css = style.textContent || "";
-      idMap.forEach((newId, oldId) => {
-        css = css.replaceAll(`url(#${oldId})`, `url(#${newId})`);
-      });
-      style.textContent = css;
-    });
-    return expanded;
+  function finishClose() {
+    restoreMovedSvg();
+    if (previousFocus instanceof HTMLElement) previousFocus.focus();
+    previousFocus = null;
   }
 
   function openLightbox(figure) {
@@ -60,6 +28,7 @@
     if (!visual) return;
 
     previousFocus = document.activeElement;
+    restoreMovedSvg();
     stage.replaceChildren();
     if (visual instanceof HTMLImageElement) {
       const expanded = new Image();
@@ -67,7 +36,10 @@
       expanded.alt = visual.alt;
       stage.append(expanded);
     } else {
-      stage.append(cloneSvgForLightbox(visual));
+      svgPlaceholder = document.createComment("paper-report-svg-placeholder");
+      visual.replaceWith(svgPlaceholder);
+      stage.append(visual);
+      movedSvg = visual;
     }
     caption.textContent = figure.querySelector("figcaption")?.textContent?.trim()
       || visual.getAttribute("aria-label")
@@ -81,7 +53,10 @@
   function closeLightbox() {
     if (!lightbox) return;
     if (typeof lightbox.close === "function" && lightbox.open) lightbox.close();
-    else lightbox.removeAttribute("open");
+    else {
+      lightbox.removeAttribute("open");
+      finishClose();
+    }
   }
 
   document.querySelectorAll("figure[data-lightbox]").forEach((figure) => {
@@ -97,9 +72,7 @@
   lightbox?.addEventListener("click", (event) => {
     if (event.target === lightbox) closeLightbox();
   });
-  lightbox?.addEventListener("close", () => {
-    if (previousFocus instanceof HTMLElement) previousFocus.focus();
-  });
+  lightbox?.addEventListener("close", finishClose);
 
   const lensButtons = document.querySelectorAll("[data-lens]");
   const lensBlocks = document.querySelectorAll("[data-lenses]");
