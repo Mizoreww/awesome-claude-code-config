@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="{{LANGUAGE}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{{TITLE}}</title>
+  <style data-report-style>{{REPORT_STYLE}}</style>
+</head>
+<body>
+  <a class="skip-link" href="#report-content">跳到正文</a>
+
+  <article data-paper-report data-level="{{LEVEL}}" data-paper-type="{{PAPER_TYPE}}">
+    <header class="report-hero">
+      <div class="paper-fingerprint" aria-label="本文概念指纹">
+        {{FINGERPRINTS}}
+      </div>
+      <p class="eyebrow">{{LEVEL_LABEL}} · {{PAPER_TYPE_LABEL}}</p>
+      <h1>{{TITLE}}</h1>
+      <p class="authors">{{AUTHORS}}</p>
+      <div class="hero-thesis">
+        <span class="coordinate coordinate-claim">C1</span>
+        <p>{{THESIS}}</p>
+        {{SOURCE_LINK}}
+      </div>
+    </header>
+
+    <div class="lens-bar reading-lenses" aria-label="阅读视角">
+      <button type="button" data-lens="all" class="active">全部</button>
+      <button type="button" data-lens="method">方法</button>
+      <button type="button" data-lens="evidence">证据</button>
+      <button type="button" data-lens="critique">批判</button>
+      {{REPRODUCTION_LENS}}
+    </div>
+
+    <div class="proof-layout">
+      <nav class="outline" aria-label="文章目录">
+        <p class="utility-label">Argument map</p>
+        {{OUTLINE}}
+        <div class="mode-key" aria-label="坐标图例">
+          <span><i class="claim-dot"></i>主张 C</span>
+          <span><i class="evidence-dot"></i>证据 E</span>
+          <span><i class="limitation-dot"></i>限制 L</span>
+          {{REPRODUCTION_KEY}}
+        </div>
+      </nav>
+
+      <main id="report-content" class="manuscript">
+        {{REPORT_SECTIONS}}
+      </main>
+
+      <aside class="evidence-rail" aria-label="证据索引">
+        <p class="utility-label">Evidence</p>
+        {{EVIDENCE_RAIL}}
+      </aside>
+    </div>
+  </article>
+
+  <dialog id="lightbox" class="lightbox" aria-label="大图查看器">
+    <button type="button" class="lightbox-close" data-lightbox-close aria-label="关闭大图">×</button>
+    <div class="lightbox-stage"></div>
+    <p class="lightbox-caption" aria-live="polite"></p>
+  </dialog>
+
+  <script data-report-script>{{REPORT_SCRIPT}}</script>
+</body>
+</html>
