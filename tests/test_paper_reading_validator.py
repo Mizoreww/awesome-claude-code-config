@@ -20,9 +20,14 @@ CONTRACT_CORRUPTIONS = (
     ('data-level="compact"', 'data-level="wide"'),
     ('data-paper-type="empirical"', 'data-paper-type="unknown"'),
     ('class="report-hero"', 'class="plain"'),
-    ('aria-label="文章目录"', ""),
+    ('aria-label="阅读导航"', ""),
+    ('class="title-focus"', 'class="plain-title"'),
+    (
+        '<nav class="reader-nav"',
+        '<nav aria-label="重复导航"></nav><nav class="reader-nav"',
+    ),
     ('id="report-content"', 'id="C1"'),
-    ('aria-label="证据索引"', ""),
+    ("data-evidence-index", "data-missing-evidence-index"),
     ('id="lightbox"', 'id="other-dialog"'),
     ('src="assets/figure.png"', 'src="https://example.test/figure.png"'),
     ('alt="主结果图"', 'alt=""'),
@@ -42,6 +47,8 @@ EXPECTED_CONTRACT_ERRORS = (
     "data-paper-type",
     "report-hero",
     "navigation requires",
+    "title focus",
+    "exactly one navigation",
     "report-content",
     "evidence index",
     "lightbox",
@@ -72,6 +79,31 @@ def _blocked_report(tmp_path: Path, name: str) -> tuple[Any, Path, Path]:
 def test_validator_accepts_a_complete_compact_report(tmp_path: Path) -> None:
     validator = load_script("validate_report")
     report = write_valid_report(tmp_path / "report")
+    assert validator.validate_report(report) == []
+
+
+@pytest.mark.unit
+def test_validator_requires_static_mathml_in_math_blocks(tmp_path: Path) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "report")
+    html = report.read_text(encoding="utf-8").replace(
+        "</main>",
+        '<div class="equation-card"><code>\\mathcal{L}(\\theta)=0</code></div></main>',
+    )
+    report.write_text(html, encoding="utf-8")
+    assert any("math-like code" in error for error in validator.validate_report(report))
+    mathml = (
+        '<div class="math-display"><math display="block"><semantics><mi>L</mi>'
+        '<annotation encoding="application/x-tex">\\mathcal{L}=0</annotation>'
+        "</semantics></math></div>"
+    )
+    report.write_text(
+        html.replace(
+            '<div class="equation-card"><code>\\mathcal{L}(\\theta)=0</code></div>',
+            mathml,
+        ),
+        encoding="utf-8",
+    )
     assert validator.validate_report(report) == []
 
 

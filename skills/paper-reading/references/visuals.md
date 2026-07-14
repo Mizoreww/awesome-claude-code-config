@@ -48,7 +48,7 @@ Use the report's semantic colors consistently:
 
 Use rounded rectangles for components, circles only for states/entities that benefit from that distinction, solid arrows for actual flow, and dashed arrows for optional/feedback/uncertain relationships. Label arrows when the transformation is not obvious. Prefer fewer than roughly ten nodes in one view; split a dense diagram rather than shrinking it.
 
-The hero may be expressive, but its fingerprint labels must come from the paper. Below the hero, keep visuals quiet and evidence-led.
+Spend the expressive treatment on the verified title focus. Limit the hero to title, authors, and thesis; below it, keep visuals quiet and evidence-led.
 
 ## Asset handling
 
@@ -68,7 +68,8 @@ Inspect every new SVG in the rendered report, not just its source. Check:
 3. arrows terminate at the intended object and do not cross ambiguously;
 4. spacing makes groups and sequence obvious;
 5. colors retain their semantic meaning and contrast;
-6. the lightbox opens the whole visual;
-7. the caption and source anchor match what is drawn.
+6. the lightbox opens the whole visual at a restrained initial size;
+7. desktop wheel zoom and mobile pinch zoom work without scrolling the page, and panning starts only after zooming;
+8. the caption stays visible inside the viewer and its source anchor matches what is drawn.
 
 If the SVG fails, simplify it, choose another medium, or remove it. Never keep a weak diagram merely because HTML mode “should have SVG.”

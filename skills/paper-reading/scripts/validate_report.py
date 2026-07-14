@@ -21,6 +21,15 @@ PLACEHOLDER_RE = re.compile(
     r"\[请用有证据锚点的高密度内容替换本段。\]|"
     r"\[Replace this paragraph with dense, evidence-anchored content\.\]"
 )
+MATH_BLOCK_RE = re.compile(
+    r'<(?P<tag>div|span)\b(?=[^>]*class\s*=\s*["\'][^"\']*\bmath-(?:display|inline)\b)'
+    r"[^>]*>(?P<body>.*?)</(?P=tag)>",
+    re.IGNORECASE | re.DOTALL,
+)
+LEGACY_EQUATION_RE = re.compile(
+    r'<(?:div|span)\b(?=[^>]*class\s*=\s*["\'][^"\']*\bequation-card\b)',
+    re.IGNORECASE,
+)
 KIND_PREFIX = {"claim": "C", "evidence": "E", "limitation": "L", "reproduction": "R"}
 COMMON_SECTIONS = {
     "basic-information",
@@ -85,6 +94,8 @@ class ReportDocument:
     scripts: list[ElementRecord] = field(default_factory=list)
     styles: list[ElementRecord] = field(default_factory=list)
     title_count: int = 0
+    title_focuses: list[ElementRecord] = field(default_factory=list)
+    evidence_indexes: list[ElementRecord] = field(default_factory=list)
 
 
 class ReportParser(HTMLParser):
@@ -150,6 +161,11 @@ class ReportParser(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         record = ElementRecord(tag=tag, attrs=dict(attrs), line=self.getpos()[0])
         self.document.elements.append(record)
+        classes = set((record.attrs.get("class") or "").split())
+        if "title-focus" in classes:
+            self.document.title_focuses.append(record)
+        if "data-evidence-index" in record.attrs:
+            self.document.evidence_indexes.append(record)
         identifier = record.attrs.get("id")
         if identifier:
             self.document.ids.setdefault(identifier, []).append(record.line)
@@ -378,6 +394,8 @@ def _validate_shell(source: str, document: ReportDocument) -> list[str]:
         errors.append("report still contains scaffold placeholders")
     if not document.title_count:
         errors.append("report requires a <title>")
+    if len(document.title_focuses) != 1 or document.title_focuses[0].tag != "em":
+        errors.append("report title requires exactly one emphasized title focus")
     if not any(
         (record.attrs.get("charset") or "").lower() == "utf-8"
         for record in document.metas
@@ -394,6 +412,21 @@ def _validate_shell(source: str, document: ReportDocument) -> list[str]:
         errors.append("report requires inline progressive-enhancement JavaScript")
     if re.search(r"@import\s|url\(\s*['\"]?(?:https?:)?//", source, re.IGNORECASE):
         errors.append("CSS contains a network dependency")
+    return errors
+
+
+def _validate_math(source: str) -> list[str]:
+    errors: list[str] = []
+    if LEGACY_EQUATION_RE.search(source):
+        errors.append("math-like code must use a static MathML math-display block")
+    for match in MATH_BLOCK_RE.finditer(source):
+        body = match.group("body")
+        if not re.search(r"<math\b", body, re.IGNORECASE):
+            errors.append("math display/inline block requires rendered MathML")
+        if re.search(r"<(?:pre|code)\b", body, re.IGNORECASE):
+            errors.append("math-like code is not allowed inside a MathML block")
+        if "application/x-tex" not in body:
+            errors.append("MathML block requires an application/x-tex annotation")
     return errors
 
 
@@ -419,13 +452,18 @@ def _validate_landmarks(document: ReportDocument) -> list[str]:
     errors: list[str] = []
     if not any("report-hero" in _classes(record) for record in document.headers):
         errors.append("report requires a header.report-hero")
-    if not document.navs:
-        errors.append("report requires a navigation landmark")
-    elif not any(record.attrs.get("aria-label") for record in document.navs):
-        errors.append("report navigation requires an aria-label")
+    if len(document.navs) != 1:
+        errors.append("report requires exactly one navigation landmark")
+    if not any(
+        record.attrs.get("aria-label") and "data-reader-navigation" in record.attrs
+        for record in document.navs
+    ):
+        errors.append("report navigation requires an aria-label and reader marker")
     if not _has_landmark(document.mains, id="report-content"):
         errors.append('report requires <main id="report-content">')
-    if not any(record.attrs.get("aria-label") for record in document.asides):
+    if len(document.evidence_indexes) != 1 or not document.evidence_indexes[
+        0
+    ].attrs.get("aria-label"):
         errors.append("report requires an aria-labelled evidence index")
     if not _has_landmark(document.dialogs, id="lightbox"):
         errors.append('report requires <dialog id="lightbox">')
@@ -642,6 +680,7 @@ def validate_report(report_path: Path) -> list[str]:
     identity_errors, level, paper_type = _report_identity(document)
     errors.extend(identity_errors)
     errors.extend(_validate_landmarks(document))
+    errors.extend(_validate_math(source))
     errors.extend(_validate_hyperlinks(document, report_path))
     errors.extend(_validate_assets(document, report_path))
     errors.extend(_validate_visuals(document))

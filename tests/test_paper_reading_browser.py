@@ -25,6 +25,7 @@ def _playwright_entry() -> Any:
 
 def _browser_report(output_dir: Path) -> Path:
     script = (SKILL_DIR / "assets" / "report.js").read_text(encoding="utf-8")
+    style = (SKILL_DIR / "assets" / "report.css").read_text(encoding="utf-8")
     report = write_valid_report(output_dir, script=script)
     svg = """<figure data-lightbox tabindex="0" role="button"
                    aria-label="SVG diagram, click to enlarge">
@@ -35,6 +36,9 @@ def _browser_report(output_dir: Path) -> Path:
       </svg><figcaption>SVG test</figcaption>
     </figure>"""
     html = report.read_text(encoding="utf-8").replace("</main>", f"{svg}</main>")
+    style_start = html.index("<style>") + len("<style>")
+    style_end = html.index("</style>", style_start)
+    html = f"{html[:style_start]}{style}{html[style_end:]}"
     report.write_text(html, encoding="utf-8")
     return report
 
@@ -85,18 +89,98 @@ def _assert_lenses_and_trace(page: Any) -> None:
     )
 
 
+def _assert_reading_surface(page: Any) -> None:
+    assert page.locator("nav").count() == 1
+    assert page.locator("nav.reader-nav[data-reader-navigation]").count() == 1
+    assert (
+        page.locator(".report-hero .paper-fingerprint, .report-hero .eyebrow").count()
+        == 0
+    )
+    assert page.locator("h1 .title-focus").count() == 1
+    sizes = page.evaluate(
+        """() => ({
+          body: parseFloat(getComputedStyle(document.body).fontSize),
+          title: parseFloat(getComputedStyle(document.querySelector('h1')).fontSize)
+        })"""
+    )
+    assert sizes["title"] / sizes["body"] <= 2.6
+
+
+def _assert_wheel_zoom(page: Any) -> None:
+    page.locator("figure[data-lightbox]").first.click()
+    stage = page.locator("#lightbox .lightbox-stage")
+    visual = stage.locator("img, svg").first
+    box = visual.bounding_box()
+    assert box is not None
+    viewport = page.viewport_size
+    assert viewport is not None
+    assert box["width"] <= viewport["width"] * 0.86
+    assert box["height"] <= viewport["height"] * 0.78
+    stage_box = stage.bounding_box()
+    assert stage_box is not None
+    page.mouse.move(
+        stage_box["x"] + stage_box["width"] / 2,
+        stage_box["y"] + stage_box["height"] / 2,
+    )
+    before = float(stage.get_attribute("data-zoom") or "1")
+    scroll_before = page.evaluate(
+        "() => ({page: window.scrollY, stage: document.querySelector('.lightbox-stage').scrollTop})"
+    )
+    page.mouse.wheel(0, -260)
+    page.wait_for_timeout(50)
+    assert float(stage.get_attribute("data-zoom") or "1") > before
+    assert (
+        page.evaluate(
+            "() => ({page: window.scrollY, stage: document.querySelector('.lightbox-stage').scrollTop})"
+        )
+        == scroll_before
+    )
+    page.keyboard.press("Escape")
+
+
+def _assert_pinch_zoom(page: Any, report: Path) -> None:
+    page.goto(report.as_uri())
+    page.locator("figure[data-lightbox]").first.click()
+    dialog_box = page.locator("#lightbox").bounding_box()
+    caption_box = page.locator("#lightbox .lightbox-caption").bounding_box()
+    assert dialog_box is not None
+    assert caption_box is not None
+    assert (
+        caption_box["y"] + caption_box["height"]
+        <= dialog_box["y"] + dialog_box["height"]
+    )
+    stage = page.locator("#lightbox .lightbox-stage")
+    before = float(stage.get_attribute("data-zoom") or "1")
+    for event, payload in (
+        ("pointerdown", {"pointerId": 1, "clientX": 120, "clientY": 300}),
+        ("pointerdown", {"pointerId": 2, "clientX": 220, "clientY": 300}),
+        ("pointermove", {"pointerId": 2, "clientX": 290, "clientY": 300}),
+        ("pointerup", {"pointerId": 1, "clientX": 120, "clientY": 300}),
+        ("pointerup", {"pointerId": 2, "clientX": 290, "clientY": 300}),
+    ):
+        stage.dispatch_event(event, {**payload, "pointerType": "touch"})
+    assert float(stage.get_attribute("data-zoom") or "1") > before
+
+
 @pytest.mark.e2e
 def test_html_interactions_work_in_a_real_browser(tmp_path: Path) -> None:
     sync_playwright = _playwright_entry()
     chrome = shutil.which("google-chrome") or shutil.which("chromium")
     with sync_playwright() as playwright:
-        options = {"headless": True}
+        options: dict[str, Any] = {"headless": True}
         if chrome:
             options["executable_path"] = chrome
         browser = playwright.chromium.launch(**options)
         page = browser.new_page(viewport={"width": 1200, "height": 900})
-        page.goto(_browser_report(tmp_path / "report").as_uri())
+        report = _browser_report(tmp_path / "report")
+        page.goto(report.as_uri())
         assert page.locator("html").get_attribute("data-enhanced") == "true"
+        _assert_reading_surface(page)
         _assert_lightboxes(page)
         _assert_lenses_and_trace(page)
+        _assert_wheel_zoom(page)
+        mobile = browser.new_page(
+            viewport={"width": 390, "height": 844}, has_touch=True
+        )
+        _assert_pinch_zoom(mobile, report)
         browser.close()

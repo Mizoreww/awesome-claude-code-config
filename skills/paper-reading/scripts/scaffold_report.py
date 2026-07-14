@@ -10,17 +10,8 @@ from html import escape
 from pathlib import Path
 from urllib.parse import urlsplit
 
-LEVEL_LABELS = {
-    "brief": "Brief",
-    "compact": "Compact close-reading",
-    "deep": "Deep reproduction",
-}
-PAPER_TYPE_LABELS = {
-    "empirical": "Empirical paper",
-    "theoretical": "Theoretical paper",
-    "survey": "Survey paper",
-    "systems": "Systems paper",
-}
+LEVELS = {"brief", "compact", "deep"}
+PAPER_TYPES = {"empirical", "theoretical", "survey", "systems"}
 TYPE_SECTIONS = {
     "empirical": (
         ("technical-method", "C3", "method"),
@@ -78,7 +69,7 @@ SECTION_HEADINGS = {
 UI_COPY = {
     "zh": {
         "skip_link": "跳到正文",
-        "fingerprint_label": "本文概念指纹",
+        "reader_navigation_label": "阅读导航",
         "reading_lenses_label": "阅读视角",
         "all_label": "全部",
         "method_label": "方法",
@@ -86,22 +77,20 @@ UI_COPY = {
         "critique_label": "批判",
         "reproduction_label": "复现",
         "outline_label": "文章目录",
-        "argument_map_label": "论证地图",
-        "coordinate_key_label": "坐标图例",
-        "claim_key": "主张 C",
-        "evidence_key": "证据 E",
-        "limitation_key": "限制 L",
-        "reproduction_key": "复现 R",
         "evidence_index_label": "证据索引",
         "evidence_rail_label": "证据",
         "lightbox_label": "大图查看器",
         "close_lightbox_label": "关闭大图",
+        "zoom_controls_label": "图像缩放",
+        "zoom_out_label": "缩小",
+        "zoom_reset_label": "重置缩放",
+        "zoom_in_label": "放大",
         "view_source_label": "查看原文 ↗",
         "placeholder": "[请用有证据锚点的高密度内容替换本段。]",
     },
     "en": {
         "skip_link": "Skip to report",
-        "fingerprint_label": "Paper concept fingerprint",
+        "reader_navigation_label": "Reading navigation",
         "reading_lenses_label": "Reading lenses",
         "all_label": "All",
         "method_label": "Method",
@@ -109,16 +98,14 @@ UI_COPY = {
         "critique_label": "Critique",
         "reproduction_label": "Reproduction",
         "outline_label": "Report outline",
-        "argument_map_label": "Argument map",
-        "coordinate_key_label": "Coordinate key",
-        "claim_key": "Claim C",
-        "evidence_key": "Evidence E",
-        "limitation_key": "Limitation L",
-        "reproduction_key": "Reproduction R",
         "evidence_index_label": "Evidence index",
         "evidence_rail_label": "Evidence",
         "lightbox_label": "Enlarged visual viewer",
         "close_lightbox_label": "Close enlarged visual",
+        "zoom_controls_label": "Image zoom",
+        "zoom_out_label": "Zoom out",
+        "zoom_reset_label": "Reset zoom",
+        "zoom_in_label": "Zoom in",
         "view_source_label": "View source ↗",
         "placeholder": "[Replace this paragraph with dense, evidence-anchored content.]",
     },
@@ -297,30 +284,31 @@ def _validate_inputs(
     level: str,
     language: str,
     title: str,
+    title_focus: str,
     authors: str,
     thesis: str,
-    fingerprints: list[str],
     source: str,
-) -> list[str]:
-    if paper_type not in PAPER_TYPE_LABELS:
+) -> tuple[str, str, str]:
+    if paper_type not in PAPER_TYPES:
         raise ValueError(f"unknown paper type: {paper_type}")
-    if level not in LEVEL_LABELS:
+    if level not in LEVELS:
         raise ValueError(f"unknown reading level: {level}")
     if not language.strip():
         raise ValueError("language cannot be empty")
     _language_family(language)
     _validate_source_link(source)
-    cleaned = [item.strip() for item in fingerprints if item.strip()]
-    if len(cleaned) < 2:
-        raise ValueError("fingerprint needs at least two verified paper concepts")
     for field_name, value in (
         ("title", title),
+        ("title focus", title_focus),
         ("authors", authors),
         ("thesis", thesis),
     ):
         if not value.strip():
             raise ValueError(f"{field_name} cannot be empty")
-    return cleaned
+    if title.count(title_focus) != 1:
+        raise ValueError("title focus must occur exactly once in the title")
+    before, after = title.split(title_focus, maxsplit=1)
+    return before, title_focus, after
 
 
 def _template_replacements(
@@ -328,18 +316,19 @@ def _template_replacements(
     language: str,
     locale: str,
     title: str,
+    title_parts: tuple[str, str, str],
     authors: str,
     thesis: str,
     paper_type: str,
     level: str,
     source: str,
-    fingerprints: list[str],
     sections: tuple[str, str, str],
     style: str,
     script: str,
 ) -> dict[str, str]:
     copy = UI_COPY[locale]
     report_sections, outline, evidence_rail = sections
+    title_before, title_focus, title_after = title_parts
     replacements = {
         f"{{{{{key.upper()}}}}}": escape(value)
         for key, value in copy.items()
@@ -349,12 +338,13 @@ def _template_replacements(
         {
             "{{LANGUAGE}}": escape(language),
             "{{TITLE}}": escape(title),
+            "{{TITLE_BEFORE}}": escape(title_before),
+            "{{TITLE_FOCUS}}": escape(title_focus),
+            "{{TITLE_AFTER}}": escape(title_after),
             "{{AUTHORS}}": escape(authors),
             "{{THESIS}}": escape(thesis),
             "{{LEVEL}}": escape(level),
-            "{{LEVEL_LABEL}}": LEVEL_LABELS[level],
             "{{PAPER_TYPE}}": escape(paper_type),
-            "{{PAPER_TYPE_LABEL}}": PAPER_TYPE_LABELS[paper_type],
             "{{OUTLINE}}": outline,
             "{{REPORT_SECTIONS}}": report_sections,
             "{{EVIDENCE_RAIL}}": evidence_rail,
@@ -362,30 +352,23 @@ def _template_replacements(
             "{{REPORT_SCRIPT}}": script,
         }
     )
-    replacements.update(_optional_replacements(copy, level, source, fingerprints))
+    replacements.update(_optional_replacements(copy, level, source))
     return replacements
 
 
 def _optional_replacements(
-    copy: dict[str, str], level: str, source: str, fingerprints: list[str]
+    copy: dict[str, str], level: str, source: str
 ) -> dict[str, str]:
     deep = level == "deep"
     return {
         "{{SOURCE_LINK}}": (
-            f'<a href="{escape(source, quote=True)}">{escape(copy["view_source_label"])}</a>'
+            f'<a class="nav-source" href="{escape(source, quote=True)}">'
+            f"{escape(copy['view_source_label'])}</a>"
             if source
             else ""
         ),
-        "{{FINGERPRINTS}}": "".join(
-            f"<span>{escape(item)}</span>" for item in fingerprints[:5]
-        ),
         "{{REPRODUCTION_LENS}}": (
             f'<button type="button" data-lens="reproduction">{escape(copy["reproduction_label"])}</button>'
-            if deep
-            else ""
-        ),
-        "{{REPRODUCTION_KEY}}": (
-            f'<span><i class="reproduction-dot"></i>{escape(copy["reproduction_key"])}</span>'
             if deep
             else ""
         ),
@@ -420,24 +403,24 @@ def scaffold_report(
     *,
     output_dir: Path,
     title: str,
+    title_focus: str,
     authors: str,
     paper_type: str,
     level: str,
     thesis: str,
-    fingerprints: list[str],
     language: str = "zh-CN",
     source: str = "",
 ) -> Path:
     """Write a report shell and return its summary path."""
     output_dir = Path(output_dir)
-    cleaned = _validate_inputs(
+    title_parts = _validate_inputs(
         paper_type=paper_type,
         level=level,
         language=language,
         title=title,
+        title_focus=title_focus,
         authors=authors,
         thesis=thesis,
-        fingerprints=fingerprints,
         source=source,
     )
     if output_dir.exists() and any(output_dir.iterdir()):
@@ -449,12 +432,12 @@ def scaffold_report(
         language=language,
         locale=locale,
         title=title,
+        title_parts=title_parts,
         authors=authors,
         thesis=thesis,
         paper_type=paper_type,
         level=level,
         source=source,
-        fingerprints=cleaned,
         sections=sections,
         style=style,
         script=script,
@@ -467,13 +450,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output_dir", type=Path)
     parser.add_argument("--title", required=True)
+    parser.add_argument("--title-focus", required=True)
     parser.add_argument("--authors", required=True)
-    parser.add_argument("--paper-type", required=True, choices=tuple(PAPER_TYPE_LABELS))
-    parser.add_argument("--level", required=True, choices=tuple(LEVEL_LABELS))
-    parser.add_argument("--thesis", required=True)
     parser.add_argument(
-        "--fingerprint", action="append", required=True, dest="fingerprints"
+        "--paper-type", required=True, choices=tuple(sorted(PAPER_TYPES))
     )
+    parser.add_argument("--level", required=True, choices=tuple(sorted(LEVELS)))
+    parser.add_argument("--thesis", required=True)
     parser.add_argument("--language", default="zh-CN")
     parser.add_argument("--source", default="")
     return parser
@@ -485,11 +468,11 @@ def main(argv: list[str] | None = None) -> int:
         summary_path = scaffold_report(
             output_dir=args.output_dir,
             title=args.title,
+            title_focus=args.title_focus,
             authors=args.authors,
             paper_type=args.paper_type,
             level=args.level,
             thesis=args.thesis,
-            fingerprints=args.fingerprints,
             language=args.language,
             source=args.source,
         )
