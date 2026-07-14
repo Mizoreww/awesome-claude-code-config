@@ -139,10 +139,10 @@ class ReportParser(HTMLParser):
             self.document.assets.append(
                 (attributes["poster"] or "", "video poster", record.line)
             )
-        if record.tag == "image":
+        if record.tag in {"image", "use", "feimage"}:
             href = attributes.get("href") or attributes.get("xlink:href")
             if href:
-                self.document.assets.append((href, "SVG image", record.line))
+                self.document.assets.append((href, f"SVG {record.tag}", record.line))
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         record = ElementRecord(tag=tag, attrs=dict(attrs), line=self.getpos()[0])
@@ -196,9 +196,8 @@ def _nonempty_string(value: object) -> bool:
 
 
 def _valid_repository(value: object) -> bool:
-    if not _nonempty_string(value):
+    if not isinstance(value, str) or not value.strip():
         return False
-    assert isinstance(value, str)
     parsed = urlsplit(value)
     return parsed.scheme.lower() in {"http", "https"} and bool(parsed.netloc)
 
@@ -216,7 +215,8 @@ def _validate_artifacts(manifest: dict[str, object], manifest_path: Path) -> lis
     errors: list[str] = []
     reproduction_root = manifest_path.parent.resolve()
     for item in artifacts:
-        assert isinstance(item, str)
+        if not isinstance(item, str):
+            continue
         artifact = (manifest_path.parent / item).resolve()
         if not _inside_report(artifact, reproduction_root) or not artifact.is_file():
             errors.append(
@@ -258,19 +258,37 @@ def _validate_manifest_identity(
         errors.append(
             "reproduction manifest claim must reference a report C-coordinate"
         )
-    for field_name in ("repository", "environment"):
-        if not _nonempty_string(manifest.get(field_name)):
-            errors.append(f"reproduction manifest requires a non-empty {field_name}")
+    if not _nonempty_string(manifest.get("environment")):
+        errors.append("reproduction manifest requires a non-empty environment")
+    errors.extend(_validate_manifest_provenance(manifest))
+    return errors
+
+
+def _validate_manifest_provenance(manifest: dict[str, object]) -> list[str]:
     repository = manifest.get("repository")
-    if _nonempty_string(repository) and not _valid_repository(repository):
+    commit = manifest.get("commit")
+    no_code = (
+        manifest.get("status") == "blocked"
+        and manifest.get("code_status") == "not-found"
+    )
+    if not _nonempty_string(repository):
+        if no_code:
+            return []
+        return [
+            "reproduction manifest requires repository+commit or blocked "
+            "code_status=not-found"
+        ]
+    errors: list[str] = []
+    if not _valid_repository(repository):
         errors.append(
             "reproduction manifest repository must be a canonical http(s) URL"
         )
-    commit = manifest.get("commit")
     if not isinstance(commit, str) or not COMMIT_RE.fullmatch(commit):
         errors.append(
             "reproduction manifest commit must be a 7-64 digit hexadecimal revision"
         )
+    if no_code:
+        errors.append("code_status=not-found cannot be combined with a repository")
     return errors
 
 

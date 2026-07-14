@@ -40,7 +40,7 @@ PYTHON_EXE <skill-dir>/scripts/scaffold_report.py REPORT_DIR \
   --source "CANONICAL URL"
 ```
 
-The scaffold deliberately fails final validation until its visible replacement markers are replaced. It localizes section names, controls, and accessible names for Chinese (`zh*`) or English (other language tags); translate the report prose itself into the user's language. Edit the generated `summary.html`; keep its semantic attributes and inline design/interaction layer.
+The scaffold deliberately fails final validation until its visible replacement markers are replaced. It localizes section names, controls, and accessible names for Chinese (`zh*`) or English (`en*`) and rejects unsupported language tags rather than declaring a mismatched document language. For another language, translate the shell and report prose explicitly before changing the document `lang`. Edit the generated `summary.html`; keep its semantic attributes and inline design/interaction layer.
 
 Use the **Proof Spine** shell:
 

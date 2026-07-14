@@ -140,3 +140,11 @@ For `blocked`, replace execution fields that cannot exist with:
 ```
 
 A blocker is a result only when the audit evidence makes it specific and actionable. “Too hard” or “no GPU” without checking the smallest representative alternative is not sufficient.
+
+If the authoritative-source audit establishes that no implementation was released or linked, do not invent repository provenance. Use the same blocked fields and artifacts, omit `repository`/`commit`, and add:
+
+```json
+"code_status": "not-found"
+```
+
+Reserve this exception for a documented no-code result. Missing data, credentials, dependencies, hardware, or runtime compatibility still requires the audited repository and pinned commit in the ordinary blocked manifest.

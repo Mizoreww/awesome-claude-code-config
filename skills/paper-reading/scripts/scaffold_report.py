@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from html import escape
 from pathlib import Path
@@ -122,10 +123,16 @@ UI_COPY = {
         "placeholder": "[Replace this paragraph with dense, evidence-anchored content.]",
     },
 }
+TOKEN_RE = re.compile(r"\{\{[A-Z0-9_]+\}\}")
 
 
 def _language_family(language: str) -> str:
-    return "zh" if language.lower().startswith("zh") else "en"
+    normalized = language.lower()
+    if normalized.startswith("zh"):
+        return "zh"
+    if normalized.startswith("en"):
+        return "en"
+    raise ValueError("language must use a zh* or en* language tag")
 
 
 def _validate_source_link(source: str) -> None:
@@ -301,6 +308,7 @@ def _validate_inputs(
         raise ValueError(f"unknown reading level: {level}")
     if not language.strip():
         raise ValueError("language cannot be empty")
+    _language_family(language)
     _validate_source_link(source)
     cleaned = [item.strip() for item in fingerprints if item.strip()]
     if len(cleaned) < 2:
@@ -402,6 +410,12 @@ def _write_report(output_dir: Path, level: str, html: str) -> Path:
     return summary_path
 
 
+def _apply_replacements(template: str, replacements: dict[str, str]) -> str:
+    return TOKEN_RE.sub(
+        lambda match: replacements.get(match.group(0), match.group(0)), template
+    )
+
+
 def scaffold_report(
     *,
     output_dir: Path,
@@ -445,9 +459,8 @@ def scaffold_report(
         style=style,
         script=script,
     )
-    for token, value in replacements.items():
-        template = template.replace(token, value)
-    return _write_report(output_dir, level, template)
+    html = _apply_replacements(template, replacements)
+    return _write_report(output_dir, level, html)
 
 
 def build_parser() -> argparse.ArgumentParser:
