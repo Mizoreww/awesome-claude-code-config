@@ -35,7 +35,7 @@ EXPECTED_CONTRACT_ERRORS = (
     "charset",
     "viewport",
     "<title>",
-    "stylesheet",
+    "link elements",
     "network dependency",
     "external script",
     "data-level",
@@ -130,6 +130,28 @@ def test_validator_rejects_network_srcset_and_svg_image_assets(tmp_path: Path) -
     assert any("inside-svg.png" in error for error in errors)
     assert any("remote-symbol.svg" in error for error in errors)
     assert any("filter.png" in error for error in errors)
+
+
+@pytest.mark.unit
+def test_validator_accepts_and_checks_fragment_svg_use(tmp_path: Path) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "report")
+    local_use = """<figure data-lightbox tabindex="0" role="button" aria-label="SVG use">
+      <svg viewBox="0 0 10 10" role="img" aria-label="Local SVG use">
+        <defs><path id="local-shape" d="M0 0h5v5z"></path></defs>
+        <use href="#local-shape"></use>
+      </svg><figcaption>local reference</figcaption>
+    </figure>"""
+    report.write_text(
+        report.read_text(encoding="utf-8").replace("</main>", f"{local_use}</main>"),
+        encoding="utf-8",
+    )
+    assert validator.validate_report(report) == []
+    report.write_text(
+        report.read_text(encoding="utf-8").replace("#local-shape", "#missing-shape"),
+        encoding="utf-8",
+    )
+    assert any("#missing-shape" in error for error in validator.validate_report(report))
 
 
 @pytest.mark.unit
@@ -296,6 +318,49 @@ def test_validator_accepts_blocked_no_code_contract(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     assert validator.validate_report(deep) == []
+    manifest = json.loads((reproduction / "manifest.json").read_text(encoding="utf-8"))
+    manifest["commit"] = "abcdef0"
+    (reproduction / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    assert any("must omit" in error for error in validator.validate_report(deep))
+
+
+@pytest.mark.unit
+def test_validator_rejects_active_embeds_and_fetch_surfaces(tmp_path: Path) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "active-content")
+    html = report.read_text(encoding="utf-8")
+    html = html.replace(
+        "</head>",
+        '<link rel="preload" href="https://example.test/preload.js">'
+        '<meta http-equiv="refresh" content="0;url=https://example.test/refresh">'
+        "</head>",
+    ).replace(
+        "</main>",
+        '<iframe src="https://example.test/frame.html"></iframe>'
+        '<embed src="https://example.test/embed.bin">'
+        '<track src="https://example.test/captions.vtt">'
+        '<input type="image" src="https://example.test/button.png">'
+        '<figure data-lightbox tabindex="0" role="button" aria-label="active SVG">'
+        '<svg viewBox="0 0 10 10" role="img" aria-label="active SVG">'
+        '<script href="https://example.test/svg-script.js"></script>'
+        "</svg><figcaption>active content</figcaption></figure>"
+        "<p onclick=\"fetch('https://example.test/event')\">event</p>"
+        "</main>",
+    )
+    report.write_text(html, encoding="utf-8")
+    errors = validator.validate_report(report)
+    for fragment in (
+        "link elements",
+        "meta refresh",
+        "frame.html",
+        "embed.bin",
+        "captions.vtt",
+        "button.png",
+        "svg-script.js",
+        "input type=image",
+        "inline event handlers",
+    ):
+        assert any(fragment in error for error in errors), fragment
 
 
 @pytest.mark.unit
