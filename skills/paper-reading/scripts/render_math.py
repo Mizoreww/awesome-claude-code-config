@@ -4,14 +4,15 @@
 from __future__ import annotations
 
 import argparse
-import html
 import importlib
 import importlib.metadata
-import re
 import sys
-from collections.abc import Callable, Iterator, Mapping
+
+# Used only to build and serialize a tree parsed by defusedxml.
+import xml.etree.ElementTree as ET  # nosec B405
+from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Protocol, cast
+from typing import cast
 
 from mathml_policy import MATHML_NAMESPACE, mathml_policy_error
 
@@ -22,17 +23,10 @@ XML_VERSION = "0.7.1"
 Converter = Callable[..., str]
 
 
-class XmlElement(Protocol):
-    tag: str
-    attrib: Mapping[str, str]
-
-    def __iter__(self) -> Iterator[XmlElement]: ...
+XmlParser = Callable[[str], ET.Element]
 
 
-XmlParser = Callable[[str], XmlElement]
-
-
-def _mathml_nodes(root: XmlElement) -> Iterator[XmlElement]:
+def _mathml_nodes(root: ET.Element) -> Iterator[ET.Element]:
     yield root
     for child in root:
         yield from _mathml_nodes(child)
@@ -85,26 +79,26 @@ def _annotate_mathml(
         )
         if policy_error:
             raise ValueError(f"unsafe MathML: {policy_error}")
-    closing = "</math>"
-    opening_end = source.find(">")
-    if (
-        not source.startswith("<math")
-        or opening_end < 0
-        or not source.endswith(closing)
-    ):
-        raise ValueError("converter output must use an unprefixed MathML <math> root")
-    opening = source[: opening_end + 1]
-    display_attribute = re.compile(r"\sdisplay=(['\"]).*?\1")
-    if display_attribute.search(opening):
-        opening = display_attribute.sub(f' display="{display}"', opening, count=1)
-    else:
-        opening = f'{opening[:-1]} display="{display}">'
-    body = source[opening_end + 1 : -len(closing)]
-    annotation = (
-        '<annotation encoding="application/x-tex">'
-        f"{html.escape(latex, quote=False)}</annotation>"
+    # Never splice the converter's source back into HTML. XML and HTML disagree
+    # about constructs such as CDATA; serializing the checked tree makes those
+    # constructs ordinary escaped text before a browser sees them.
+    children = list(root)
+    semantics = ET.Element(f"{{{MATHML_NAMESPACE}}}semantics")
+    semantics.text = root.text
+    root.text = None
+    for child in children:
+        root.remove(child)
+        semantics.append(child)
+    annotation = ET.SubElement(
+        semantics,
+        f"{{{MATHML_NAMESPACE}}}annotation",
+        {"encoding": "application/x-tex"},
     )
-    return f"{opening}<semantics>{body}{annotation}</semantics>{closing}"
+    annotation.text = latex
+    root.append(semantics)
+    root.set("display", display)
+    ET.register_namespace("", MATHML_NAMESPACE)
+    return ET.tostring(root, encoding="unicode", short_empty_elements=True)
 
 
 def render_math(

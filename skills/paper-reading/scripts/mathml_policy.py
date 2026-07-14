@@ -118,6 +118,12 @@ def _local_name(name: str) -> str:
     return name.rsplit("}", 1)[-1].lower()
 
 
+def _namespace(name: str) -> str | None:
+    if not name.startswith("{") or "}" not in name:
+        return None
+    return name[1 : name.index("}")]
+
+
 def mathml_policy_error(
     tag: str,
     attributes: Mapping[str, str | None],
@@ -125,6 +131,9 @@ def mathml_policy_error(
     allow_annotations: bool,
 ) -> str | None:
     """Return why one MathML element is unsafe, or None when allowed."""
+    namespace = _namespace(tag)
+    if namespace not in {None, MATHML_NAMESPACE}:
+        return f"element namespace {namespace!r} is not MathML"
     local_tag = _local_name(tag)
     if allow_annotations and local_tag == "semantics":
         if attributes:
@@ -138,6 +147,8 @@ def mathml_policy_error(
     if local_tag not in SAFE_MATHML_TAGS:
         return f"element <{local_tag}> is not in the presentation MathML allowlist"
     for raw_name, value in attributes.items():
+        if _namespace(raw_name) is not None:
+            return f"namespaced attribute {raw_name!r} is not allowed"
         name = _local_name(raw_name)
         if local_tag == "math" and name == "xmlns" and value == MATHML_NAMESPACE:
             continue

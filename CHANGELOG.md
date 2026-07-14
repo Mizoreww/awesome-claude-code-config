@@ -18,7 +18,7 @@
 - This is an approval candidate on an isolated feature branch; `main` and `codex` remain unchanged until the user approves the generated reports.
 - PDF extraction pins `pymupdf4llm==1.28.0` in a project-independent isolated environment and records that version while preserving raw assets/graphics metadata; final visual selection still requires human/agent render inspection.
 - The validator rejects duplicate navigation surfaces, missing title focus, code-styled mathematics, unwrapped visuals, remote `srcset`/SVG image fetches, unsafe or escaping local links, and empty deep-reproduction evidence manifests. The enforced browser test covers initial image size, wheel/pinch zoom without scroll leakage, contained captions, lenses, and claim↔evidence tracing.
-- Math rendering pins `latex2mathml==3.78.1`, parses converter output with `defusedxml==0.7.1`, and enforces a shared inert presentation-MathML tag/attribute allowlist before emission or validation; the generated report has no equation-rendering network dependency.
+- Math rendering pins `latex2mathml==3.78.1`, parses converter output with `defusedxml==0.7.1`, enforces a shared inert presentation-MathML tag/attribute allowlist, and reserializes the checked tree before HTML embedding. Reports admit exactly one marked inline enhancement script, preventing XML/HTML parser differences from reactivating converter text; generated equations have no network dependency.
 - Blocked reproductions require pinned repository provenance when code exists; a documented `code_status=not-found` plus audit artifacts is the only no-repository exception.
 - Deep mode reproduces the smallest representative central claim by default. Full training or benchmark reproduction requires a separate resource confirmation.
 

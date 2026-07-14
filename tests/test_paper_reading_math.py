@@ -67,6 +67,28 @@ def test_math_renderer_rejects_xml_entities() -> None:
         renderer.render_math("x", converter=unsafe_converter)
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "body",
+    (
+        '<mi xmlns="https://example.test/not-mathml">x</mi>',
+        '<mi xmlns:foreign="https://example.test/attrs" foreign:width="10">x</mi>',
+    ),
+)
+def test_math_renderer_rejects_foreign_xml_namespaces(
+    body: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    renderer = load_script("render_math")
+    _use_test_parser(renderer, monkeypatch)
+
+    def namespaced_converter(latex: str, *, display: str) -> str:
+        del latex, display
+        return f'<math xmlns="http://www.w3.org/1998/Math/MathML">{body}</math>'
+
+    with pytest.raises(ValueError, match="unsafe MathML"):
+        renderer.render_math("x", converter=namespaced_converter)
+
+
 @pytest.mark.integration
 @pytest.mark.parametrize(
     "latex",
@@ -81,6 +103,21 @@ def test_math_renderer_rejects_unsafe_real_converter_output(latex: str) -> None:
     renderer = load_script("render_math")
     with pytest.raises(ValueError, match="unsafe MathML"):
         renderer.render_math(latex)
+
+
+@pytest.mark.integration
+def test_math_renderer_reserializes_converter_text_before_html_embedding() -> None:
+    pytest.importorskip("latex2mathml")
+    pytest.importorskip("defusedxml")
+    renderer = load_script("render_math")
+    latex = (
+        r"\text{<![CDATA[</mtext></math><script>"
+        r"globalThis.__unexpectedMathScript=1</script><math><mtext>]]>}"
+    )
+    fragment = renderer.render_math(latex, display="inline")
+    assert "<![CDATA[" not in fragment
+    assert "<script>" not in fragment
+    assert "&lt;script&gt;" in fragment
 
 
 @pytest.mark.integration
