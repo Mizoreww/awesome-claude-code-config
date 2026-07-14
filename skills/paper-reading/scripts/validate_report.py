@@ -35,6 +35,15 @@ TYPE_SECTIONS = {
     "survey": {"taxonomy", "open-problems"},
     "systems": {"system-design", "performance-evaluation"},
 }
+FORBIDDEN_ELEMENTS = {
+    "base",
+    "embed",
+    "foreignobject",
+    "frame",
+    "iframe",
+    "object",
+    "portal",
+}
 
 
 @dataclass
@@ -53,6 +62,7 @@ class VisualRecord:
 
 @dataclass
 class ReportDocument:
+    elements: list[ElementRecord] = field(default_factory=list)
     ids: dict[str, list[int]] = field(default_factory=dict)
     anchors: list[tuple[str, int]] = field(default_factory=list)
     hyperlinks: list[tuple[str, int]] = field(default_factory=list)
@@ -120,32 +130,26 @@ class ReportParser(HTMLParser):
 
     def _record_assets(self, record: ElementRecord) -> None:
         attributes = record.attrs
-        asset_attribute = {
-            "img": "src",
-            "source": "src",
-            "video": "src",
-            "audio": "src",
-            "object": "data",
-        }.get(record.tag)
-        if asset_attribute and attributes.get(asset_attribute):
+        for attribute in ("src", "poster", "data", "background"):
+            if not attributes.get(attribute):
+                continue
             self.document.assets.append(
-                (attributes[asset_attribute] or "", record.tag, record.line)
+                (attributes[attribute] or "", f"{record.tag} {attribute}", record.line)
             )
-        if record.tag in {"img", "source"} and attributes.get("srcset"):
+        if attributes.get("srcset"):
             self.document.srcsets.append(
                 (attributes["srcset"] or "", record.tag, record.line)
             )
-        if record.tag == "video" and attributes.get("poster"):
-            self.document.assets.append(
-                (attributes["poster"] or "", "video poster", record.line)
-            )
         if record.tag in {"image", "use", "feimage"}:
             href = attributes.get("href") or attributes.get("xlink:href")
-            if href:
+            if href and href.startswith("#") and len(href) > 1:
+                self.document.anchors.append((href[1:], record.line))
+            elif href:
                 self.document.assets.append((href, f"SVG {record.tag}", record.line))
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         record = ElementRecord(tag=tag, attrs=dict(attrs), line=self.getpos()[0])
+        self.document.elements.append(record)
         identifier = record.attrs.get("id")
         if identifier:
             self.document.ids.setdefault(identifier, []).append(record.line)
@@ -273,6 +277,8 @@ def _validate_manifest_provenance(manifest: dict[str, object]) -> list[str]:
     )
     if not _nonempty_string(repository):
         if no_code:
+            if commit is not None:
+                return ["code_status=not-found must omit repository and commit"]
             return []
         return [
             "reproduction manifest requires repository+commit or blocked "
@@ -324,8 +330,48 @@ def _validate_manifest_fields(
     return errors
 
 
-def _validate_shell(source: str, document: ReportDocument) -> list[str]:
+def _validate_active_content(document: ReportDocument) -> list[str]:
     errors: list[str] = []
+    for script in document.scripts:
+        dependency = next(
+            (
+                script.attrs[name]
+                for name in ("src", "href", "xlink:href")
+                if script.attrs.get(name)
+            ),
+            None,
+        )
+        if dependency:
+            errors.append(
+                f"line {script.line}: external script dependency is not portable: "
+                f"{dependency}"
+            )
+    for link in document.links:
+        errors.append(
+            f"line {link.line}: link elements are not portable; inline the resource"
+        )
+    for record in document.elements:
+        if record.tag in FORBIDDEN_ELEMENTS:
+            errors.append(
+                f"line {record.line}: <{record.tag}> is not allowed in a portable report"
+            )
+        if (
+            record.tag == "input"
+            and (record.attrs.get("type") or "").lower() == "image"
+        ):
+            errors.append(f"line {record.line}: input type=image is not allowed")
+        if any(name.lower().startswith("on") for name in record.attrs):
+            errors.append(f"line {record.line}: inline event handlers are not allowed")
+        if (
+            record.tag == "meta"
+            and (record.attrs.get("http-equiv") or "").lower() == "refresh"
+        ):
+            errors.append(f"line {record.line}: meta refresh is not allowed")
+    return errors
+
+
+def _validate_shell(source: str, document: ReportDocument) -> list[str]:
+    errors = _validate_active_content(document)
     if not source.lstrip().lower().startswith("<!doctype html>"):
         errors.append("report must begin with <!doctype html>")
     if PLACEHOLDER_RE.search(source):
@@ -346,14 +392,6 @@ def _validate_shell(source: str, document: ReportDocument) -> list[str]:
         errors.append("report requires inline CSS")
     if not document.scripts:
         errors.append("report requires inline progressive-enhancement JavaScript")
-    for script in document.scripts:
-        if script.attrs.get("src"):
-            errors.append(
-                f"line {script.line}: external script dependencies are not portable"
-            )
-    for link in document.links:
-        if "stylesheet" in (link.attrs.get("rel") or "").lower().split():
-            errors.append(f"line {link.line}: stylesheet must be inlined")
     if re.search(r"@import\s|url\(\s*['\"]?(?:https?:)?//", source, re.IGNORECASE):
         errors.append("CSS contains a network dependency")
     return errors
