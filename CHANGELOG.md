@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] - 2026-07-14
+## [2.9.1] - 2026-07-14
 
 ### Features
 - Rebuilt `paper-reading` as a portable layered skill with an explicit Markdown/HTML choice and one complete, concise close-reading depth; removed the reading-level chooser and reproduction mode.
@@ -20,7 +20,7 @@
 - Preserve LaTeX source while emitting offline MathML, require natural prose under every display equation that defines every symbol before interpreting the relation, keep inline math atomic and free of scroll controls, and split overlong equations into explained, paper-faithful subexpressions instead of shrinking them or fragmenting the surrounding prose.
 
 ### Notes & Caveats
-- This is an approval candidate on an isolated feature branch; `main` and `codex` remain unchanged until the user approves the generated reports.
+- Released to `main` after user approval. Paper-specific acceptance reports, extracted figures, screenshots, and other generated paper assets remain external and are not part of this release.
 - PDF extraction pins `pymupdf4llm==1.28.0` in a project-independent isolated environment and records that version while preserving raw assets/graphics metadata; final visual selection still requires human/agent render inspection.
 - The validator rejects duplicate/removed navigation surfaces, reading-lens and evidence-index controls, metadata tables or visible extraction bookkeeping, missing author/contact/lab homepage links, unmarked institution-level affiliation fallbacks, incomplete module anatomy, module visuals placed after their fields, merged interface nodes, missing original empirical result figures, vague code evidence, unexplained display equations, code-styled or legacy-script mathematics, unwrapped visuals, remote `srcset`/SVG image fetches, and unsafe or escaping local links. The enforced browser test covers the single outline, inline-math overflow, local equation explanations, initial image size, wheel/pinch zoom without scroll leakage, and contained captions.
 - Math rendering pins `latex2mathml==3.78.1`, parses converter output with `defusedxml==0.7.1`, enforces a shared inert presentation-MathML tag/attribute allowlist, and reserializes the checked tree before HTML embedding. Reports admit exactly one marked inline enhancement script, preventing XML/HTML parser differences from reactivating converter text; generated equations have no network dependency.
