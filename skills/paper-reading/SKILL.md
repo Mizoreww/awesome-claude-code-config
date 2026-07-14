@@ -88,6 +88,8 @@ For HTML, read both [visuals.md](references/visuals.md) and [html-report.md](ref
 
 There is no SVG quota. Use prose, a table, an original figure, HTML/CSS, or SVG according to explanatory gain. Draw SVG only when it unlocks non-obvious structure, flow, contrast, or interaction; render-inspect every SVG. Every image and SVG in HTML must open in the lightbox.
 
+Preserve important equations as LaTeX source and render them to static MathML with `scripts/render_math.py` as specified in the HTML reference. Keep code styling for executable code, paths, and identifiers.
+
 For Markdown, use the same content and evidence model, with selected original figures placed next to the claims they support.
 
 **Gate:** every comprehension bottleneck has the best available treatment, every visual is faithful and sourced, and no decorative scientific content is invented.
@@ -111,8 +113,8 @@ Use the user's language; retain technical terms, equations, commands, and identi
 
 ```bash
 PYTHON_EXE <skill-dir>/scripts/scaffold_report.py REPORT_DIR \
-  --title "..." --authors "..." --paper-type empirical --level compact \
-  --thesis "..." --fingerprint "verified concept 1" --fingerprint "verified concept 2"
+  --title "..." --title-focus "..." --authors "..." \
+  --paper-type empirical --level compact --thesis "..."
 PYTHON_EXE <skill-dir>/scripts/validate_report.py REPORT_DIR/summary.html
 ```
 
@@ -122,7 +124,7 @@ Before delivery:
 
 1. Remove scaffold markers and any sentence that adds no mechanism, evidence, comparison, limitation, or implication.
 2. Check all local links, evidence coordinates, captions, equations, and asset paths.
-3. For HTML, render at desktop and narrow-mobile widths; click every visual; test keyboard close, lenses, print, and reduced-motion behavior.
+3. For HTML, render at desktop and narrow-mobile widths; verify the single reader navigation, title hierarchy, MathML, every visual, wheel/pinch zoom, keyboard close, lenses, print, and reduced-motion behavior.
 4. Run the validator until it passes.
 5. State the selected level, source boundaries, and reproduction status without overstating certainty.
 

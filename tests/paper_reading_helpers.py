@@ -46,17 +46,23 @@ REPORT_TEMPLATE = """<!doctype html>
 <body>
   <article data-paper-report data-level="{level}" data-paper-type="{paper_type}">
     <header class="report-hero">
-      <p class="eyebrow">Compact close-reading</p>
-      <h1>测试论文精读</h1>
+      <h1>测试论文<em class="title-focus">精读</em></h1>
       <p class="hero-thesis">一条可核查的核心判断。</p>
     </header>
-    <nav aria-label="文章目录">
-      <a href="#C1">研究问题</a><a href="#E1">实验结果</a><a href="#L1">批判分析</a>
+    <div class="proof-layout">
+    <nav class="reader-nav" data-reader-navigation aria-label="阅读导航">
+      <div class="reading-lenses" aria-label="阅读视角">
+        <button type="button" data-lens="all" class="active">全部</button>
+        <button type="button" data-lens="evidence">证据</button>
+      </div>
+      <div class="outline-links">
+        <a href="#C1">研究问题</a><a href="#E1">实验结果</a><a href="#L1">批判分析</a>
+      </div>
+      <div data-evidence-index aria-label="证据索引">
+        <a data-trace="C1" href="#C1">C1 · Claim</a>
+        <a data-trace="E1" href="#E1">E1 · Figure 1</a>
+      </div>
     </nav>
-    <div class="reading-lenses" aria-label="阅读视角">
-      <button type="button" data-lens="all" class="active">全部</button>
-      <button type="button" data-lens="evidence">证据</button>
-    </div>
     <main id="report-content">
       <section data-section="basic-information"><h2>基本信息</h2><p>作者与出处。</p></section>
       <section id="C1" data-section="research-problem" data-kind="claim"
@@ -76,7 +82,7 @@ REPORT_TEMPLATE = """<!doctype html>
         <h2>实验结果</h2>
         <figure data-lightbox tabindex="0" role="button" aria-label="主结果图，点击放大">
           <img src="assets/figure.png" alt="主结果图">
-          <figcaption>E1 · Figure 1</figcaption>
+          <figcaption>E1 · Figure 1：这是一段刻意较长的图注，用来验证手机窄屏打开图片时，说明文字仍完整留在查看器内，并且不会被底部边界裁掉。</figcaption>
         </figure>
       </section>
       <section id="L1" data-section="critical-analysis" data-kind="limitation"
@@ -86,14 +92,16 @@ REPORT_TEMPLATE = """<!doctype html>
       {deep_section}
       <section data-section="summary"><h2>总结与评价</h2><p>结论。</p></section>
     </main>
-    <aside aria-label="证据索引">
-      <a data-trace="C1" href="#C1">C1 · Claim</a>
-      <a data-trace="E1" href="#E1">E1 · Figure 1</a>
-    </aside>
+    </div>
   </article>
   <dialog id="lightbox" aria-label="大图查看器">
     <button type="button" data-lightbox-close aria-label="关闭大图">关闭</button>
-    <div class="lightbox-stage"></div><p class="lightbox-caption"></p>
+    <div class="lightbox-controls" aria-label="图像缩放">
+      <button type="button" data-zoom-out aria-label="缩小">−</button>
+      <button type="button" data-zoom-reset aria-label="重置缩放">100%</button>
+      <button type="button" data-zoom-in aria-label="放大">+</button>
+    </div>
+    <div class="lightbox-stage" data-zoom="1"></div><p class="lightbox-caption"></p>
   </dialog>
   <script>{script}</script>
 </body>

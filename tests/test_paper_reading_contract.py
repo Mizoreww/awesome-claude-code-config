@@ -24,6 +24,7 @@ def test_skill_is_layered_portable_and_points_to_every_reference() -> None:
     for paper_type in ("empirical", "theoretical", "survey", "systems"):
         assert f"references/{paper_type}.md" in text
     assert "scripts/extract_paper.py" in text
+    assert "scripts/render_math.py" in text
     assert "scripts/scaffold_report.py" in text
     assert "scripts/validate_report.py" in text
 
@@ -32,6 +33,8 @@ def test_skill_is_layered_portable_and_points_to_every_reference() -> None:
     )
     assert "\npython <skill-dir>" not in html_guidance
     assert "PYTHON_EXE" in html_guidance
+    assert "latex2mathml==3.78.1" in html_guidance
+    assert "defusedxml==0.7.1" in html_guidance
     level_guidance = (SKILL_DIR / "references" / "levels.md").read_text(
         encoding="utf-8"
     )
@@ -51,12 +54,17 @@ def test_scaffold_escapes_metadata_and_creates_level_directories(
         paper_type="empirical",
         level="deep",
         thesis="A claim grounded in the paper.",
-        fingerprints=["q₀", "q₁", "p<data>"],
+        title_focus="<B>",
         language="zh-CN",
         source="https://example.test/paper",
     )
     html = summary_path.read_text(encoding="utf-8")
     assert "A &lt;B&gt; &amp; C" in html
+    assert '<em class="title-focus">&lt;B&gt;</em>' in html
+    assert html.count("<nav ") == 1
+    assert "data-reader-navigation" in html
+    assert "paper-fingerprint" not in html
+    assert "evidence-rail" not in html
     assert "Ada &amp; Lin" in html
     assert 'data-level="deep"' in html
     assert "<style data-report-style>" in html
@@ -67,9 +75,9 @@ def test_scaffold_escapes_metadata_and_creates_level_directories(
 
 
 @pytest.mark.unit
-def test_scaffold_requires_a_content_derived_fingerprint(tmp_path: Path) -> None:
+def test_scaffold_requires_a_title_focus_from_the_title(tmp_path: Path) -> None:
     scaffold = load_script("scaffold_report")
-    with pytest.raises(ValueError, match="fingerprint"):
+    with pytest.raises(ValueError, match="title focus"):
         scaffold.scaffold_report(
             output_dir=tmp_path / "report",
             title="Paper",
@@ -77,7 +85,7 @@ def test_scaffold_requires_a_content_derived_fingerprint(tmp_path: Path) -> None
             paper_type="empirical",
             level="brief",
             thesis="Thesis",
-            fingerprints=["only-one"],
+            title_focus="Missing",
         )
 
 
@@ -92,7 +100,7 @@ def test_scaffold_rejects_an_unsafe_source_link(tmp_path: Path) -> None:
             paper_type="empirical",
             level="brief",
             thesis="Thesis",
-            fingerprints=["one", "two"],
+            title_focus="Paper",
             source="javascript:alert(1)",
         )
 
@@ -107,12 +115,12 @@ def test_scaffold_does_not_expand_tokens_inside_user_metadata(tmp_path: Path) ->
         paper_type="empirical",
         level="brief",
         thesis="Thesis",
-        fingerprints=["one", "two"],
+        title_focus="{{SOURCE_LINK}}",
         source="https://example.test/paper",
     )
     html = path.read_text(encoding="utf-8")
     assert "&lt;img src=x onerror=alert(1)&gt;{{SOURCE_LINK}}" in html
-    assert html.count('<a href="https://example.test/paper">') == 1
+    assert html.count('<a class="nav-source" href="https://example.test/paper">') == 1
 
 
 @pytest.mark.unit
@@ -125,7 +133,7 @@ def test_scaffold_localizes_visible_ui_and_accessible_names(tmp_path: Path) -> N
         paper_type="empirical",
         level="compact",
         thesis="Specific thesis.",
-        fingerprints=["concept-a", "concept-b"],
+        title_focus="Paper",
         language="en-US",
         source="https://example.test/paper",
     )
@@ -133,14 +141,13 @@ def test_scaffold_localizes_visible_ui_and_accessible_names(tmp_path: Path) -> N
     for expected in (
         '<html lang="en-US">',
         "Skip to report",
+        'aria-label="Reading navigation"',
         'aria-label="Reading lenses"',
-        "Argument map",
-        "Claim C",
-        "Evidence E",
-        "Limitation L",
-        'aria-label="Evidence index"',
+        'data-evidence-index aria-label="Evidence index"',
         'aria-label="Enlarged visual viewer"',
         'aria-label="Close enlarged visual"',
+        'aria-label="Image zoom"',
+        'aria-label="Zoom in"',
         "View source",
         "Basic information",
         "Research problem",
@@ -172,7 +179,7 @@ def test_scaffold_selects_the_paper_type_outline(
         paper_type=paper_type,
         level="compact",
         thesis="Specific thesis.",
-        fingerprints=["concept-a", "concept-b"],
+        title_focus="Paper",
     )
     html = path.read_text(encoding="utf-8")
     for section, coordinate in zip(required_sections, ("C3", "E1"), strict=True):
@@ -205,7 +212,7 @@ def test_scaffold_rejects_invalid_metadata(
         "paper_type": "empirical",
         "level": "brief",
         "thesis": "Thesis",
-        "fingerprints": ["one", "two"],
+        "title_focus": "Paper",
     }
     arguments.update(overrides)
     with pytest.raises(ValueError, match=message):
@@ -226,7 +233,7 @@ def test_scaffold_refuses_to_mix_with_existing_output(tmp_path: Path) -> None:
             paper_type="empirical",
             level="brief",
             thesis="Thesis",
-            fingerprints=["one", "two"],
+            title_focus="Paper",
         )
 
 
@@ -247,10 +254,8 @@ def test_scaffold_main_reports_success_and_user_errors(
         "brief",
         "--thesis",
         "Thesis",
-        "--fingerprint",
-        "one",
-        "--fingerprint",
-        "two",
+        "--title-focus",
+        "Paper",
     ]
     assert scaffold.main(argv) == 0
     assert "summary.html" in capsys.readouterr().out

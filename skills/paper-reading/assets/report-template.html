@@ -12,53 +12,53 @@
 
   <article data-paper-report data-level="{{LEVEL}}" data-paper-type="{{PAPER_TYPE}}">
     <header class="report-hero">
-      <div class="paper-fingerprint" aria-label="{{FINGERPRINT_LABEL}}">
-        {{FINGERPRINTS}}
-      </div>
-      <p class="eyebrow">{{LEVEL_LABEL}} · {{PAPER_TYPE_LABEL}}</p>
-      <h1>{{TITLE}}</h1>
+      <h1><span>{{TITLE_BEFORE}}</span><em class="title-focus">{{TITLE_FOCUS}}</em><span>{{TITLE_AFTER}}</span></h1>
       <p class="authors">{{AUTHORS}}</p>
       <div class="hero-thesis">
-        <span class="coordinate coordinate-claim">C1</span>
         <p>{{THESIS}}</p>
-        {{SOURCE_LINK}}
       </div>
     </header>
 
-    <div class="lens-bar reading-lenses" aria-label="{{READING_LENSES_LABEL}}">
-      <button type="button" data-lens="all" class="active">{{ALL_LABEL}}</button>
-      <button type="button" data-lens="method">{{METHOD_LABEL}}</button>
-      <button type="button" data-lens="evidence">{{EVIDENCE_LABEL}}</button>
-      <button type="button" data-lens="critique">{{CRITIQUE_LABEL}}</button>
-      {{REPRODUCTION_LENS}}
-    </div>
-
     <div class="proof-layout">
-      <nav class="outline" aria-label="{{OUTLINE_LABEL}}">
-        <p class="utility-label">{{ARGUMENT_MAP_LABEL}}</p>
-        {{OUTLINE}}
-        <div class="mode-key" aria-label="{{COORDINATE_KEY_LABEL}}">
-          <span><i class="claim-dot"></i>{{CLAIM_KEY}}</span>
-          <span><i class="evidence-dot"></i>{{EVIDENCE_KEY}}</span>
-          <span><i class="limitation-dot"></i>{{LIMITATION_KEY}}</span>
-          {{REPRODUCTION_KEY}}
+      <nav class="reader-nav" data-reader-navigation aria-label="{{READER_NAVIGATION_LABEL}}">
+        <button type="button" class="reader-nav-toggle" aria-expanded="true">{{READER_NAVIGATION_LABEL}}</button>
+        <div class="reader-nav-body">
+          <section class="nav-group reading-lenses" aria-label="{{READING_LENSES_LABEL}}">
+            <p class="nav-heading">{{READING_LENSES_LABEL}}</p>
+            <div class="lens-options">
+              <button type="button" data-lens="all" class="active">{{ALL_LABEL}}</button>
+              <button type="button" data-lens="method">{{METHOD_LABEL}}</button>
+              <button type="button" data-lens="evidence">{{EVIDENCE_LABEL}}</button>
+              <button type="button" data-lens="critique">{{CRITIQUE_LABEL}}</button>
+              {{REPRODUCTION_LENS}}
+            </div>
+          </section>
+          <section class="nav-group outline-links">
+            <p class="nav-heading">{{OUTLINE_LABEL}}</p>
+            {{OUTLINE}}
+          </section>
+          <section class="nav-group evidence-index" data-evidence-index aria-label="{{EVIDENCE_INDEX_LABEL}}">
+            <p class="nav-heading">{{EVIDENCE_RAIL_LABEL}}</p>
+            {{EVIDENCE_RAIL}}
+          </section>
+          {{SOURCE_LINK}}
         </div>
       </nav>
 
       <main id="report-content" class="manuscript">
         {{REPORT_SECTIONS}}
       </main>
-
-      <aside class="evidence-rail" aria-label="{{EVIDENCE_INDEX_LABEL}}">
-        <p class="utility-label">{{EVIDENCE_RAIL_LABEL}}</p>
-        {{EVIDENCE_RAIL}}
-      </aside>
     </div>
   </article>
 
   <dialog id="lightbox" class="lightbox" aria-label="{{LIGHTBOX_LABEL}}">
+    <div class="lightbox-controls" aria-label="{{ZOOM_CONTROLS_LABEL}}">
+      <button type="button" data-zoom-out aria-label="{{ZOOM_OUT_LABEL}}">−</button>
+      <button type="button" data-zoom-reset aria-label="{{ZOOM_RESET_LABEL}}">100%</button>
+      <button type="button" data-zoom-in aria-label="{{ZOOM_IN_LABEL}}">+</button>
+    </div>
     <button type="button" class="lightbox-close" data-lightbox-close aria-label="{{CLOSE_LIGHTBOX_LABEL}}">×</button>
-    <div class="lightbox-stage"></div>
+    <div class="lightbox-stage" data-zoom="1"></div>
     <p class="lightbox-caption" aria-live="polite"></p>
   </dialog>
 

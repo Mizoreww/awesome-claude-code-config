@@ -4,18 +4,21 @@
 
 ### Features
 - Rebuilt `paper-reading` as a portable layered skill with explicit Markdown/HTML choice and three work scopes: brief, compact close-reading, and deep reproduction.
-- Added a shared claim/evidence/limitation/reproduction ledger, paper-type references, immutable PDF extraction, a tested bilingual Proof Spine HTML scaffold, purposeful visual/SVG audit, click-to-enlarge visuals, bidirectional evidence tracing, and structural report validation.
+- Added a shared claim/evidence/limitation/reproduction ledger, paper-type references, immutable PDF extraction, and a tested bilingual Proof Spine HTML scaffold with one left reader navigation, title-focus hierarchy, static MathML, bidirectional evidence tracing, and structural report validation.
+- Added restrained fit-to-view lightboxes with pointer-centered desktop wheel zoom, touch pinch zoom, zoom-only panning, bounded controls, and captions that remain inside the viewer.
 - Added bounded deep reproduction with pinned provenance, isolated `uv`/`venv` environments, an execution confirmation gate, and machine-readable run/blocker manifests.
 
 ### Design Rationale
 - Keep the familiar Empirical/Theoretical/Survey/Systems report backbone while loading level-, type-, HTML-, visual-, and reproduction-specific guidance only when selected.
-- Use one article-first visual system across all levels; vary source coverage and verification rather than changing the page identity or padding prose.
+- Use one article-first visual system across all levels; vary source coverage and verification rather than changing the page identity or padding prose. Keep the type scale compact and put navigation, lenses, evidence coordinates, and the source link in one left rail.
 - Require diagrams to earn their place through explanatory gain, while keeping every original figure and explanatory SVG inspectable in the same accessible lightbox.
+- Preserve LaTeX source while emitting offline MathML, and split overlong mobile equations into explained, paper-faithful subexpressions instead of shrinking them into unreadable code-like blocks.
 
 ### Notes & Caveats
 - This is an approval candidate on an isolated feature branch; `main` and `codex` remain unchanged until the user approves the generated reports.
 - PDF extraction pins `pymupdf4llm==1.28.0` in a project-independent isolated environment and records that version while preserving raw assets/graphics metadata; final visual selection still requires human/agent render inspection.
-- The validator rejects unwrapped visuals, remote `srcset`/SVG image fetches, unsafe or escaping local links, and empty deep-reproduction evidence manifests; the enforced browser test covers lightboxes, lenses, and claim↔evidence tracing.
+- The validator rejects duplicate navigation surfaces, missing title focus, code-styled mathematics, unwrapped visuals, remote `srcset`/SVG image fetches, unsafe or escaping local links, and empty deep-reproduction evidence manifests. The enforced browser test covers initial image size, wheel/pinch zoom without scroll leakage, contained captions, lenses, and claim↔evidence tracing.
+- Math rendering pins `latex2mathml==3.78.1` and validates converter output with `defusedxml==0.7.1`; the generated report has no equation-rendering network dependency.
 - Blocked reproductions require pinned repository provenance when code exists; a documented `code_status=not-found` plus audit artifacts is the only no-repository exception.
 - Deep mode reproduces the smallest representative central claim by default. Full training or benchmark reproduction requires a separate resource confirmation.
 
