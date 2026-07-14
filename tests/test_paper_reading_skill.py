@@ -2,15 +2,13 @@ from __future__ import annotations
 
 import importlib.util
 import json
-from pathlib import Path
 import shutil
 import subprocess
 import sys
-from types import ModuleType
-from types import SimpleNamespace
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
 
 import pytest
-
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILL_DIR = ROOT / "skills" / "paper-reading"
@@ -111,7 +109,10 @@ def write_valid_report(
       {deep_section}
       <section data-section="summary"><h2>总结与评价</h2><p>结论。</p></section>
     </main>
-    <aside aria-label="证据索引"><a href="#E1">E1 · Figure 1</a></aside>
+    <aside aria-label="证据索引">
+      <a data-trace="C1" href="#C1">C1 · Claim</a>
+      <a data-trace="E1" href="#E1">E1 · Figure 1</a>
+    </aside>
   </article>
   <dialog id="lightbox" aria-label="大图查看器">
     <button type="button" data-lightbox-close aria-label="关闭大图">关闭</button>
@@ -137,6 +138,7 @@ def test_skill_is_layered_portable_and_points_to_every_reference() -> None:
     assert "pip install" not in text
     assert "\npython <skill-dir>" not in text
     assert "PYTHON_EXE" in text
+    assert "uv run --isolated --no-project" in text
     assert "references/levels.md" in text
     assert "references/evidence.md" in text
     assert "references/html-report.md" in text
@@ -200,6 +202,58 @@ def test_scaffold_requires_a_content_derived_fingerprint(tmp_path: Path) -> None
             thesis="Thesis",
             fingerprints=["only-one"],
         )
+
+
+@pytest.mark.unit
+def test_scaffold_rejects_an_unsafe_source_link(tmp_path: Path) -> None:
+    scaffold = load_script("scaffold_report")
+    with pytest.raises(ValueError, match="source URL"):
+        scaffold.scaffold_report(
+            output_dir=tmp_path / "report",
+            title="Paper",
+            authors="Author",
+            paper_type="empirical",
+            level="brief",
+            thesis="Thesis",
+            fingerprints=["one", "two"],
+            source="javascript:alert(1)",
+        )
+
+
+@pytest.mark.unit
+def test_scaffold_localizes_visible_ui_and_accessible_names(tmp_path: Path) -> None:
+    scaffold = load_script("scaffold_report")
+    path = scaffold.scaffold_report(
+        output_dir=tmp_path / "report-en",
+        title="Paper",
+        authors="Author",
+        paper_type="empirical",
+        level="compact",
+        thesis="Specific thesis.",
+        fingerprints=["concept-a", "concept-b"],
+        language="en-US",
+        source="https://example.test/paper",
+    )
+    html = path.read_text(encoding="utf-8")
+    for expected in (
+        '<html lang="en-US">',
+        "Skip to report",
+        'aria-label="Reading lenses"',
+        "Argument map",
+        "Claim C",
+        "Evidence E",
+        "Limitation L",
+        'aria-label="Evidence index"',
+        'aria-label="Enlarged visual viewer"',
+        'aria-label="Close enlarged visual"',
+        "View source",
+        "Basic information",
+        "Research problem",
+        "Critical analysis",
+    ):
+        assert expected in html
+    for chinese_ui in ("跳到正文", "阅读视角", "文章目录", "关闭大图", "查看原文"):
+        assert chinese_ui not in html
 
 
 @pytest.mark.unit
@@ -332,6 +386,76 @@ def test_validator_reports_broken_assets_and_inaccessible_visuals(
 
 
 @pytest.mark.unit
+def test_validator_rejects_unwrapped_visuals(tmp_path: Path) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "report")
+    html = report.read_text(encoding="utf-8").replace(
+        "</main>",
+        '<img src="assets/figure.png" alt="standalone">'
+        '<svg viewBox="0 0 10 10" role="img" aria-label="standalone SVG"></svg>'
+        "</main>",
+    )
+    report.write_text(html, encoding="utf-8")
+    errors = validator.validate_report(report)
+    assert sum("inside a lightbox figure" in error for error in errors) == 2
+
+
+@pytest.mark.unit
+def test_validator_rejects_network_srcset_and_svg_image_assets(tmp_path: Path) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "report")
+    html = report.read_text(encoding="utf-8")
+    html = html.replace(
+        'src="assets/figure.png"',
+        'src="assets/figure.png" srcset="https://example.test/large.png 2x"',
+    ).replace(
+        "</main>",
+        """<figure data-lightbox tabindex="0" role="button" aria-label="SVG, enlarge">
+          <svg viewBox="0 0 10 10" role="img" aria-label="SVG image test">
+            <image href="https://example.test/inside-svg.png" width="10" height="10"></image>
+          </svg><figcaption>network test</figcaption>
+        </figure></main>""",
+    )
+    report.write_text(html, encoding="utf-8")
+    errors = validator.validate_report(report)
+    assert any("large.png" in error for error in errors)
+    assert any("inside-svg.png" in error for error in errors)
+
+
+@pytest.mark.unit
+def test_validator_checks_local_srcset_candidates(tmp_path: Path) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "report")
+    html = report.read_text(encoding="utf-8").replace(
+        'src="assets/figure.png"',
+        'src="assets/figure.png" srcset="assets/figure.png 1x, assets/missing-2x.png 2x"',
+    )
+    report.write_text(html, encoding="utf-8")
+    errors = validator.validate_report(report)
+    assert any("assets/missing-2x.png" in error for error in errors)
+
+
+@pytest.mark.unit
+def test_validator_checks_local_hyperlinks_and_unsafe_schemes(tmp_path: Path) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "report")
+    html = report.read_text(encoding="utf-8").replace(
+        "</main>",
+        '<a href="reproduction/missing.json">missing</a>'
+        '<a href="../escape.txt">escape</a>'
+        '<a href="javascript:alert(1)">unsafe</a>'
+        '<a href="https://example.test/allowed">external</a>'
+        "</main>",
+    )
+    report.write_text(html, encoding="utf-8")
+    errors = validator.validate_report(report)
+    assert any("reproduction/missing.json" in error for error in errors)
+    assert any("../escape.txt" in error for error in errors)
+    assert any("javascript" in error for error in errors)
+    assert not any("example.test/allowed" in error for error in errors)
+
+
+@pytest.mark.unit
 def test_validator_requires_a_complete_deep_reproduction_manifest(
     tmp_path: Path,
 ) -> None:
@@ -362,6 +486,22 @@ def test_validator_requires_a_complete_deep_reproduction_manifest(
         encoding="utf-8",
     )
     assert validator.validate_report(report) == []
+
+    manifest = json.loads(
+        (reproduction_dir / "manifest.json").read_text(encoding="utf-8")
+    )
+    manifest["artifacts"] = []
+    (reproduction_dir / "manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
+    assert any("artifacts" in error for error in validator.validate_report(report))
+
+    manifest["artifacts"] = ["run.log"]
+    manifest["repository"] = "javascript:alert(1)"
+    (reproduction_dir / "manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
+    assert any("repository" in error for error in validator.validate_report(report))
 
 
 @pytest.mark.unit
@@ -418,6 +558,8 @@ def test_validator_accepts_brief_and_blocked_deep_contracts(tmp_path: Path) -> N
         json.dumps(
             {
                 "status": "blocked",
+                "repository": "https://github.com/example/project",
+                "commit": "0123456789abcdef0123456789abcdef01234567",
                 "claim": "C1",
                 "environment": "Python 3.12, CPU",
                 "artifacts": ["audit.log"],
@@ -517,12 +659,21 @@ def test_validator_handles_missing_and_malformed_reproduction_files(
     assert any("JSON object" in error for error in validator.validate_report(report))
     (reproduction / "manifest.json").write_text(
         json.dumps(
-            {"status": "blocked", "claim": "E1", "environment": "", "artifacts": []}
+            {
+                "status": "blocked",
+                "claim": "E1",
+                "environment": "",
+                "artifacts": [],
+                "audited_sources": [None],
+            }
         ),
         encoding="utf-8",
     )
     errors = validator.validate_report(report)
     assert any("status" not in error and "claim" in error for error in errors)
+    assert any("repository" in error for error in errors)
+    assert any("commit" in error for error in errors)
+    assert any("artifacts" in error for error in errors)
     assert any("blocker" in error for error in errors)
     assert any("audited_sources" in error for error in errors)
 
@@ -564,9 +715,14 @@ def test_extractor_keeps_page_anchors_and_raw_assets(tmp_path: Path) -> None:
     pages = json.loads(
         (tmp_path / "extracted" / "meta" / "pages.json").read_text(encoding="utf-8")
     )
+    source = json.loads(
+        (tmp_path / "extracted" / "meta" / "source.json").read_text(encoding="utf-8")
+    )
     assert "<!-- page: 1 -->" in markdown
     assert result["page_count"] == 1
     assert pages[0]["page"] == 1
+    assert pages[0]["images"][0]["path"] == "assets/raw/paper-p1-fig1.png"
+    assert source["extractor"] == "pymupdf4llm==1.28.0"
     assert manifest["raw_assets"][0]["path"] == "assets/raw/paper-p1-fig1.png"
     assert manifest["pages"][0]["graphics"] == [{"bbox": [5, 6, 7, 8]}]
     assert (tmp_path / "extracted" / "assets" / "raw" / "paper-p1-fig1.png").exists()
@@ -635,6 +791,10 @@ def test_extractor_validates_inputs_and_converter_contract(tmp_path: Path) -> No
         extractor.extract_paper(
             pdf, tmp_path / "wrong-chunk", converter=lambda *args, **kwargs: ["page"]
         )
+    with pytest.raises(RuntimeError, match="no page chunks"):
+        extractor.extract_paper(
+            pdf, tmp_path / "empty-chunks", converter=lambda *args, **kwargs: []
+        )
 
 
 @pytest.mark.unit
@@ -661,9 +821,18 @@ def test_extractor_helpers_cover_portable_metadata_and_jpeg_dimensions(
     assert extractor._image_dimensions(unknown) is None
 
     monkeypatch.setitem(
-        sys.modules, "pymupdf4llm", SimpleNamespace(to_markdown="converter")
+        sys.modules,
+        "pymupdf4llm",
+        SimpleNamespace(to_markdown="converter", __version__="1.28.0"),
     )
     assert extractor._load_converter() == "converter"
+    monkeypatch.setitem(
+        sys.modules,
+        "pymupdf4llm",
+        SimpleNamespace(to_markdown="converter", __version__="0.0.1"),
+    )
+    with pytest.raises(RuntimeError, match="requires pymupdf4llm==1.28.0"):
+        extractor._load_converter()
 
 
 @pytest.mark.unit
@@ -730,26 +899,50 @@ def test_validator_cli_uses_a_nonzero_exit_for_contract_failures(
 
 @pytest.mark.e2e
 def test_html_interactions_work_in_a_real_browser(tmp_path: Path) -> None:
-    pytest.importorskip("playwright.sync_api")
+    from playwright.sync_api import sync_playwright
+
     chrome = shutil.which("google-chrome") or shutil.which("chromium")
-    if chrome is None:
-        pytest.skip("Chrome/Chromium is not installed")
 
     report_script = (SKILL_DIR / "assets" / "report.js").read_text(encoding="utf-8")
     report = write_valid_report(tmp_path / "report", script=report_script)
-
-    from playwright.sync_api import sync_playwright
+    html = report.read_text(encoding="utf-8").replace(
+        "</main>",
+        """<figure data-lightbox tabindex="0" role="button"
+                   aria-label="SVG diagram, click to enlarge">
+          <svg viewBox="0 0 20 20" role="img" aria-label="Test diagram">
+            <defs><clipPath id="diagram-clip"><rect width="10" height="10"></rect></clipPath></defs>
+            <g clip-path="url(#diagram-clip)"><circle cx="5" cy="5" r="5"></circle></g>
+          </svg><figcaption>SVG test</figcaption>
+        </figure></main>""",
+    )
+    report.write_text(html, encoding="utf-8")
 
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True, executable_path=chrome)
+        launch_options = {"headless": True}
+        if chrome:
+            launch_options["executable_path"] = chrome
+        browser = playwright.chromium.launch(**launch_options)
         page = browser.new_page(viewport={"width": 1200, "height": 900})
         page.goto(report.as_uri())
         assert page.locator("html").get_attribute("data-enhanced") == "true"
 
-        page.locator("figure[data-lightbox]").click()
+        page.locator("figure[data-lightbox]").first.click()
         assert page.locator("#lightbox").evaluate("node => node.open") is True
         page.keyboard.press("Escape")
         assert page.locator("#lightbox").evaluate("node => node.open") is False
+
+        svg_figure = page.locator("figure[data-lightbox]").nth(1)
+        svg_figure.click()
+        cloned_clip_id = page.locator(
+            "#lightbox .lightbox-stage clipPath"
+        ).get_attribute("id")
+        assert cloned_clip_id and cloned_clip_id != "diagram-clip"
+        assert page.locator("#diagram-clip").count() == 1
+        assert (
+            page.locator("#lightbox .lightbox-stage g").get_attribute("clip-path")
+            == f"url(#{cloned_clip_id})"
+        )
+        page.keyboard.press("Escape")
 
         page.locator('[data-lens="evidence"]').click()
         assert (
@@ -763,5 +956,17 @@ def test_html_interactions_work_in_a_real_browser(tmp_path: Path) -> None:
                 "node => node.classList.contains('is-dimmed')"
             )
             is False
+        )
+
+        page.locator('[data-trace="C1"]').click()
+        assert page.locator("#C1").evaluate(
+            "node => node.classList.contains('trace-origin')"
+        )
+        assert page.locator("#E1").evaluate(
+            "node => node.classList.contains('trace-active')"
+        )
+        page.locator('[data-trace="E1"]').click()
+        assert page.locator("#C1").evaluate(
+            "node => node.classList.contains('trace-active')"
         )
         browser.close()

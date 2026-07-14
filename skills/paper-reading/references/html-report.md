@@ -36,10 +36,11 @@ PYTHON_EXE <skill-dir>/scripts/scaffold_report.py REPORT_DIR \
   --thesis "ONE EVIDENCE-BOUND THESIS" \
   --fingerprint "CONCEPT 1" \
   --fingerprint "CONCEPT 2" \
+  --language "zh-CN" \
   --source "CANONICAL URL"
 ```
 
-The scaffold deliberately fails final validation until its visible replacement markers are replaced. Edit the generated `summary.html`; keep its semantic attributes and inline design/interaction layer.
+The scaffold deliberately fails final validation until its visible replacement markers are replaced. It localizes section names, controls, and accessible names for Chinese (`zh*`) or English (other language tags); translate the report prose itself into the user's language. Edit the generated `summary.html`; keep its semantic attributes and inline design/interaction layer.
 
 Use the **Proof Spine** shell:
 
@@ -108,7 +109,7 @@ The bundled script progressively enhances:
 
 - active outline position;
 - Method / Evidence / Critique / Reproduction lenses;
-- evidence-coordinate tracing;
+- bidirectional evidence-coordinate tracing: selecting a claim illuminates its evidence, and selecting evidence illuminates the claims/limitations that cite it;
 - click/Enter/Space lightbox opening and Escape/close-button dismissal.
 
 The article remains complete and readable with JavaScript disabled. Lenses may de-emphasize content, never remove it. Do not make hover the only way to reveal evidence.
@@ -122,6 +123,8 @@ Run the structural validator:
 ```bash
 PYTHON_EXE <skill-dir>/scripts/validate_report.py REPORT_DIR/summary.html
 ```
+
+The validator treats every static `img` and inline `svg` as a report visual: it must be wrapped by the accessible lightbox figure contract. It also checks local hyperlinks, ordinary asset URLs, `srcset`, SVG `<image>` references, evidence relationships, and deep manifests. A pass is necessary but not sufficient.
 
 Then inspect a real browser render at desktop and about 390 px width:
 

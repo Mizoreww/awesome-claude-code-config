@@ -35,7 +35,8 @@ Accept a local/remote PDF, official full-text HTML, or complete pasted text. Pre
 For a PDF, keep the source unchanged and extract into a new directory:
 
 ```bash
-uv run --with pymupdf4llm python <skill-dir>/scripts/extract_paper.py PAPER.pdf EXTRACTED_DIR
+uv run --isolated --no-project --with pymupdf4llm==1.28.0 \
+  python <skill-dir>/scripts/extract_paper.py PAPER.pdf EXTRACTED_DIR
 ```
 
 If `uv` is unavailable, use an isolated standard `venv`. Reuse an already-compatible environment when possible. Never require Conda or install into a base, system, or global environment.
