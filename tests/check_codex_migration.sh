@@ -26,6 +26,7 @@ assert_file_contains "config.toml" 'model = "gpt-5.6-sol"'
 assert_file_contains "config.toml" 'model_reasoning_effort = "max"'
 assert_file_contains "config.toml" 'approval_policy = "never"'
 assert_file_contains "config.toml" 'sandbox_mode = "danger-full-access"'
+assert_file_contains "config.toml" "concurrent_reasoning_summaries = false"
 assert_file_contains "config.toml" "[tui]"
 assert_file_contains "config.toml" 'status_line = ["model", "reasoning", "project-name", "git-branch", "context-used", "five-hour-limit", "weekly-limit"]'
 assert_file_contains "config.toml" "status_line_use_colors = true"

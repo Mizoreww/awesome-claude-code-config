@@ -48,6 +48,7 @@ url = "https://developers.openai.com/mcp"
 
 [features]
 multi_agent = true
+concurrent_reasoning_summaries = false
 
 [agents]
 max_threads = 4
