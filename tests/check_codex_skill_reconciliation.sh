@@ -3,7 +3,16 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+TEST_COMPLETED=false
+cleanup() {
+  local status=$?
+  if [[ $status -eq 0 && "$TEST_COMPLETED" != "true" ]]; then
+    status=1
+  fi
+  rm -rf "$TMP"
+  exit "$status"
+}
+trap cleanup EXIT
 
 export HOME="$TMP/home"
 export XDG_STATE_HOME="$TMP/xdg-state"
@@ -482,4 +491,5 @@ if skills.get("custom-skill", {}).get("source") != "user/custom-skills":
     raise SystemExit("unrelated skill lock entry changed during pinned installation")
 PY
 
+TEST_COMPLETED=true
 printf '%s\n' "Codex skill reconciliation checks passed"
