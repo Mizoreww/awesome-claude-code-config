@@ -282,6 +282,16 @@ reconcile_interactive_skills
 assert_exists "$SUPERPOWERS_LINK"
 assert_exists "$SUPERPOWERS_DIR"
 
+# A first-run migration can adopt only the superpowers fallback while no
+# matching ~/.codex/skills copies exist. All npx cleanup arrays stay empty.
+reset_ownership_discovery
+reconcile_interactive_skills
+assert_missing "$SUPERPOWERS_LINK"
+assert_missing "$SUPERPOWERS_DIR"
+
+mkdir -p "$SUPERPOWERS_DIR/skills" "$SUPERPOWERS_DIR/.git"
+printf '%s\n' '[remote "origin"]' '  url = https://github.com/obra/superpowers.git' > "$SUPERPOWERS_DIR/.git/config"
+ln -s "$SUPERPOWERS_DIR/skills" "$SUPERPOWERS_LINK"
 mkdir -p "$CODEX_DIR/skills/pua" "$AGENTS_SKILLS_DIR/pua"
 printf '%s\n' managed > "$CODEX_DIR/skills/pua/SKILL.md"
 printf '%s\n' managed > "$AGENTS_SKILLS_DIR/pua/SKILL.md"
