@@ -1,591 +1,128 @@
 ---
 name: paper-reading
-description: Use when user asks to read, summarize, or analyze a research paper (PDF or text). Triggers on keywords like "read paper", "summarize paper", "paper summary", "literature review", "analyze this paper"
+description: Read, summarize, critically analyze, or reproduce an academic paper from a PDF, official HTML page, URL, or pasted full text. Use for requests such as "read this paper", "快速看懂", "精读论文", "analyze this paper", "paper summary", strict paper critique, or method reproduction. Produces evidence-traceable Markdown or a portable interactive HTML report at brief, compact close-reading, or deep-reproduction scope.
 ---
 
-# Paper Reading - Research Paper Summarization
+# Paper reading
 
-## Overview
+Treat a paper report as an argument with inspectable evidence, not a longer abstract. Preserve the familiar paper-type structure while spending words only on mechanism, evidence, comparison, limitation, or implication.
 
-A structured approach to reading and summarizing scientific research papers. **Automatically identifies paper type** (empirical/theoretical/survey/systems), selects the appropriate template, screenshots important figures, and embeds them in the summary document.
+Resolve `<skill-dir>` as the directory containing this file before using bundled scripts or assets.
 
-## When to Use
+In examples, `PYTHON_EXE` means the actual interpreter of the compatible active or isolated environment—for example `python3`, `python`, `py -3`, or an absolute venv executable. Resolve it for the current platform; do not run the token literally or assume one command name exists.
 
-- User provides a paper (PDF path, URL, or pasted content) and asks for summary
-- User asks to "read", "summarize", or "analyze" a research paper
-- User wants to understand a paper's contribution quickly
-- Literature review tasks
+## 1. Resolve the two choices
 
-**Not for:** Tutorial papers, textbooks, or non-research documents
+Honor choices already stated or clearly implied. Otherwise ask in this order and wait after each question.
 
-## Workflow
+1. Ask for **Markdown or HTML**. Explain briefly: Markdown is light and editable; HTML adds the designed reading surface, evidence tracing, and click-to-enlarge visuals.
+2. Ask for one scope: **brief**, **compact close-reading (recommended)**, or **deep reproduction**.
 
-```dot
-digraph paper_reading {
-    rankdir=TB;
-    "Receive paper" -> "Get PDF file";
-    "Get PDF file" -> "Read PDF content";
-    "Read PDF content" -> "Identify paper type";
-    "Identify paper type" -> "Prepare output directory";
-    "Prepare output directory" -> "Extract figures (pymupdf4llm)";
-    "Extract figures (pymupdf4llm)" -> "Filter & rename images";
-    "Filter & rename images" -> "Fill type-specific template";
-    "Fill type-specific template" -> "Write markdown file";
-}
-```
+Map intent without asking when it is unambiguous:
 
-## Step 1: PDF Acquisition
+- “快速看懂” or an executive overview → `brief`.
+- “默认”, ordinary close-reading, or “精读” → `compact`.
+- reproduce, deeply inspect the method, or perform strict critique → `deep`.
 
-All papers are processed as PDF. No HTML/ar5iv path.
+Selecting `deep` authorizes the read-only code/artifact audit, not an unbounded run. Execution has its own gate in step 7.
 
-| Source | Detection | Action |
-|--------|-----------|--------|
-| Local PDF | File path ends with `.pdf` | Use directly |
-| arXiv URL | Contains `arxiv.org` | Extract paper ID → download `https://arxiv.org/pdf/XXXX.XXXXX` |
-| Other URL | Default | Try downloading as PDF; if not a PDF, use WebFetch for text |
+**Gate:** record `format` and `level`. Do not silently choose or downgrade either.
 
-### Download Flow
+## 2. Ground the source
+
+Accept a local/remote PDF, official full-text HTML, or complete pasted text. Prefer PDF when available because page and figure anchors are stable; do not make PDF mandatory.
+
+For a PDF, keep the source unchanged and extract into a new directory:
 
 ```bash
-# For arXiv: extract ID and download PDF
-curl -L -o <output_dir>/paper.pdf "https://arxiv.org/pdf/XXXX.XXXXX"
-
-# For other URLs: try direct download
-curl -L -o <output_dir>/paper.pdf "<url>"
-# Verify it's a valid PDF: file <output_dir>/paper.pdf should show "PDF document"
+uv run --with pymupdf4llm python <skill-dir>/scripts/extract_paper.py PAPER.pdf EXTRACTED_DIR
 ```
 
-### Read Content
+If `uv` is unavailable, use an isolated standard `venv`. Reuse an already-compatible environment when possible. Never require Conda or install into a base, system, or global environment.
 
-Use the **Read tool** to read the PDF file. Claude natively supports reading PDF files and extracting text content. For large PDFs (>10 pages), read in page ranges (e.g., `pages: "1-10"`, then `pages: "11-20"`).
+The extractor writes page-anchored text, source hashes, and an immutable `assets/raw/` manifest. Copy chosen visuals into the report; never delete raw extraction to “clean” it.
 
-## Step 2: Paper Type Identification
+For official HTML or pasted text, preserve section names and stable URLs as anchors. State when page-level anchors are unavailable.
 
-After reading the title, abstract, and introduction, determine paper type:
+**Gate:** the full source needed by the selected level is locally readable, provenance is recorded, and every retained visual can be traced back to it.
 
-| Type | Identification Signals |
-|------|----------------------|
-| **Empirical** | Proposes new method/model, has experimental comparisons, includes baselines |
-| **Theoretical** | Theorem/proof-driven, math-heavy derivations, few or no experiments |
-| **Survey** | Many citations (>100), taxonomy/classification, "survey"/"review" keywords |
-| **Systems** | System design, engineering implementation, benchmarks, deployment experience |
+## 3. Classify the paper
 
-**When uncertain, default to the Empirical template.**
+Read the title, abstract, introduction, contribution statement, and section outline. Choose the primary branch:
 
-## Step 3: Figure & Table Extraction (pymupdf4llm)
+- **Empirical:** new method/model with baseline experiments → read [empirical.md](references/empirical.md).
+- **Theoretical:** theorem/proof is the contribution → read [theoretical.md](references/theoretical.md).
+- **Survey:** taxonomy or synthesis across a field → read [survey.md](references/survey.md).
+- **Systems:** system design, implementation, and benchmarks → read [systems.md](references/systems.md).
 
-### 1. Prepare Output Directory
+Always read [shared-sections.md](references/shared-sections.md). A cross-type paper still receives one of these four primary branches; add only the necessary modules from one named secondary branch. Pass the primary type to the scaffold—`hybrid` is not a fifth catch-all type. Do not default an unclear paper to empirical; inspect its contribution and evidence first.
+
+**Gate:** record the primary type, any secondary module, and the evidence for that classification.
+
+## 4. Read to the chosen scope
+
+Read [levels.md](references/levels.md), then execute only the chosen scope. The levels differ by coverage and verification work, not by permission to add filler.
+
+Build the report while reading; do not postpone all synthesis until the end. Track assumptions, equations, experimental conditions, failure cases, and open questions beside their source locations.
+
+**Gate:** satisfy every completion row for the selected level and do not imply coverage you did not perform.
+
+## 5. Build the claim-evidence spine
+
+Read [evidence.md](references/evidence.md). Maintain `C` (claim), `E` (evidence), `L` (limitation), and, in deep mode, `R` (reproduction) coordinates.
+
+Separate:
+
+- what the authors claim;
+- what the report infers;
+- what external primary evidence shows.
+
+Brief mode anchors the decisive claims. Compact and deep modes anchor every material result and criticism. A criticism without a named assumption, comparison, failure case, or missing test is not finished.
+
+**Gate:** every material statement required at this level resolves to an exact paper/code/run/URL anchor, and inference is visibly labelled.
+
+## 6. Audit and render visuals
+
+For HTML, read both [visuals.md](references/visuals.md) and [html-report.md](references/html-report.md). Run the diagram-opportunity audit before drawing anything.
+
+There is no SVG quota. Use prose, a table, an original figure, HTML/CSS, or SVG according to explanatory gain. Draw SVG only when it unlocks non-obvious structure, flow, contrast, or interaction; render-inspect every SVG. Every image and SVG in HTML must open in the lightbox.
+
+For Markdown, use the same content and evidence model, with selected original figures placed next to the claims they support.
+
+**Gate:** every comprehension bottleneck has the best available treatment, every visual is faithful and sourced, and no decorative scientific content is invented.
+
+## 7. Reproduce only in deep mode
+
+Read [reproduction.md](references/reproduction.md). First perform the read-only audit: locate authoritative artifacts, pin the repository and revision, choose the smallest representative central claim, and estimate dependencies, downloads, and compute.
+
+Then present one execution confirmation containing the exact repository, revision, target claim, command/entry point, environment, downloads, expected compute, and any compatibility risk. Wait for approval unless the user has already authorized that exact bounded run. Reconfirm any expansion.
+
+Preserve pristine upstream code. Apply compatibility changes only in a separate copy and record the diff. Never label a patched or independent implementation as an unmodified official reproduction.
+
+**Gate:** produce an executed, evidence-bearing minimal reproduction or a concrete blocker audit. Never convert “code was found” or “the demo launched” into a reproduced paper claim.
+
+## 8. Write and validate the deliverable
+
+Use the user's language; retain technical terms, equations, commands, and identifiers where translation would reduce precision.
+
+- Markdown: write `summary.md` plus local `assets/` when needed.
+- HTML: scaffold, replace every placeholder, then validate:
 
 ```bash
-mkdir -p <output_dir>/images
+PYTHON_EXE <skill-dir>/scripts/scaffold_report.py REPORT_DIR \
+  --title "..." --authors "..." --paper-type empirical --level compact \
+  --thesis "..." --fingerprint "verified concept 1" --fingerprint "verified concept 2"
+PYTHON_EXE <skill-dir>/scripts/validate_report.py REPORT_DIR/summary.html
 ```
 
-### 2. Screenshot Priority Guide
+Deep HTML also includes `reproduction/manifest.json` and its local logs/artifacts. Keep HTML CSS and JavaScript inline; keep high-resolution paper/run assets in `assets/` with relative paths.
 
-| Priority | Figure Type | When to Capture |
-|----------|-------------|-----------------|
-| Must | System architecture / overall framework | If available |
-| Must | Main experiment results table/chart | If available |
-| Recommended | Core algorithm flowchart | If available |
-| Recommended | Ablation study charts | If available |
-| Optional | Visualization / qualitative results | If space allows |
-| Optional | Auxiliary illustrations | As needed |
+Before delivery:
 
-Capture **3-8** key figures per paper. If the paper has few or no meaningful figures (e.g., theoretical papers, short workshop papers), skip figure extraction and produce a text-only summary.
+1. Remove scaffold markers and any sentence that adds no mechanism, evidence, comparison, limitation, or implication.
+2. Check all local links, evidence coordinates, captions, equations, and asset paths.
+3. For HTML, render at desktop and narrow-mobile widths; click every visual; test keyboard close, lenses, print, and reduced-motion behavior.
+4. Run the validator until it passes.
+5. State the selected level, source boundaries, and reproduction status without overstating certainty.
 
-### 3. Automated Extraction with pymupdf4llm
-
-Use pymupdf4llm to extract all images and vector graphics in one call. This handles raster images (photos, embedded figures) AND vector graphics (plots, diagrams, flowcharts) automatically.
-
-**Prerequisites:** `pymupdf` and `pymupdf4llm` must be installed in the conda base environment.
-
-```bash
-# Install if needed (one-time)
-source $HOME/anaconda3/etc/profile.d/conda.sh && conda activate base
-pip install pymupdf4llm
-```
-
-**Run extraction:**
-
-```bash
-source $HOME/anaconda3/etc/profile.d/conda.sh && conda activate base && python3 << 'PYEOF'
-import pymupdf4llm
-import os
-
-pdf_path = "<pdf_path>"
-image_dir = "<output_dir>/images"
-os.makedirs(image_dir, exist_ok=True)
-
-# Extract all figures, tables, and vector graphics as images
-md_result = pymupdf4llm.to_markdown(
-    pdf_path,
-    write_images=True,
-    image_path=image_dir,
-    image_format="png",
-    dpi=200,
-    use_ocr=False,        # Disable OCR (avoids tesseract dependency)
-)
-
-# List extracted images
-for f in sorted(os.listdir(image_dir)):
-    if f.endswith(('.png', '.jpg', '.jpeg')):
-        from PIL import Image
-        try:
-            img = Image.open(os.path.join(image_dir, f))
-            print(f"{f}: {img.size[0]}x{img.size[1]}")
-        except:
-            print(f"{f}: (size unknown)")
-PYEOF
-```
-
-### 4. Filter & Rename Extracted Images
-
-pymupdf4llm extracts ALL graphical regions, including logos, watermarks, and decorative elements. Filter and rename:
-
-**Step 4a: Filter out noise** — Remove images that are:
-- Too small (< 100x100 px) — likely icons or logos
-- Too narrow (aspect ratio > 10:1 or < 1:10) — likely decorative lines or borders
-
-```bash
-source $HOME/anaconda3/etc/profile.d/conda.sh && conda activate base && python3 << 'PYEOF'
-import os
-from PIL import Image
-
-image_dir = "<output_dir>/images"
-removed = []
-for f in os.listdir(image_dir):
-    path = os.path.join(image_dir, f)
-    try:
-        img = Image.open(path)
-        w, h = img.size
-        ratio = max(w, h) / max(min(w, h), 1)
-        if w < 100 and h < 100:
-            os.remove(path)
-            removed.append(f"{f} (too small: {w}x{h})")
-        elif ratio > 10:
-            os.remove(path)
-            removed.append(f"{f} (too narrow: {w}x{h})")
-    except:
-        pass
-
-print(f"Removed {len(removed)} noise images:")
-for r in removed:
-    print(f"  - {r}")
-
-kept = [f for f in sorted(os.listdir(image_dir)) if f.endswith(('.png', '.jpg'))]
-print(f"\nKept {len(kept)} images:")
-for f in kept:
-    img = Image.open(os.path.join(image_dir, f))
-    print(f"  {f}: {img.size[0]}x{img.size[1]}")
-PYEOF
-```
-
-**Step 4b: Visual review & rename** — Use the Read tool to view each remaining image. Based on content:
-- Rename to descriptive names: `figure_1_overview.png`, `table_2_main_results.png`, etc.
-- Delete any remaining non-figure images (headers, footers, etc.)
-- Select 3-8 key figures for the summary based on the priority guide above
-
-### 5. Fallback: Manual pymupdf clip extraction
-
-If pymupdf4llm misses a specific figure or table (rare), use direct pymupdf clip rendering:
-
-```bash
-source $HOME/anaconda3/etc/profile.d/conda.sh && conda activate base && python3 << 'PYEOF'
-import fitz
-
-doc = fitz.open("<pdf_path>")
-page = doc[PAGE_NUM]  # 0-indexed
-
-# Render a specific region at high resolution
-clip = fitz.Rect(x0, y0, x1, y1)  # coordinates from page layout
-mat = fitz.Matrix(3, 3)  # 3x zoom
-pix = page.get_pixmap(matrix=mat, clip=clip)
-pix.save("<output_dir>/images/figure_N_desc.png")
-doc.close()
-PYEOF
-```
-
-To find coordinates: use `page.get_text("dict")` to find text blocks containing "Figure N" or "Table N", then estimate the figure region nearby.
-
-### File Naming
-
-Format: `figure_N_<brief_desc>.png` / `table_N_<brief_desc>.png`
-
-Examples:
-- `figure_1_overview.png` — system overview
-- `figure_2_architecture.png` — model architecture
-- `table_3_comparison.png` — main results table
-- `figure_4_ablation.png` — ablation study
-
-## Step 4: Fill Template
-
-### After identifying paper type, select the corresponding template
-
-### Writing Principles (Critical)
-
-**Depth-first**: For every section, ask "why" and "how", not just "what".
-
-| Shallow writing (prohibited) | Deep writing (required) |
-|------------------------------|------------------------|
-| "Proposes a new method" | "Addresses bottleneck Y in problem X via mechanism Z" |
-| "Achieves SOTA results" | "Improves X% over method B on dataset A, primarily because of Y" |
-| "Uses a Transformer" | "Uses L-layer Transformer with input dim D, H attention heads, key modification is Z" |
-| "Has some limitations" | "Only validated in scenario X, does not account for distribution shift Y, assumption Z may not hold in practice" |
-
-### After identifying paper type, select the corresponding template
-
-All types share these sections:
-
-```markdown
-## Basic Information
-- **Title:**
-- **Authors:**
-- **Affiliation:** (optional)
-- **Published:**
-- **Link:**
-- **Paper Type:** [Empirical / Theoretical / Survey / Systems]
-- **One-line summary:** What was done + how + what was the result
-
-## Research Problem
-- **What problem does it solve?** Identify the specific gap in existing methods
-- **Key assumptions:** What constraints/limitations frame the research
-- **Why is it important?** The practical impact on the field
-- **Positioning among related work:** What are the 2-3 closest prior works? What is the key difference?
-```
-
----
-
-### Template A: Empirical Paper
-
-```markdown
-## Basic Information
-[shared section]
-
-## Research Problem
-[shared section]
-- **Mathematical formulation:** (optional)
-
-<!-- Insert problem definition/motivation figure here if available -->
-
-## Key Insight
-> Distill the paper's core new idea in 2-3 sentences. Not "what was done", but "what insight makes this method work".
-> Example: Rather than predicting frame-by-frame, first establish long-term 3D point tracking, then leverage temporal consistency for joint optimization.
-
-## Technical Method
-### Overall Framework and Principles
-<!-- Insert architecture diagram -->
-<!-- Insert figure here: ![Figure N: description](./images/figure_N_desc.png) -->
-
-- Overall system architecture description
-- Modules/components and their responsibilities
-- Signal/data flow direction
-- **Why this design?** Advantages over the intuitive/naive approach
-
-### Core Component Details
-<!-- Insert algorithm flowchart here if available -->
-
-- Model/algorithm architecture details (layers, dimensions, input/output)
-- Training objective and loss function (write key equations)
-- Training data source (synthetic/real/mixed, dataset names and scale)
-- Key tricks and design decisions
-- **Motivation for each design choice:** Why use A instead of B? Does the paper provide justification?
-
-## Experimental Results
-<!-- Insert experiment result figures/tables -->
-<!-- Insert figure here: ![Figure N: description](./images/figure_N_desc.png) -->
-
-### Results (Facts)
-- **Experimental setup:** Environment, hardware, hyperparameters
-- **Baselines compared:** List specific method names and sources
-- **Key results:** Quantitative improvement margins (specific numbers + percentages)
-- **Ablation study:** Component contributions (removing X decreases performance by Y%)
-- **Surprising findings:** Any counterintuitive results
-
-### Analysis (Interpretation)
-- Authors' explanation and attribution of results
-- Which scenarios/datasets show best performance? Worst?
-- Root cause of performance gains (authors' claims vs actual evidence)
-
-<!-- Insert ablation or visualization result figures here if available -->
-
-## Critical Analysis
-### Strengths
-- Specific improvements over prior work (not just "good results")
-
-### Limitations
-- **Acknowledged by authors:**
-- **My observations:** Issues not mentioned in the paper
-  - Do assumptions hold in practice?
-  - Are compute/data requirements reasonable?
-  - Are evaluation metrics comprehensive?
-
-### Reproducibility Assessment
-- Is code open-sourced? Is data available?
-- Are key implementation details sufficiently described?
-
-## Summary
-[shared section]
-```
-
----
-
-### Template B: Theoretical Paper
-
-```markdown
-## Basic Information
-[shared section]
-
-## Research Problem
-[shared section]
-- **Mathematical formulation:** Formal problem definition
-
-## Key Insight
-> Distill the paper's core theoretical contribution in 2-3 sentences. What new mathematical tool/perspective makes this result possible?
-
-## Theoretical Framework
-### Problem Formalization
-- Symbol definitions and notation conventions
-- Core mathematical definitions
-
-### Main Theorems and Proof Sketches
-- **Theorem 1:** Statement + key proof idea (not full proof, but key steps and key lemmas)
-- **Theorem 2:** ...
-- Key techniques used in proofs: Why does this technique work? Is there a more intuitive explanation?
-
-### Theoretical Analysis
-- Implications and intuitive interpretation of results (restate in non-mathematical language)
-- Tightness of upper/lower bounds
-- Relationship to and comparison with known results: Which bound was improved? Which assumption was relaxed?
-
-## Validation (if experiments exist)
-- Experimental setup
-- Comparison of theoretical predictions vs actual results
-- How is the gap between theory and experiments explained?
-
-## Critical Analysis
-### Strengths
-- Importance and novelty of the theoretical contribution
-
-### Limitations
-- **Acknowledged by authors:**
-- **My observations:** Reasonableness of assumptions, practical utility, difficulty of generalization
-
-## Summary
-[shared section]
-```
-
----
-
-### Template C: Survey Paper
-
-```markdown
-## Basic Information
-[shared section]
-- **Coverage:** Number of papers surveyed, time span
-
-## Research Problem
-[shared section]
-
-## Key Insight
-> What is the core contribution of this survey? What classification perspective was proposed, or what important trends were identified?
-
-## Taxonomy
-<!-- Insert taxonomy/classification figure -->
-<!-- Insert figure here: ![Figure N: description](./images/figure_N_desc.png) -->
-
-- Main classification dimensions and rationale for their selection
-- Category definitions and representative works
-
-### Direction 1: [Name]
-- Key methods and advances
-- Representative works (author, year)
-- Pros and cons
-- **Current bottleneck:** The core challenge facing this direction
-
-### Direction 2: [Name]
-- ...
-
-### Method Comparison
-| Method Type | Strengths | Weaknesses | Representative Works | Best Use Case |
-|-------------|-----------|------------|---------------------|---------------|
-| ... | ... | ... | ... | ... |
-
-## Open Problems and Trends
-- Current major challenges in the field
-- Emerging trends and directions
-- Authors' predictions and recommendations
-- **Most promising direction:** Based on the survey analysis, which direction deserves most attention? Why?
-
-## Critical Analysis
-- Is the survey's coverage comprehensive? Any important directions missed?
-- Is the taxonomy reasonable? Could it be organized better?
-- Do the authors' opinions/biases affect the survey's objectivity?
-
-## Summary
-[shared section]
-```
-
----
-
-### Template D: Systems Paper
-
-```markdown
-## Basic Information
-[shared section]
-
-## Research Problem
-[shared section]
-- **Design goals:** Key requirements the system must meet
-
-## Key Insight
-> What is the core design insight of this system? What trade-off or observation makes this design superior to existing solutions?
-
-## System Design
-### Architecture Overview
-<!-- Insert system architecture diagram -->
-<!-- Insert figure here: ![Figure N: description](./images/figure_N_desc.png) -->
-
-- Overall architecture and component breakdown
-- Component responsibilities and interfaces
-
-### Key Design Decisions
-- Decision 1: What choice was made, why (and not the alternative)
-- Decision 2: Trade-offs considered (performance vs complexity vs maintainability)
-- Key differences from existing systems
-
-### Implementation Details
-- Key tech stack/dependencies
-- Optimization techniques
-- Fault tolerance / scalability design
-
-## Performance Evaluation
-<!-- Insert performance comparison figures/tables -->
-<!-- Insert figure here: ![Figure N: description](./images/figure_N_desc.png) -->
-
-### Experimental Facts
-- **Benchmark setup:** Environment, hardware, workloads
-- **Compared systems:**
-- **Key metrics:** Throughput, latency, resource usage (specific numbers)
-- **Scalability:** Performance as scale increases
-
-### Result Interpretation
-- Under what conditions does it perform best? When does it degrade?
-- Root cause of performance advantages
-
-## Deployment Experience (if available)
-- Real-world production performance
-- Problems encountered and solutions
-
-## Critical Analysis
-### Strengths
-- Design elegance and practicality
-
-### Limitations
-- **Acknowledged by authors:**
-- **My observations:** Deployment assumptions, hardware dependencies, generalizability
-
-## Summary
-[shared section]
-```
-
----
-
-### Shared Summary Section
-
-```markdown
-## Summary and Evaluation
-
-### Three-Perspective Conclusion (Andrew Ng Framework)
-
-**Authors' conclusion:** What do the authors claim to have accomplished? What goals were achieved?
-
-**Personal assessment:**
-- Did the authors truly achieve their claimed goals? Is the evidence sufficient?
-- How much does this work actually advance the field?
-
-**Overall evaluation:**
-- **Core idea:** One sentence summarizing the core contribution
-- **Main highlight:** What stands out compared to prior work
-- **Future directions:** Natural next steps
-- **Rating:** [Breakthrough / Important / Valuable / Incremental]
-
-### Comprehension Verification (Self-check after writing)
-1. What were the authors trying to accomplish?
-2. What are the key elements of the approach?
-3. What can I use in my own research?
-4. What references are worth reading further?
-```
-
-## Section Writing Guidelines
-
-### Basic Information
-- Extract from paper header, abstract, or metadata
-- For links: use DOI if available, otherwise arXiv or publisher URL
-- **One-line summary must include: what was done + how + what was the result**
-
-### Research Problem
-- Focus on the **specific gap** the paper addresses, not generic field descriptions
-- Mathematical description: include key equations if present
-- Assumptions: what constraints or simplifications does the approach make?
-- **Related work positioning:** Must mention 2-3 closest prior works and explain what makes this paper unique
-
-### Key Insight
-- This is the most important paragraph — distill the **key insight** that makes the method work
-- Not a paraphrase of the abstract, but answering "what is this paper's core new idea?"
-- Good example: "Observed phenomenon X, thus leveraging Y to achieve Z"
-- Bad example: "Proposes a new method to solve problem A" (too vague)
-
-### Technical Method (Empirical)
-- **Architecture first:** Draw the big picture before diving into components
-- **Be specific:** Dimensions, layer counts, parameter counts — not just "a network"
-- **Loss functions:** Write the actual LaTeX equation if provided
-- **Training data:** Note if synthetic, real-world, or mixed; mention dataset names and scale
-- **Design motivation:** Every key design choice should explain why (paper's justification or inferred reasoning)
-- **Insert architecture diagram screenshot if available**
-
-### Experimental Results
-- **Separate facts from interpretation:** Results section writes experimental data only; Analysis section writes explanations and attribution
-- Focus on **quantitative improvements** over baselines (specific numbers and percentages)
-- Note which metrics matter most for this problem domain
-- Mention any surprising or counterintuitive results
-- Note best and worst performing scenarios/datasets
-- **Insert main result figure/table screenshot if available**
-
-### Critical Analysis
-- **Strengths:** Must specify concrete improvements, not just "good results"
-- **Limitations:** Separately list author-acknowledged and self-discovered ones
-- **Reproducibility:** Is code/data open-sourced? Are implementation details sufficient?
-
-### Summary and Evaluation
-- **Three perspectives:** Authors' conclusion → Personal assessment → Overall evaluation
-- **Rating:** Choose from [Breakthrough / Important / Valuable / Incremental] with justification
-- **Comprehension verification:** Self-check with 4 questions after writing (Andrew Ng framework)
-
-## Common Mistakes
-
-| Mistake | Correction |
-|---------|------------|
-| Copying abstract verbatim | Synthesize in your own words, distill the key insight |
-| Missing key assumptions | Explicitly state what the method assumes |
-| Vague architecture description | Include specific dimensions and layer types |
-| Ignoring failure cases | Note where method underperforms and on which datasets |
-| Skipping mathematical notation | Include key LaTeX equations when available |
-| Not screenshotting paper figures | Must capture architecture and main result figures |
-| Rendering entire PDF pages as images | Use pymupdf4llm write_images=True for automatic precise extraction |
-| Misplaced image insertion | Images should be adjacent to corresponding text |
-| Vague critiques | Must name specific limitations (scenario, data, assumptions) |
-| Wrong paper type classification | Read abstract and intro fully before classifying; default to Empirical |
-| Giving up after screenshot failure | Use pymupdf4llm auto-extraction first, fall back to manual pymupdf clip |
-| Writing only "what" without "why" | Every design choice should explain the motivation and justification |
-| Mixing results and conclusions | Separate experimental facts (Results) from author interpretation (Analysis) |
-| Missing related work positioning | Must compare against 2-3 closest prior works |
-| Key Insight too vague or missing | Key Insight must be a specific, actionable new idea |
-| Evaluation missing three perspectives | Separately write authors' conclusion, personal assessment, overall evaluation |
-| Not distinguishing author-acknowledged vs self-discovered limitations | Critical Analysis must separate the two types of limitations |
-
-## Language
-
-- Output summary in the user's preferred language
-- Technical terms can remain in English (API, Loss, Baseline, etc.)
-- Code and equations in original form
-- Translate figure captions to user's preferred language
+**Done:** the requested scope is complete, evidence is traceable, the output works offline from its directory, and limitations are as easy to inspect as headline claims.
