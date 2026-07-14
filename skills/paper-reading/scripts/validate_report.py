@@ -7,10 +7,12 @@ import argparse
 import json
 import re
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
+
+from mathml_policy import mathml_policy_error
 
 COORDINATE_RE = re.compile(r"^[CELR][1-9][0-9]*$")
 COMMIT_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
@@ -29,6 +31,10 @@ MATH_BLOCK_RE = re.compile(
 LEGACY_EQUATION_RE = re.compile(
     r'<(?:div|span)\b(?=[^>]*class\s*=\s*["\'][^"\']*\bequation-card\b)',
     re.IGNORECASE,
+)
+MATH_LIKE_TEXT_RE = re.compile(
+    r"\\(?:frac|mathcal|mathbf|mathbb|ell|sum|int|lVert|rVert)|"
+    r"[φθτσεℒ‖⇒≈≠→∼]"
 )
 KIND_PREFIX = {"claim": "C", "evidence": "E", "limitation": "L", "reproduction": "R"}
 COMMON_SECTIONS = {
@@ -69,6 +75,14 @@ class VisualRecord:
     contains_visual: bool = False
 
 
+@dataclass(frozen=True)
+class TextRecord:
+    tag: str
+    line: int
+    inside_h1: bool = False
+    text: str = ""
+
+
 @dataclass
 class ReportDocument:
     elements: list[ElementRecord] = field(default_factory=list)
@@ -94,8 +108,11 @@ class ReportDocument:
     scripts: list[ElementRecord] = field(default_factory=list)
     styles: list[ElementRecord] = field(default_factory=list)
     title_count: int = 0
-    title_focuses: list[ElementRecord] = field(default_factory=list)
+    title_focuses: list[TextRecord] = field(default_factory=list)
     evidence_indexes: list[ElementRecord] = field(default_factory=list)
+    math_elements: list[ElementRecord] = field(default_factory=list)
+    legacy_inline_math: list[ElementRecord] = field(default_factory=list)
+    code_fragments: list[TextRecord] = field(default_factory=list)
 
 
 class ReportParser(HTMLParser):
@@ -105,6 +122,10 @@ class ReportParser(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.document = ReportDocument()
         self._figure_stack: list[int] = []
+        self._math_depth = 0
+        self._h1_depth = 0
+        self._title_focus_stack: list[tuple[str, int]] = []
+        self._code_stack: list[tuple[str, int]] = []
 
     def _record_structure(self, record: ElementRecord) -> None:
         collection = {
@@ -161,9 +182,23 @@ class ReportParser(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         record = ElementRecord(tag=tag, attrs=dict(attrs), line=self.getpos()[0])
         self.document.elements.append(record)
+        if tag == "h1":
+            self._h1_depth += 1
+        if tag == "math":
+            self._math_depth += 1
+        if self._math_depth:
+            self.document.math_elements.append(record)
+        elif tag in {"sub", "sup"}:
+            self.document.legacy_inline_math.append(record)
         classes = set((record.attrs.get("class") or "").split())
         if "title-focus" in classes:
-            self.document.title_focuses.append(record)
+            focus = TextRecord(tag=tag, line=record.line, inside_h1=self._h1_depth > 0)
+            self.document.title_focuses.append(focus)
+            self._title_focus_stack.append((tag, len(self.document.title_focuses) - 1))
+        if tag == "code" and not self._math_depth:
+            code = TextRecord(tag=tag, line=record.line)
+            self.document.code_fragments.append(code)
+            self._code_stack.append((tag, len(self.document.code_fragments) - 1))
         if "data-evidence-index" in record.attrs:
             self.document.evidence_indexes.append(record)
         identifier = record.attrs.get("id")
@@ -184,12 +219,31 @@ class ReportParser(HTMLParser):
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self.handle_starttag(tag, attrs)
-        if tag == "figure" and self._figure_stack:
-            self._figure_stack.pop()
+        self.handle_endtag(tag)
+
+    def handle_data(self, data: str) -> None:
+        for _, index in self._title_focus_stack:
+            current = self.document.title_focuses[index]
+            self.document.title_focuses[index] = replace(
+                current, text=f"{current.text}{data}"
+            )
+        for _, index in self._code_stack:
+            current = self.document.code_fragments[index]
+            self.document.code_fragments[index] = replace(
+                current, text=f"{current.text}{data}"
+            )
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "figure" and self._figure_stack:
             self._figure_stack.pop()
+        if self._title_focus_stack and self._title_focus_stack[-1][0] == tag:
+            self._title_focus_stack.pop()
+        if self._code_stack and self._code_stack[-1][0] == tag:
+            self._code_stack.pop()
+        if tag == "math" and self._math_depth:
+            self._math_depth -= 1
+        if tag == "h1" and self._h1_depth:
+            self._h1_depth -= 1
 
 
 def _classes(record: ElementRecord) -> set[str]:
@@ -394,7 +448,12 @@ def _validate_shell(source: str, document: ReportDocument) -> list[str]:
         errors.append("report still contains scaffold placeholders")
     if not document.title_count:
         errors.append("report requires a <title>")
-    if len(document.title_focuses) != 1 or document.title_focuses[0].tag != "em":
+    if (
+        len(document.title_focuses) != 1
+        or document.title_focuses[0].tag != "em"
+        or not document.title_focuses[0].inside_h1
+        or not document.title_focuses[0].text.strip()
+    ):
         errors.append("report title requires exactly one emphasized title focus")
     if not any(
         (record.attrs.get("charset") or "").lower() == "utf-8"
@@ -415,10 +474,25 @@ def _validate_shell(source: str, document: ReportDocument) -> list[str]:
     return errors
 
 
-def _validate_math(source: str) -> list[str]:
+def _validate_math(source: str, document: ReportDocument) -> list[str]:
     errors: list[str] = []
     if LEGACY_EQUATION_RE.search(source):
         errors.append("math-like code must use a static MathML math-display block")
+    for legacy in document.legacy_inline_math:
+        errors.append(
+            f"line {legacy.line}: legacy inline math <{legacy.tag}> must use static MathML"
+        )
+    for code_fragment in document.code_fragments:
+        if MATH_LIKE_TEXT_RE.search(code_fragment.text):
+            errors.append(
+                f"line {code_fragment.line}: math-like code must use static inline MathML"
+            )
+    for math_element in document.math_elements:
+        policy_error = mathml_policy_error(
+            math_element.tag, math_element.attrs, allow_annotations=True
+        )
+        if policy_error:
+            errors.append(f"line {math_element.line}: unsafe MathML: {policy_error}")
     for match in MATH_BLOCK_RE.finditer(source):
         body = match.group("body")
         if not re.search(r"<math\b", body, re.IGNORECASE):
@@ -680,7 +754,7 @@ def validate_report(report_path: Path) -> list[str]:
     identity_errors, level, paper_type = _report_identity(document)
     errors.extend(identity_errors)
     errors.extend(_validate_landmarks(document))
-    errors.extend(_validate_math(source))
+    errors.extend(_validate_math(source, document))
     errors.extend(_validate_hyperlinks(document, report_path))
     errors.extend(_validate_assets(document, report_path))
     errors.extend(_validate_visuals(document))

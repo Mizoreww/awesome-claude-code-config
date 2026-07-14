@@ -9,23 +9,33 @@ import importlib
 import importlib.metadata
 import re
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 from typing import Protocol, cast
+
+from mathml_policy import MATHML_NAMESPACE, mathml_policy_error
 
 CONVERTER_PACKAGE = "latex2mathml"
 CONVERTER_VERSION = "3.78.1"
 XML_PACKAGE = "defusedxml"
 XML_VERSION = "0.7.1"
-MATHML_NAMESPACE = "http://www.w3.org/1998/Math/MathML"
 Converter = Callable[..., str]
 
 
 class XmlElement(Protocol):
     tag: str
+    attrib: Mapping[str, str]
+
+    def __iter__(self) -> Iterator[XmlElement]: ...
 
 
 XmlParser = Callable[[str], XmlElement]
+
+
+def _mathml_nodes(root: XmlElement) -> Iterator[XmlElement]:
+    yield root
+    for child in root:
+        yield from _mathml_nodes(child)
 
 
 def _load_converter() -> Converter:
@@ -69,6 +79,12 @@ def _annotate_mathml(
         raise ValueError(f"converter returned invalid MathML: {exc}") from exc
     if root.tag != f"{{{MATHML_NAMESPACE}}}math":
         raise ValueError("converter output must have a MathML <math> root")
+    for node in _mathml_nodes(root):
+        policy_error = mathml_policy_error(
+            node.tag, node.attrib, allow_annotations=False
+        )
+        if policy_error:
+            raise ValueError(f"unsafe MathML: {policy_error}")
     closing = "</math>"
     opening_end = source.find(">")
     if (

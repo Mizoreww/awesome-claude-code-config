@@ -109,7 +109,7 @@ uv run --isolated --no-project \
   --display block --output equation.html
 ```
 
-Use `--display inline` for notation inside prose. In an already-compatible isolated environment, invoke the same script with `PYTHON_EXE`. Insert the emitted `.math-display` or `.math-inline` fragment; it contains rendered MathML plus an `application/x-tex` annotation preserving the source. Reserve `<pre>` and `<code>` for executable code, paths, hashes, and identifiers.
+Use `--display inline` for notation inside prose. In an already-compatible isolated environment, invoke the same script with `PYTHON_EXE`. Insert the emitted `.math-display` or `.math-inline` fragment; it contains rendered MathML plus an `application/x-tex` annotation preserving the source. The renderer and validator share an inert presentation-MathML allowlist: active/embedded elements and attributes such as `style`, event handlers, or `href` are rejected. Reserve `<pre>` and `<code>` for executable code, paths, hashes, and identifiers; do not fall back to HTML `<sub>/<sup>` for mathematical notation.
 
 At narrow-mobile width, do not solve an overlong equation by shrinking it into illegibility. Introduce and explain paper-faithful intermediate notation, then render the equivalent relation as two or three shorter display equations. Keep horizontal scrolling only as a fallback for an irreducible expression.
 
@@ -140,7 +140,7 @@ Run the structural validator:
 PYTHON_EXE <skill-dir>/scripts/validate_report.py REPORT_DIR/summary.html
 ```
 
-The validator treats every static `img` and inline `svg` as a report visual: it must be wrapped by the accessible lightbox figure contract. It also checks local hyperlinks, ordinary asset URLs, `srcset`, SVG `<image>` references, evidence relationships, and deep manifests. A pass is necessary but not sufficient.
+The validator treats every static `img` and inline `svg` as a report visual: it must be wrapped by the accessible lightbox figure contract. It also checks title-focus ancestry/text, safe MathML, legacy math markup, local hyperlinks, ordinary asset URLs, `srcset`, SVG `<image>` references, evidence relationships, and deep manifests. A pass is necessary but not sufficient.
 
 Then inspect a real browser render at desktop and about 390 px width:
 

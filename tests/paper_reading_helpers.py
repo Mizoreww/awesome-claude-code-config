@@ -8,6 +8,8 @@ from types import ModuleType
 ROOT = Path(__file__).resolve().parents[1]
 SKILL_DIR = ROOT / "skills" / "paper-reading"
 SCRIPTS_DIR = SKILL_DIR / "scripts"
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
 
 
 def load_script(name: str) -> ModuleType:

@@ -7,13 +7,16 @@
   const stage = lightbox?.querySelector(".lightbox-stage");
   const caption = lightbox?.querySelector(".lightbox-caption");
   const resetControl = lightbox?.querySelector("[data-zoom-reset]");
-  const pointers = new Map();
-  const view = { scale: 1, x: 0, y: 0 };
+  let pointers = new Map();
+  let view = { scale: 1, x: 0, y: 0 };
   let pinch = null;
   let previousFocus = null;
   let activeVisual = null;
   let movedSvg = null;
   let svgPlaceholder = null;
+  const MINIMUM_SCALE = 1;
+  const MAXIMUM_SCALE = 5;
+  const MINIMUM_VISIBLE_PIXELS = 64;
 
   const clamp = (value, minimum, maximum) => Math.min(maximum, Math.max(minimum, value));
 
@@ -25,17 +28,23 @@
     svgPlaceholder = null;
   }
 
-  function clampPan() {
+  function clampPan(baseWidth = null, baseHeight = null) {
     if (!stage || !activeVisual || view.scale <= 1) {
-      view.x = 0;
-      view.y = 0;
+      view = { ...view, x: 0, y: 0 };
       return;
     }
     const visualBox = activeVisual.getBoundingClientRect();
-    const maxX = Math.max(0, (visualBox.width / view.scale * view.scale - stage.clientWidth) / 2);
-    const maxY = Math.max(0, (visualBox.height / view.scale * view.scale - stage.clientHeight) / 2);
-    view.x = clamp(view.x, -maxX, maxX);
-    view.y = clamp(view.y, -maxY, maxY);
+    const scaledWidth = (baseWidth ?? visualBox.width / view.scale) * view.scale;
+    const scaledHeight = (baseHeight ?? visualBox.height / view.scale) * view.scale;
+    const visibleX = Math.min(MINIMUM_VISIBLE_PIXELS, scaledWidth, stage.clientWidth);
+    const visibleY = Math.min(MINIMUM_VISIBLE_PIXELS, scaledHeight, stage.clientHeight);
+    const maxX = Math.max(0, (scaledWidth + stage.clientWidth) / 2 - visibleX);
+    const maxY = Math.max(0, (scaledHeight + stage.clientHeight) / 2 - visibleY);
+    view = {
+      ...view,
+      x: clamp(view.x, -maxX, maxX),
+      y: clamp(view.y, -maxY, maxY),
+    };
   }
 
   function renderView() {
@@ -47,10 +56,8 @@
   }
 
   function resetView() {
-    view.scale = 1;
-    view.x = 0;
-    view.y = 0;
-    pointers.clear();
+    view = { scale: 1, x: 0, y: 0 };
+    pointers = new Map();
     pinch = null;
     stage?.classList.remove("is-dragging", "is-zoomed");
     renderView();
@@ -58,15 +65,19 @@
 
   function setZoom(nextScale, clientX, clientY) {
     if (!stage || !activeVisual) return;
-    const next = clamp(nextScale, 1, 5);
-    const bounds = stage.getBoundingClientRect();
-    const anchorX = clientX - bounds.left - bounds.width / 2;
-    const anchorY = clientY - bounds.top - bounds.height / 2;
+    const next = clamp(nextScale, MINIMUM_SCALE, MAXIMUM_SCALE);
+    const visualBox = activeVisual.getBoundingClientRect();
+    const baseWidth = visualBox.width / view.scale;
+    const baseHeight = visualBox.height / view.scale;
+    const anchorX = clientX - (visualBox.left + visualBox.width / 2);
+    const anchorY = clientY - (visualBox.top + visualBox.height / 2);
     const ratio = next / view.scale;
-    view.x = anchorX - (anchorX - view.x) * ratio;
-    view.y = anchorY - (anchorY - view.y) * ratio;
-    view.scale = next;
-    clampPan();
+    view = {
+      scale: next,
+      x: view.x + anchorX * (1 - ratio),
+      y: view.y + anchorY * (1 - ratio),
+    };
+    clampPan(baseWidth, baseHeight);
     renderView();
   }
 
@@ -130,7 +141,7 @@
   function startPointer(event) {
     if (!stage || (event.pointerType === "mouse" && event.button !== 0)) return;
     const point = { x: event.clientX, y: event.clientY };
-    pointers.set(event.pointerId, point);
+    pointers = new Map([...pointers, [event.pointerId, point]]);
     if (pointers.size === 2) {
       const [first, second] = [...pointers.values()];
       pinch = { distance: pointerDistance(first, second), scale: view.scale };
@@ -142,15 +153,21 @@
   function movePointer(event) {
     if (!stage || !pointers.has(event.pointerId)) return;
     const previous = pointers.get(event.pointerId);
-    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    pointers = new Map([
+      ...pointers,
+      [event.pointerId, { x: event.clientX, y: event.clientY }],
+    ]);
     if (pointers.size >= 2) {
       const [first, second] = [...pointers.values()];
       if (!pinch) pinch = { distance: pointerDistance(first, second), scale: view.scale };
       const center = pointerCenter(first, second);
       setZoom(pinch.scale * pointerDistance(first, second) / pinch.distance, center.x, center.y);
     } else if (previous && view.scale > 1) {
-      view.x += event.clientX - previous.x;
-      view.y += event.clientY - previous.y;
+      view = {
+        ...view,
+        x: view.x + event.clientX - previous.x,
+        y: view.y + event.clientY - previous.y,
+      };
       clampPan();
       renderView();
     }
@@ -158,7 +175,9 @@
   }
 
   function endPointer(event) {
-    pointers.delete(event.pointerId);
+    pointers = new Map(
+      [...pointers].filter(([pointerId]) => pointerId !== event.pointerId),
+    );
     if (pointers.size < 2) pinch = null;
     if (!pointers.size) stage?.classList.remove("is-dragging");
   }
