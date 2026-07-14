@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import sys
 from dataclasses import dataclass, field, replace
@@ -15,14 +14,14 @@ from urllib.parse import unquote, urlsplit
 
 from mathml_policy import mathml_policy_error
 
-COORDINATE_RE = re.compile(r"^[CELR][1-9][0-9]*$")
-COMMIT_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")
+COORDINATE_RE = re.compile(r"^[CEL][1-9][0-9]*$")
 REMOTE_ASSET_RE = re.compile(r"^(?:https?:)?//", re.IGNORECASE)
 REMOTE_REFERENCE_RE = re.compile(r"(?:https?:)?//", re.IGNORECASE)
 PLACEHOLDER_RE = re.compile(
     r"\{\{[A-Z0-9_]+\}\}|"
     r"\[请用有证据锚点的高密度内容替换本段。\]|"
-    r"\[Replace this paragraph with dense, evidence-anchored content\.\]"
+    r"\[Replace this paragraph with dense, evidence-anchored content\.\]|"
+    r"replace-with-module-name"
 )
 BASIC_INFORMATION_RE = re.compile(
     r'<section\b(?=[^>]*\bdata-section\s*=\s*["\']basic-information["\'])'
@@ -50,6 +49,53 @@ REQUIRED_BASIC_FIELDS = {
     "paper-type",
     "one-line-summary",
 }
+REQUIRED_MODULE_FIELDS = {
+    "purpose",
+    "inputs",
+    "outputs",
+    "architecture",
+    "training-data",
+    "training-method",
+    "inference-role",
+    "interfaces",
+    "code-evidence",
+}
+MODULE_CARD_RE = re.compile(
+    r'<article\b(?=[^>]*\bdata-module\s*=\s*["\'](?P<name>[^"\']+)["\'])'
+    r'[^>]*>(?P<body>.*?)</article\s*>',
+    re.IGNORECASE | re.DOTALL,
+)
+MODULE_FIELD_RE = re.compile(
+    r'<div\b(?=[^>]*\bdata-module-field\s*=\s*["\'](?P<field>[^"\']+)["\'])'
+    r'[^>]*>(?P<body>.*?)</div\s*>',
+    re.IGNORECASE | re.DOTALL,
+)
+MODULE_VISUAL_RE = re.compile(
+    r'<figure\b(?=[^>]*\bdata-module-visual\b)[^>]*>(?P<body>.*?)</figure\s*>',
+    re.IGNORECASE | re.DOTALL,
+)
+DIAGRAM_INTERFACE_NODE_RE = re.compile(
+    r'<(?:g|rect|circle|ellipse|path|polygon)\b'
+    r'(?=[^>]*\bclass\s*=\s*["\'][^"\']*\bdiagram-'
+    r'(?P<kind>input|output)\b[^"\']*["\'])[^>]*>',
+    re.IGNORECASE,
+)
+EXPERIMENTAL_RESULTS_RE = re.compile(
+    r'<section\b(?=[^>]*\bdata-section\s*=\s*["\']experimental-results["\'])'
+    r'(?P<attrs>[^>]*)>(?P<body>.*?)</section\s*>',
+    re.IGNORECASE | re.DOTALL,
+)
+ORIGINAL_RESULT_FIGURE_RE = re.compile(
+    r'<figure\b(?=[^>]*\bdata-original-result\b)[^>]*>',
+    re.IGNORECASE,
+)
+CODE_EVIDENCE_RE = re.compile(
+    r"(?:https?://|\b(?:commit|revision)\b|[0-9a-f]{7,64}|"
+    r"[\w./-]+\.(?:py|ya?ml|json|toml|rs|go|java|kt|c|cc|cpp|h|hpp|js|jsx|ts|tsx)|"
+    r"public code not found|no public code|not reported|not applicable|"
+    r"未找到(?:权威|公开)?代码|未公开代码|未报告|不适用)",
+    re.IGNORECASE,
+)
 MATH_BLOCK_RE = re.compile(
     r'<(?P<tag>div|span)\b(?=[^>]*class\s*=\s*["\'][^"\']*\bmath-(?:display|inline)\b)'
     r"[^>]*>(?P<body>.*?)</(?P=tag)>",
@@ -85,7 +131,7 @@ MATH_LIKE_TEXT_RE = re.compile(
     r"\\(?:frac|mathcal|mathbf|mathbb|ell|sum|int|lVert|rVert)|"
     r"[φθτσεℒ‖⇒≈≠→∼]"
 )
-KIND_PREFIX = {"claim": "C", "evidence": "E", "limitation": "L", "reproduction": "R"}
+KIND_PREFIX = {"claim": "C", "evidence": "E", "limitation": "L"}
 COMMON_SECTIONS = {
     "basic-information",
     "research-problem",
@@ -391,141 +437,6 @@ def _inside_report(path: Path, report_root: Path) -> bool:
     return True
 
 
-def _nonempty_string(value: object) -> bool:
-    return isinstance(value, str) and bool(value.strip())
-
-
-def _valid_repository(value: object) -> bool:
-    if not isinstance(value, str) or not value.strip():
-        return False
-    parsed = urlsplit(value)
-    return parsed.scheme.lower() in {"http", "https"} and bool(parsed.netloc)
-
-
-def _validate_artifacts(manifest: dict[str, object], manifest_path: Path) -> list[str]:
-    artifacts = manifest.get("artifacts")
-    if (
-        not isinstance(artifacts, list)
-        or not artifacts
-        or not all(_nonempty_string(item) for item in artifacts)
-    ):
-        return [
-            "reproduction manifest artifacts must be a non-empty list of local paths"
-        ]
-    errors: list[str] = []
-    reproduction_root = manifest_path.parent.resolve()
-    for item in artifacts:
-        if not isinstance(item, str):
-            continue
-        artifact = (manifest_path.parent / item).resolve()
-        if not _inside_report(artifact, reproduction_root) or not artifact.is_file():
-            errors.append(
-                f"reproduction artifact is missing or escapes its directory: {item}"
-            )
-    return errors
-
-
-def _validate_manifest(report_path: Path, known_coordinates: set[str]) -> list[str]:
-    manifest_path = report_path.parent / "reproduction" / "manifest.json"
-    if not manifest_path.is_file():
-        return ["deep report requires reproduction/manifest.json"]
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        return [f"reproduction/manifest.json is not valid JSON: {exc}"]
-    if not isinstance(manifest, dict):
-        return ["reproduction/manifest.json must contain a JSON object"]
-    errors = _validate_manifest_fields(manifest, known_coordinates)
-    errors.extend(_validate_artifacts(manifest, manifest_path))
-    return errors
-
-
-def _validate_manifest_identity(
-    manifest: dict[str, object], known_coordinates: set[str]
-) -> list[str]:
-    errors: list[str] = []
-    status = manifest.get("status")
-    if status not in {"passed", "partial", "blocked"}:
-        errors.append(
-            "reproduction manifest status must be passed, partial, or blocked"
-        )
-    claim = manifest.get("claim")
-    if (
-        not isinstance(claim, str)
-        or claim not in known_coordinates
-        or not claim.startswith("C")
-    ):
-        errors.append(
-            "reproduction manifest claim must reference a report C-coordinate"
-        )
-    if not _nonempty_string(manifest.get("environment")):
-        errors.append("reproduction manifest requires a non-empty environment")
-    errors.extend(_validate_manifest_provenance(manifest))
-    return errors
-
-
-def _validate_manifest_provenance(manifest: dict[str, object]) -> list[str]:
-    repository = manifest.get("repository")
-    commit = manifest.get("commit")
-    no_code = (
-        manifest.get("status") == "blocked"
-        and manifest.get("code_status") == "not-found"
-    )
-    if not _nonempty_string(repository):
-        if no_code:
-            if commit is not None:
-                return ["code_status=not-found must omit repository and commit"]
-            return []
-        return [
-            "reproduction manifest requires repository+commit or blocked "
-            "code_status=not-found"
-        ]
-    errors: list[str] = []
-    if not _valid_repository(repository):
-        errors.append(
-            "reproduction manifest repository must be a canonical http(s) URL"
-        )
-    if not isinstance(commit, str) or not COMMIT_RE.fullmatch(commit):
-        errors.append(
-            "reproduction manifest commit must be a 7-64 digit hexadecimal revision"
-        )
-    if no_code:
-        errors.append("code_status=not-found cannot be combined with a repository")
-    return errors
-
-
-def _validate_manifest_status(manifest: dict[str, object]) -> list[str]:
-    errors: list[str] = []
-    status = manifest.get("status")
-    if status in {"passed", "partial"}:
-        for field_name in ("command", "result"):
-            if not _nonempty_string(manifest.get(field_name)):
-                errors.append(
-                    f"reproduction manifest requires a non-empty {field_name}"
-                )
-    elif status == "blocked":
-        if not _nonempty_string(manifest.get("blocker")):
-            errors.append("blocked reproduction manifest requires a concrete blocker")
-        audited = manifest.get("audited_sources")
-        if (
-            not isinstance(audited, list)
-            or not audited
-            or not all(_nonempty_string(item) for item in audited)
-        ):
-            errors.append(
-                "blocked reproduction manifest requires non-empty audited_sources"
-            )
-    return errors
-
-
-def _validate_manifest_fields(
-    manifest: dict[str, object], known_coordinates: set[str]
-) -> list[str]:
-    errors = _validate_manifest_identity(manifest, known_coordinates)
-    errors.extend(_validate_manifest_status(manifest))
-    return errors
-
-
 def _validate_active_content(document: ReportDocument) -> list[str]:
     errors: list[str] = []
     marked_scripts = [
@@ -762,22 +673,137 @@ def _validate_basic_information(source: str) -> list[str]:
     return errors
 
 
-def _report_identity(document: ReportDocument) -> tuple[list[str], str, str]:
+def _report_identity(document: ReportDocument) -> tuple[list[str], str]:
     errors: list[str] = []
     articles = [
         record for record in document.articles if "data-paper-report" in record.attrs
     ]
     if len(articles) != 1:
-        return ["report requires exactly one <article data-paper-report>"], "", ""
-    level = articles[0].attrs.get("data-level") or ""
+        return ["report requires exactly one <article data-paper-report>"], ""
+    if "data-level" in articles[0].attrs:
+        errors.append("data-level is not allowed; reports use one unified reading depth")
     paper_type = articles[0].attrs.get("data-paper-type") or ""
-    if level not in {"brief", "compact", "deep"}:
-        errors.append("data-level must be brief, compact, or deep")
     if paper_type not in TYPE_SECTIONS:
         errors.append(
             "data-paper-type must be empirical, theoretical, survey, or systems"
         )
-    return errors, level, paper_type
+    return errors, paper_type
+
+
+def _method_section_body(source: str, paper_type: str) -> str | None:
+    section_name = "technical-method" if paper_type == "empirical" else "system-design"
+    pattern = re.compile(
+        rf'<section\b(?=[^>]*\bdata-section\s*=\s*["\']{section_name}["\'])'
+        r'[^>]*>(?P<body>.*?)</section\s*>',
+        re.IGNORECASE | re.DOTALL,
+    )
+    matches = list(pattern.finditer(source))
+    return matches[0].group("body") if len(matches) == 1 else None
+
+
+def _plain_text(fragment: str) -> str:
+    return " ".join(unescape(HTML_TAG_RE.sub(" ", fragment)).split())
+
+
+def _validate_module_anatomy(source: str, paper_type: str) -> list[str]:
+    if paper_type not in {"empirical", "systems"}:
+        return []
+    body = _method_section_body(source, paper_type)
+    if body is None:
+        return []
+    errors: list[str] = []
+    if not re.search(r"\bdata-module-anatomy\b", body, re.IGNORECASE):
+        errors.append(
+            f"{paper_type} method section requires a data-module-anatomy container"
+        )
+    cards = list(MODULE_CARD_RE.finditer(body))
+    if not cards:
+        return errors + [
+            f"{paper_type} method section requires at least one data-module card"
+        ]
+    seen_names: set[str] = set()
+    for card in cards:
+        name = card.group("name").strip()
+        card_body = card.group("body")
+        if not name or name in seen_names:
+            errors.append(f"module names must be non-empty and unique: {name!r}")
+        seen_names.add(name)
+        visuals = list(MODULE_VISUAL_RE.finditer(card_body))
+        if len(visuals) != 1 or not re.search(
+            r"<svg\b", visuals[0].group("body") if visuals else "", re.IGNORECASE
+        ):
+            errors.append(
+                f"module {name!r} requires exactly one adjacent data-module-visual SVG"
+            )
+        fields = list(MODULE_FIELD_RE.finditer(card_body))
+        if visuals and fields and visuals[0].start() > min(field.start() for field in fields):
+            errors.append(
+                f"module {name!r} module visual must appear above every detail field"
+            )
+        interface_node_counts = {"input": 0, "output": 0}
+        if visuals:
+            for node in DIAGRAM_INTERFACE_NODE_RE.finditer(visuals[0].group("body")):
+                interface_node_counts[node.group("kind").lower()] += 1
+        field_names = [field.group("field").lower() for field in fields]
+        for field_name in sorted(REQUIRED_MODULE_FIELDS - set(field_names)):
+            errors.append(f"module {name!r} is missing field: {field_name}")
+        for field_name in sorted(set(field_names)):
+            if field_names.count(field_name) > 1:
+                errors.append(f"module {name!r} repeats field: {field_name}")
+        for field in fields:
+            field_name = field.group("field").lower()
+            text = _plain_text(field.group("body"))
+            if not text:
+                errors.append(f"module {name!r} has an empty {field_name} field")
+            if field_name in {"inputs", "outputs"}:
+                if not re.search(r"<ul\b", field.group("body"), re.IGNORECASE):
+                    errors.append(
+                        f"module {name!r} {field_name} must use an unordered list"
+                    )
+                if not re.search(r"<math\b", field.group("body"), re.IGNORECASE):
+                    errors.append(
+                        f"module {name!r} {field_name} requires static MathML symbols"
+                    )
+                list_items = len(
+                    re.findall(r"<li\b", field.group("body"), re.IGNORECASE)
+                )
+                node_kind = "input" if field_name == "inputs" else "output"
+                if interface_node_counts[node_kind] < list_items:
+                    errors.append(
+                        f"module {name!r} requires a separate diagram {node_kind} node "
+                        f"for each listed {field_name} interface"
+                    )
+            if field_name == "code-evidence" and text and not CODE_EVIDENCE_RE.search(
+                text
+            ):
+                errors.append(
+                    f"module {name!r} code-evidence requires a pinned path/revision "
+                    "or an explicit no-code/not-reported result"
+                )
+    return errors
+
+
+def _validate_original_result_evidence(source: str, paper_type: str) -> list[str]:
+    if paper_type != "empirical":
+        return []
+    sections = list(EXPERIMENTAL_RESULTS_RE.finditer(source))
+    if any(ORIGINAL_RESULT_FIGURE_RE.search(section.group("body")) for section in sections):
+        return []
+    if any(
+        re.search(
+            r'\bdata-original-result-unavailable\s*=\s*'
+            r'["\']paper-has-no-result-figure["\']',
+            section.group("attrs"),
+            re.IGNORECASE,
+        )
+        for section in sections
+    ):
+        return []
+    return [
+        "empirical experimental-results requires an original paper result figure "
+        "marked data-original-result; recreated tables and metric cards are supplements, "
+        "not substitutes"
+    ]
 
 
 def _validate_landmarks(document: ReportDocument) -> list[str]:
@@ -981,30 +1007,17 @@ def _validate_coordinate_record(record: ElementRecord, coordinate: str) -> list[
 
 def _validate_sections(
     document: ReportDocument,
-    level: str,
     paper_type: str,
-    known: set[str],
-    report_path: Path,
 ) -> list[str]:
     errors: list[str] = []
     names = {record.attrs.get("data-section") for record in document.sections}
     for section_name in sorted(COMMON_SECTIONS - names):
         errors.append(f"report is missing required section: {section_name}")
-    if level == "brief" and "headline-evidence" not in names:
-        errors.append("brief report requires a headline-evidence section")
-    if level in {"compact", "deep"} and paper_type in TYPE_SECTIONS:
+    if paper_type in TYPE_SECTIONS:
         for section_name in sorted(TYPE_SECTIONS[paper_type] - names):
             errors.append(
-                f"{paper_type} {level} report is missing section: {section_name}"
+                f"{paper_type} report is missing section: {section_name}"
             )
-    if level == "deep":
-        if "reproduction" not in names or not any(
-            item.startswith("R") for item in known
-        ):
-            errors.append(
-                "deep report requires a reproduction section with an R-coordinate"
-            )
-        errors.extend(_validate_manifest(report_path, known))
     return errors
 
 
@@ -1022,17 +1035,19 @@ def validate_report(report_path: Path) -> list[str]:
     parser.close()
     document = parser.document
     errors = _validate_shell(source, document)
-    identity_errors, level, paper_type = _report_identity(document)
+    identity_errors, paper_type = _report_identity(document)
     errors.extend(identity_errors)
     errors.extend(_validate_landmarks(document))
     errors.extend(_validate_basic_information(source))
+    errors.extend(_validate_module_anatomy(source, paper_type))
+    errors.extend(_validate_original_result_evidence(source, paper_type))
     errors.extend(_validate_math(source, document))
     errors.extend(_validate_hyperlinks(document, report_path))
     errors.extend(_validate_assets(document, report_path))
     errors.extend(_validate_visuals(document))
     coordinate_errors, known = _validate_coordinates(document)
     errors.extend(coordinate_errors)
-    errors.extend(_validate_sections(document, level, paper_type, known, report_path))
+    errors.extend(_validate_sections(document, paper_type))
     return errors
 
 

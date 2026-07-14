@@ -6,6 +6,47 @@ from paper_reading_helpers import SKILL_DIR, load_script
 
 
 @pytest.mark.unit
+def test_scaffold_uses_one_reading_depth_and_exposes_module_anatomy(
+    tmp_path: Path,
+) -> None:
+    scaffold = load_script("scaffold_report")
+    output_dir = tmp_path / "report"
+    path = scaffold.scaffold_report(
+        output_dir=output_dir,
+        title="A Modular Paper",
+        title_focus="Modular",
+        authors="Ada",
+        paper_type="empirical",
+        thesis="A verified technical thesis.",
+    )
+    html = path.read_text(encoding="utf-8")
+
+    assert "data-level=" not in html
+    assert "--level" not in scaffold.build_parser().format_help()
+    assert not (output_dir / "reproduction").exists()
+    assert "data-module-anatomy" in html
+    assert 'data-module="replace-with-module-name"' in html
+    assert "data-module-visual" in html
+    assert '<svg class="module-diagram" viewBox="0 0 960 240" role="img"' in html
+    assert html.count('class="diagram-node diagram-input"') == 2
+    assert html.count('class="diagram-node diagram-output"') == 2
+    assert html.count('class="module-io-list"') == 2
+    assert html.count('class="math-inline"') >= 4
+    for field in (
+        "purpose",
+        "inputs",
+        "outputs",
+        "architecture",
+        "training-data",
+        "training-method",
+        "inference-role",
+        "interfaces",
+        "code-evidence",
+    ):
+        assert f'data-module-field="{field}"' in html
+
+
+@pytest.mark.unit
 def test_skill_is_layered_portable_and_points_to_every_reference() -> None:
     skill_path = SKILL_DIR / "SKILL.md"
     text = skill_path.read_text(encoding="utf-8")
@@ -17,11 +58,12 @@ def test_skill_is_layered_portable_and_points_to_every_reference() -> None:
     assert "\npython <skill-dir>" not in text
     assert "PYTHON_EXE" in text
     assert "uv run --isolated --no-project" in text
-    assert "references/levels.md" in text
+    assert "references/levels.md" not in text
     assert "references/evidence.md" in text
+    assert "references/code-audit.md" in text
     assert "references/html-report.md" in text
     assert "references/visuals.md" in text
-    assert "references/reproduction.md" in text
+    assert "references/reproduction.md" not in text
     for paper_type in ("empirical", "theoretical", "survey", "systems"):
         assert f"references/{paper_type}.md" in text
     assert "scripts/extract_paper.py" in text
@@ -42,10 +84,13 @@ def test_skill_is_layered_portable_and_points_to_every_reference() -> None:
     assert "data-contact-homepage" in html_guidance
     assert "data-lab-homepage" in html_guidance
     assert "data-affiliation-fallback" in html_guidance
-    level_guidance = (SKILL_DIR / "references" / "levels.md").read_text(
+    code_guidance = (SKILL_DIR / "references" / "code-audit.md").read_text(
         encoding="utf-8"
     )
-    assert "shallow clone" in level_guidance
+    assert "shallow clone" in code_guidance
+    assert "Do not install, import, execute" in code_guidance
+    assert not (SKILL_DIR / "references" / "levels.md").exists()
+    assert not (SKILL_DIR / "references" / "reproduction.md").exists()
 
     script = (SKILL_DIR / "assets" / "report.js").read_text(encoding="utf-8")
     assert not re.search(r"\bview\.(?:x|y|scale)\s*=", script)
@@ -55,7 +100,16 @@ def test_skill_is_layered_portable_and_points_to_every_reference() -> None:
     assert "data-lens" not in script
     assert "data-trace" not in script
     style = (SKILL_DIR / "assets" / "report.css").read_text(encoding="utf-8")
-    inline_rule = re.search(r"\.math-inline\s*\{(?P<body>[^}]*)\}", style)
+    module_card_rule = re.search(r"\.module-card\s*\{(?P<body>[^}]*)\}", style)
+    assert module_card_rule is not None
+    assert "grid-template-columns: minmax(0, 1fr)" in module_card_rule.group("body")
+    module_visual_rule = re.search(
+        r"\.module-card figure\.module-visual\s*\{(?P<body>[^}]*)\}", style
+    )
+    assert module_visual_rule is not None
+    assert "grid-column: 1 / -1" in module_visual_rule.group("body")
+    assert "grid-row: auto" in module_visual_rule.group("body")
+    inline_rule = re.search(r"(?m)^\.math-inline\s*\{(?P<body>[^}]*)\}", style)
     assert inline_rule is not None
     assert "display: inline-block" in inline_rule.group("body")
     assert "overflow: visible" in inline_rule.group("body")
@@ -69,7 +123,7 @@ def test_skill_is_layered_portable_and_points_to_every_reference() -> None:
 
 
 @pytest.mark.unit
-def test_scaffold_escapes_metadata_and_creates_level_directories(
+def test_scaffold_escapes_metadata_and_creates_single_report_directory(
     tmp_path: Path,
 ) -> None:
     scaffold = load_script("scaffold_report")
@@ -79,7 +133,6 @@ def test_scaffold_escapes_metadata_and_creates_level_directories(
         title="A <B> & C",
         authors="Ada & Lin",
         paper_type="empirical",
-        level="deep",
         thesis="A claim grounded in the paper.",
         title_focus="<B>",
         language="zh-CN",
@@ -100,12 +153,12 @@ def test_scaffold_escapes_metadata_and_creates_level_directories(
     assert 'data-paper-field="title"' in html
     assert "<table" not in html
     assert "Ada &amp; Lin" in html
-    assert 'data-level="deep"' in html
+    assert "data-level=" not in html
     assert "<style data-report-style>" in html
     assert "<script data-report-script>" in html
     assert not (output_dir / "report.css").exists()
     assert (output_dir / "assets").is_dir()
-    assert (output_dir / "reproduction").is_dir()
+    assert not (output_dir / "reproduction").exists()
 
 
 @pytest.mark.unit
@@ -117,7 +170,6 @@ def test_scaffold_requires_a_title_focus_from_the_title(tmp_path: Path) -> None:
             title="Paper",
             authors="Author",
             paper_type="empirical",
-            level="brief",
             thesis="Thesis",
             title_focus="Missing",
         )
@@ -132,7 +184,6 @@ def test_scaffold_rejects_an_unsafe_source_link(tmp_path: Path) -> None:
             title="Paper",
             authors="Author",
             paper_type="empirical",
-            level="brief",
             thesis="Thesis",
             title_focus="Paper",
             source="javascript:alert(1)",
@@ -147,7 +198,6 @@ def test_scaffold_does_not_expand_tokens_inside_user_metadata(tmp_path: Path) ->
         title="<img src=x onerror=alert(1)>{{SOURCE_LINK}}",
         authors="Author",
         paper_type="empirical",
-        level="brief",
         thesis="Thesis",
         title_focus="{{SOURCE_LINK}}",
         source="https://example.test/paper",
@@ -165,7 +215,6 @@ def test_scaffold_localizes_visible_ui_and_accessible_names(tmp_path: Path) -> N
         title="Paper",
         authors="Author",
         paper_type="empirical",
-        level="compact",
         thesis="Specific thesis.",
         title_focus="Paper",
         language="en-US",
@@ -218,7 +267,6 @@ def test_scaffold_selects_the_paper_type_outline(
         title="Paper",
         authors="Author",
         paper_type=paper_type,
-        level="compact",
         thesis="Specific thesis.",
         title_focus="Paper",
     )
@@ -235,7 +283,6 @@ def test_scaffold_selects_the_paper_type_outline(
     [
         ({"paper_type": "unknown"}, "paper type"),
         ({"paper_type": "hybrid"}, "paper type"),
-        ({"level": "unknown"}, "reading level"),
         ({"language": "fr-FR"}, "language"),
         ({"title": ""}, "title"),
         ({"authors": "  "}, "authors"),
@@ -251,7 +298,6 @@ def test_scaffold_rejects_invalid_metadata(
         "title": "Paper",
         "authors": "Author",
         "paper_type": "empirical",
-        "level": "brief",
         "thesis": "Thesis",
         "title_focus": "Paper",
     }
@@ -272,7 +318,6 @@ def test_scaffold_refuses_to_mix_with_existing_output(tmp_path: Path) -> None:
             title="Paper",
             authors="Author",
             paper_type="empirical",
-            level="brief",
             thesis="Thesis",
             title_focus="Paper",
         )
@@ -291,8 +336,6 @@ def test_scaffold_main_reports_success_and_user_errors(
         "Author",
         "--paper-type",
         "empirical",
-        "--level",
-        "brief",
         "--thesis",
         "Thesis",
         "--title-focus",

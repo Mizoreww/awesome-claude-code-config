@@ -26,6 +26,8 @@ CANNED_EXPLANATION_PREFIX_RE = re.compile(
     r"^(?:直观解释|公式解释|intuition|explanation)\s*[·:：—-]",
     re.IGNORECASE,
 )
+NAMED_OPERATOR_RE = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
+FUNCTION_FENCES = frozenset({"(", "[", "{"})
 Converter = Callable[..., str]
 
 
@@ -36,6 +38,73 @@ def _mathml_nodes(root: ET.Element) -> Iterator[ET.Element]:
     yield root
     for child in root:
         yield from _mathml_nodes(child)
+
+
+def _local_name(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
+
+
+def _starts_with_function_fence(node: ET.Element) -> bool:
+    if _local_name(node.tag) == "mo":
+        return (node.text or "").strip() in FUNCTION_FENCES
+    if _local_name(node.tag) != "mrow":
+        return False
+    for child in node:
+        if _local_name(child.tag) == "mspace":
+            continue
+        return _starts_with_function_fence(child)
+    return False
+
+
+def _following_argument_is_fenced(children: list[ET.Element], index: int) -> bool:
+    for following in children[index + 1 :]:
+        if _local_name(following.tag) == "mspace":
+            continue
+        return _starts_with_function_fence(following)
+    return False
+
+
+def _normalize_named_operators(root: ET.Element) -> None:
+    """Give converter-emitted operator names publication-quality MathML semantics."""
+    operator_tag = f"{{{MATHML_NAMESPACE}}}mo"
+    identifier_tag = f"{{{MATHML_NAMESPACE}}}mi"
+    for parent in _mathml_nodes(root):
+        children = list(parent)
+        for index in range(len(children) - 1, -1, -1):
+            node = children[index]
+            text = (node.text or "").strip()
+            if node.tag != operator_tag or not NAMED_OPERATOR_RE.fullmatch(text):
+                continue
+            node.tag = identifier_tag
+            node.attrib.clear()
+            node.set("mathvariant", "normal")
+            if _following_argument_is_fenced(children, index):
+                apply_function = ET.Element(operator_tag)
+                apply_function.text = "\u2061"
+                parent.insert(index + 1, apply_function)
+
+
+def _normalize_upright_text_runs(root: ET.Element) -> None:
+    r"""Collapse converter-split ``\mathrm{word}`` letters into one identifier."""
+    row_tag = f"{{{MATHML_NAMESPACE}}}mrow"
+    identifier_tag = f"{{{MATHML_NAMESPACE}}}mi"
+    for parent in _mathml_nodes(root):
+        for row in list(parent):
+            if row.tag != row_tag:
+                continue
+            letters = list(row)
+            if len(letters) < 2 or any(
+                letter.tag != identifier_tag
+                or letter.attrib != {"mathvariant": "normal"}
+                or not NAMED_OPERATOR_RE.fullmatch((letter.text or "").strip())
+                for letter in letters
+            ):
+                continue
+            text = "".join((letter.text or "").strip() for letter in letters)
+            for letter in letters:
+                row.remove(letter)
+            merged = ET.SubElement(row, identifier_tag, {"mathvariant": "normal"})
+            merged.text = text
 
 
 def _load_converter() -> Converter:
@@ -85,6 +154,8 @@ def _annotate_mathml(
         )
         if policy_error:
             raise ValueError(f"unsafe MathML: {policy_error}")
+    _normalize_named_operators(root)
+    _normalize_upright_text_runs(root)
     # Never splice the converter's source back into HTML. XML and HTML disagree
     # about constructs such as CDATA; serializing the checked tree makes those
     # constructs ordinary escaped text before a browser sees them.

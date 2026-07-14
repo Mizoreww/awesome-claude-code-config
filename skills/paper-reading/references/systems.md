@@ -20,6 +20,7 @@ Use the shared backbone and insert these modules after Key Insight.
 - Define components, ownership, interfaces, and control/data paths.
 - Connect each design goal to the component that satisfies it.
 - State consistency, fault, security, or scheduling model where relevant.
+- For every load-bearing component, fill the same nine module-anatomy fields required for empirical work: purpose, exact inputs, exact outputs, architecture/parameters, training or construction data when applicable, training/build/configuration method, runtime role, adjacent interfaces, and pinned code evidence. Use `not applicable` rather than omitting training fields for non-ML components.
 
 ### Design decisions
 
@@ -39,4 +40,4 @@ For each consequential decision, record the chosen alternative, rejected alterna
 - Conditions where performance reverses or degrades.
 - Whether the benchmark isolates the claimed design decision and resembles deployment.
 
-If deployment evidence exists, distinguish measured production behavior from anecdote. In deep mode, prefer a bounded benchmark or official trace/test that exercises a central design claim; do not extrapolate a laptop microbenchmark to the production result.
+If deployment evidence exists, distinguish measured production behavior from anecdote. Do not extrapolate a paper microbenchmark to production behavior, and do not run a new benchmark as part of the reading workflow.

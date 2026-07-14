@@ -28,12 +28,6 @@ PNG_FIXTURE = bytes.fromhex(
     "890000000d49444154789c6360606060000000050001a5f64540000000004945"
     "4e44ae426082"
 )
-DEEP_SECTION = """
-        <section id="R1" data-section="reproduction" data-kind="reproduction"
-                 data-coordinate="R1">
-          <h2>最小复现</h2><p>复现记录见本地 manifest。</p>
-        </section>
-        """
 REPORT_TEMPLATE = """<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -45,7 +39,7 @@ REPORT_TEMPLATE = """<!doctype html>
   </style>
 </head>
 <body>
-  <article data-paper-report data-level="{level}" data-paper-type="{paper_type}">
+  <article data-paper-report data-paper-type="{paper_type}">
     <header class="report-hero">
       <h1>测试论文<em class="title-focus">精读</em></h1>
       <p class="hero-thesis">一条可核查的核心判断。</p>
@@ -89,11 +83,35 @@ REPORT_TEMPLATE = """<!doctype html>
       <section id="C3" data-section="technical-method" data-kind="claim"
                data-coordinate="C3" data-supports="E1">
         <h2>技术方法</h2><p>训练目标。</p>
+        <div class="module-anatomy" data-module-anatomy>
+          <article class="module-card" data-module="encoder">
+            <h3>编码器</h3>
+            <figure class="module-visual" data-module-visual data-lightbox tabindex="0" role="button" aria-label="编码器数据流，点击放大">
+              <svg class="module-diagram" viewBox="0 0 360 180" role="img" aria-label="图像张量经编码器变为特征向量">
+                <rect class="diagram-node diagram-input" x="10" y="54" width="94" height="72"></rect>
+                <path d="M104 90 H133"></path>
+                <rect class="diagram-node diagram-core" x="133" y="42" width="94" height="96"></rect>
+                <path d="M227 90 H256"></path>
+                <rect class="diagram-node diagram-output" x="256" y="54" width="94" height="72"></rect>
+              </svg>
+              <figcaption>编码器的输入、变换与输出。</figcaption>
+            </figure>
+            <div data-module-field="purpose"><h4>职责</h4><p>把输入转换为特征。</p></div>
+            <div data-module-field="inputs"><h4>具体输入</h4><ul class="module-io-list"><li><span class="math-inline"><math display="inline"><semantics><mi>x</mi><annotation encoding="application/x-tex">x</annotation></semantics></math></span>归一化图像张量。</li></ul></div>
+            <div data-module-field="outputs"><h4>具体输出</h4><ul class="module-io-list"><li><span class="math-inline"><math display="inline"><semantics><mi>h</mi><annotation encoding="application/x-tex">h</annotation></semantics></math></span>定长特征向量。</li></ul></div>
+            <div data-module-field="architecture"><h4>架构</h4><p>两层冻结编码器。</p></div>
+            <div data-module-field="training-data"><h4>训练数据</h4><p>论文报告的训练划分。</p></div>
+            <div data-module-field="training-method"><h4>训练方法</h4><p>监督目标与固定学习率。</p></div>
+            <div data-module-field="inference-role"><h4>推理角色</h4><p>推理时生成冻结特征。</p></div>
+            <div data-module-field="interfaces"><h4>模块接口</h4><p>向预测头输出特征。</p></div>
+            <div data-module-field="code-evidence"><h4>代码核查</h4><p>commit 0123456 · models/encoder.py::Encoder。</p></div>
+          </article>
+        </div>
       </section>
       <section id="E1" data-section="experimental-results" data-kind="evidence"
                data-coordinate="E1">
         <h2>实验结果</h2>
-        <figure data-lightbox tabindex="0" role="button" aria-label="主结果图，点击放大">
+        <figure data-original-result data-lightbox tabindex="0" role="button" aria-label="主结果图，点击放大">
           <img src="assets/figure.png" alt="主结果图">
           <figcaption>E1 · Figure 1：这是一段刻意较长的图注，用来验证手机窄屏打开图片时，说明文字仍完整留在查看器内，并且不会被底部边界裁掉。</figcaption>
         </figure>
@@ -102,7 +120,6 @@ REPORT_TEMPLATE = """<!doctype html>
                data-coordinate="L1" data-supports="E1">
         <h2>批判分析</h2><p>一项有边界的限制。</p>
       </section>
-      {deep_section}
       <section data-section="summary"><h2>总结与评价</h2><p>结论。</p></section>
     </main>
     </div>
@@ -125,7 +142,6 @@ REPORT_TEMPLATE = """<!doctype html>
 def write_valid_report(
     output_dir: Path,
     *,
-    level: str = "compact",
     paper_type: str = "empirical",
     script: str = "document.documentElement.dataset.enhanced = 'true';",
 ) -> Path:
@@ -134,9 +150,7 @@ def write_valid_report(
     assets_dir.mkdir()
     (assets_dir / "figure.png").write_bytes(PNG_FIXTURE)
     html = REPORT_TEMPLATE.format(
-        level=level,
         paper_type=paper_type,
-        deep_section=DEEP_SECTION if level == "deep" else "",
         script=script,
     )
     path = output_dir / "summary.html"
