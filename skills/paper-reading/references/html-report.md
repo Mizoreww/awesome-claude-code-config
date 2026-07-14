@@ -15,8 +15,7 @@ Write one movable directory:
 ```text
 report/
 ├── summary.html        # inline CSS and JavaScript
-├── assets/             # high-resolution paper and run visuals
-└── reproduction/       # deep mode only: manifest, logs, small artifacts
+└── assets/             # high-resolution paper visuals
 ```
 
 Use relative paths and an offline shell: inline the report CSS/JavaScript and keep visual assets local. Render mathematics to static MathML before delivery so equations need no network runtime.
@@ -33,7 +32,6 @@ PYTHON_EXE <skill-dir>/scripts/scaffold_report.py REPORT_DIR \
   --title-focus "CONSEQUENTIAL TITLE PHRASE" \
   --authors "AUTHORS" \
   --paper-type empirical \
-  --level compact \
   --thesis "ONE EVIDENCE-BOUND THESIS" \
   --language "zh-CN" \
   --source "CANONICAL URL"
@@ -93,14 +91,57 @@ Use one coordinate and one kind per material block. Link claims and limitations 
 </section>
 ```
 
-Use `C`, `E`, `L`, and `R` prefixes only for their defined meanings. Keep IDs unique and make every local link resolve.
+Use only `C`, `E`, and `L` prefixes in the unified reading workflow. Keep IDs unique and make every local link resolve.
+
+### Module anatomy
+
+Empirical and systems reports require one card for every load-bearing module. Keep the overview flow in prose or a useful visual, then put a full-width horizontal local-interface SVG directly below each card title and above its fields. Give every distinct input/output a separate node. Use unordered lists for parallel items. Inputs and outputs must carry the paper/code symbols as LaTeX-derived inline MathML, including shapes or ranges when known:
+
+```html
+<div class="module-anatomy" data-module-anatomy>
+  <article class="module-card" data-module="visual-encoder">
+    <h3>Visual encoder</h3>
+    <figure class="module-visual" data-module-visual data-lightbox
+            tabindex="0" role="button" aria-label="Visual encoder flow, click to enlarge">
+      <svg class="module-diagram" viewBox="0 0 960 240" role="img"
+           aria-label="Image tensor passes through the visual encoder to form features">
+        <!-- separate verified input nodes → core transform → separate output nodes -->
+      </svg>
+      <figcaption>Local interface simplified from §3.1 and the pinned implementation.</figcaption>
+    </figure>
+    <div data-module-field="purpose"><h4>Purpose</h4><p>...</p></div>
+    <div data-module-field="inputs"><h4>Exact inputs</h4>
+      <ul class="module-io-list"><li>
+        <span class="math-inline"><math display="inline"><semantics>
+          <mi>x</mi><annotation encoding="application/x-tex">x</annotation>
+        </semantics></math></span> normalized image tensor with its verified shape.
+      </li></ul>
+    </div>
+    <div data-module-field="outputs"><h4>Exact outputs</h4>
+      <ul class="module-io-list"><li>
+        <span class="math-inline"><math display="inline"><semantics>
+          <mi>h</mi><annotation encoding="application/x-tex">h</annotation>
+        </semantics></math></span> feature tensor consumed by the prediction head.
+      </li></ul>
+    </div>
+    <div data-module-field="architecture"><h4>Architecture</h4><p>...</p></div>
+    <div data-module-field="training-data"><h4>Training data</h4><p>...</p></div>
+    <div data-module-field="training-method"><h4>Training method</h4><p>...</p></div>
+    <div data-module-field="inference-role"><h4>Inference role</h4><p>...</p></div>
+    <div data-module-field="interfaces"><h4>Interfaces</h4><p>...</p></div>
+    <div data-module-field="code-evidence"><h4>Code evidence</h4><p>...</p></div>
+  </article>
+</div>
+```
+
+Use compact cards or aligned rows rather than one enormous table. On both desktop and mobile the SVG remains above the fields; never use a left-diagram/right-fields split. The SVG and the input/output lists must reuse the same symbols, and every distinct list-level interface value needs its own node. Every field must contain a concrete answer, `not applicable`, `not reported`, or a documented no-code result. Cite the pinned file/symbol inside `code-evidence`; a repository homepage alone is insufficient.
 
 ### Original image
 
 Every visual is a keyboard-operable lightbox trigger in the static markup:
 
 ```html
-<figure data-lightbox tabindex="0" role="button"
+<figure data-original-result data-lightbox tabindex="0" role="button"
         aria-label="Figure 2, click to enlarge">
   <img src="assets/figure-2.png" alt="Faithful description of Figure 2">
   <figcaption><strong>E3 · Figure 2</strong> What it demonstrates and under which setup.</figcaption>
@@ -108,6 +149,8 @@ Every visual is a keyboard-operable lightbox trigger in the static markup:
 ```
 
 Use a high-resolution local asset. A caption must explain evidentiary relevance, not repeat the title.
+
+Use `data-original-result` only for a result visual copied faithfully from the paper. Every empirical report needs at least one such figure inside an `experimental-results` section unless the paper genuinely has no result figure; in that case add `data-original-result-unavailable="paper-has-no-result-figure"` to the section and preserve the paper's original result table. Recreated HTML tables and metric summaries never satisfy this requirement.
 
 ### Explanatory SVG
 
@@ -165,7 +208,7 @@ Run the structural validator:
 PYTHON_EXE <skill-dir>/scripts/validate_report.py REPORT_DIR/summary.html
 ```
 
-The validator treats every static `img` and inline `svg` as a report visual: it must be wrapped by the accessible lightbox figure contract. It also checks title-focus ancestry/text, safe MathML, legacy math markup, local hyperlinks, ordinary asset URLs, `srcset`, SVG `<image>` references, evidence relationships, and deep manifests. A pass is necessary but not sufficient.
+The validator treats every static `img` and inline `svg` as a report visual: it must be wrapped by the accessible lightbox figure contract. It also checks title-focus ancestry/text, safe MathML, legacy math markup, local hyperlinks, ordinary asset URLs, `srcset`, SVG `<image>` references, evidence relationships, and required module anatomy. A pass is necessary but not sufficient.
 
 Then inspect a real browser render at desktop and about 390 px width:
 
@@ -177,7 +220,8 @@ Then inspect a real browser render at desktop and about 390 px width:
 6. The outline, in-article evidence links, details, zoom controls, and keyboard focus are usable; no reading-lens or evidence-index controls are present.
 7. SVG labels/arrows remain legible at both widths.
 8. Basic information uses the vertical list, contains verified author/contact/lab-or-group homepage links, and exposes no extraction bookkeeping; any institution-level affiliation fallback is explicitly marked.
-9. Print preview keeps the article and removes navigation/interaction chrome.
-10. Reduced-motion preference does not trigger movement.
+9. Every load-bearing empirical/systems module exposes exact inputs, outputs, architecture, training data/method, inference role, interfaces, and pinned code evidence; one full-width horizontal local-interface SVG sits above the fields with separate non-overlapping input/output nodes; parallel items use unordered lists; input/output symbols and shapes are static inline MathML.
+10. Print preview keeps the article and removes navigation/interaction chrome.
+11. Reduced-motion preference does not trigger movement.
 
 Fix the page and rerun both structural and visual checks. A validator pass cannot substitute for looking at the render.

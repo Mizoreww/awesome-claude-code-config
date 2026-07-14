@@ -29,4 +29,4 @@ For each major direction, cover the mechanism family, progression of ideas, curr
 - Explain which proposed direction is most promising and what evidence would validate it.
 - Check whether the survey's cutoff date or venue/language selection biases the apparent trend.
 
-Critical analysis must examine coverage, taxonomy stability, missing directions, and author perspective. A deep reproduction should test an artifact or quantitative synthesis central to the survey; if none exists, produce a specific audit/blocker rather than pretending a single implementation reproduces a survey.
+Critical analysis must examine coverage, taxonomy stability, missing directions, and author perspective. Inspect any official survey artifact or quantitative-synthesis code read-only when it materially supports the taxonomy; do not pretend a single implementation validates the survey's full coverage.

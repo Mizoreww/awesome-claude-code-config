@@ -9,7 +9,7 @@ Before composing HTML, list the paper's genuine comprehension bottlenecks. For e
 
 Audit at least the core mechanism, experimental comparison, and decisive limitation. “No visual needed” is a valid treatment when prose or a compact table is clearer.
 
-There is no minimum or maximum SVG count. A report with zero SVGs can pass; a report with several can pass. The decision is explanatory, not decorative.
+There is no general minimum or maximum SVG count. Empirical/systems module anatomy is the one explicit exception: every load-bearing module needs one full-width horizontal local-interface SVG above its detail fields. These diagrams are not decoration; they let the reader scan exact inputs → transformation → outputs before reading implementation detail. Give distinct inputs and outputs separate nodes, and never force the diagram into a narrow side rail. All other SVG decisions remain explanatory rather than quota-driven.
 
 ## Choose the medium
 
@@ -25,6 +25,8 @@ There is no minimum or maximum SVG count. A report with zero SVGs can pass; a re
 
 When the original figure supplies fidelity and a simplified visual supplies intuition, show both in a bounded comparison component. State what was simplified.
 
+For empirical work, the central result visual is mandatory when the paper provides one. Copy the original plot or qualitative panel into the local report assets, place it beside the relevant result interpretation, and mark its figure `data-original-result`. HTML tables and redrawn summaries help scan exact values; they do not substitute for the original visual evidence.
+
 ## SVG admission test
 
 Draw an SVG only when all are true:
@@ -35,7 +37,7 @@ Draw an SVG only when all are true:
 4. It can remain legible without cramming labels.
 5. Its caption states the abstraction boundary.
 
-Do not use SVG for decorative headings, familiar one-direction sequences, copied plots, metric tiles, or scientific-looking filler.
+Do not use SVG for decorative headings, copied plots, metric tiles, or scientific-looking filler. A required module interface map may use a simple one-direction flow, but it must carry the module's real symbols, tensor/data names, and transformation boundary rather than generic “input/model/output” boxes. Its connectors may merge only after each distinct input has appeared in its own node; arrows and labels must not overlap.
 
 ## Visual grammar
 
@@ -44,7 +46,7 @@ Use the report's semantic colors consistently:
 - blue for claims or proposed components;
 - teal for observed evidence/data;
 - red for limitation/failure;
-- purple for reproduction.
+- purple only for a clearly labelled report inference or unresolved implementation discrepancy.
 
 Use rounded rectangles for components, circles only for states/entities that benefit from that distinction, solid arrows for actual flow, and dashed arrows for optional/feedback/uncertain relationships. Label arrows when the transformation is not obvious. Prefer fewer than roughly ten nodes in one view; split a dense diagram rather than shrinking it.
 

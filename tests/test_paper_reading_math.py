@@ -175,6 +175,67 @@ def test_math_renderer_accepts_safe_real_converter_output(latex: str) -> None:
     )
 
 
+@pytest.mark.unit
+def test_math_renderer_normalizes_named_operators_for_browser_typography(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    renderer = load_script("render_math")
+    _use_test_parser(renderer, monkeypatch)
+
+    def operator_converter(latex: str, *, display: str) -> str:
+        del latex
+        return (
+            '<math xmlns="http://www.w3.org/1998/Math/MathML" '
+            f'display="{display}"><mrow>'
+            '<msubsup><mi>g</mi><mi>t</mi><mrow><mo>(</mo><mi>m</mi><mo>)</mo></mrow>'
+            '</msubsup><mo>=</mo><mo>TopK</mo><mspace width="negativethinmathspace" />'
+            '<mrow><mo stretchy="true" fence="true" form="prefix">(</mo>'
+            '<mo>softmax</mo><mo>(</mo>'
+            '<msub><mi>W</mi><mi>m</mi></msub><msub><mi>h</mi><mi>t</mi></msub>'
+            '<mo>)</mo><mo>)</mo></mrow></mrow></math>'
+        )
+
+    fragment = renderer.render_math(
+        r"g_t^{(m)}=\operatorname{TopK}(\operatorname{softmax}(W_mh_t))",
+        display="block",
+        explanation=(
+            "这里 g 表示门控结果，t 是时间步，m 是专家组；TopK 选择得分最高的候选，"
+            "softmax 把线性得分归一化为权重，完整关系给出当前时间步的稀疏路由。"
+        ),
+        converter=operator_converter,
+    )
+
+    assert "<mo>TopK</mo>" not in fragment
+    assert "<mo>softmax</mo>" not in fragment
+    assert '<mi mathvariant="normal">TopK</mi>' in fragment
+    assert '<mi mathvariant="normal">softmax</mi>' in fragment
+    assert fragment.count("\u2061") == 2
+
+
+@pytest.mark.unit
+def test_math_renderer_collapses_upright_text_runs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    renderer = load_script("render_math")
+    _use_test_parser(renderer, monkeypatch)
+
+    def text_run_converter(latex: str, *, display: str) -> str:
+        del latex
+        return (
+            '<math xmlns="http://www.w3.org/1998/Math/MathML" '
+            f'display="{display}"><mrow><msub><mi>e</mi><mrow>'
+            '<mi mathvariant="normal">t</mi><mi mathvariant="normal">a</mi>'
+            '<mi mathvariant="normal">s</mi><mi mathvariant="normal">k</mi>'
+            '</mrow></msub></mrow></math>'
+        )
+
+    fragment = renderer.render_math(
+        r"e_{\mathrm{task}}", display="inline", converter=text_run_converter
+    )
+    assert '<mi mathvariant="normal">task</mi>' in fragment
+    assert '<mi mathvariant="normal">t</mi>' not in fragment
+
+
 @pytest.mark.integration
 def test_math_renderer_cli_reads_a_tex_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]

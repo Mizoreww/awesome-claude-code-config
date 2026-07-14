@@ -15,9 +15,8 @@ Assign stable coordinates in reading order:
 - `C1`, `C2`, ... — a material claim or inference.
 - `E1`, `E2`, ... — paper, code, external-primary-source, or run evidence.
 - `L1`, `L2`, ... — a limitation, failed assumption, or evidence gap.
-- `R1`, `R2`, ... — a reproduction attempt and its observed result.
 
-Do not create coordinates for decorative metadata or every sentence. Brief mode needs coordinates for decisive claims; compact and deep modes need them for every material result and criticism.
+Do not create coordinates for decorative metadata or every sentence. Create them for every material result and criticism.
 
 Coordinates are local to the report. Never imply that `C1` is the paper's own claim number unless it actually is.
 
@@ -28,9 +27,8 @@ Maintain a working ledger before writing polished prose:
 | ID | Statement | Voice | Anchor(s) | Support status | Report use |
 |---|---|---|---|---|---|
 | C1 | Exact proposition being assessed | author / report inference / external | E1, E3 | supported / partial / unsupported | thesis, method |
-| E1 | Observation, theorem, result, code fact, or run output | source | exact location | direct / indirect | supports C1 |
+| E1 | Observation, theorem, result, or code fact | source | exact location | direct / indirect | supports C1 |
 | L1 | Boundary or missing test | author / report assessment | E2 or named absence | consequential because... | critique |
-| R1 | Bounded run and observation | report execution | log/artifact | passed / partial / blocked | reproduction |
 
 The final report may present the ledger as marginal coordinates rather than a literal table, but the mapping must remain recoverable.
 
@@ -39,7 +37,7 @@ The final report may present the ledger as marginal coordinates rather than a li
 - **Author claim:** the source explicitly asserts it.
 - **Report inference:** a reasoned interpretation not stated verbatim by the authors.
 - **External evidence:** a primary source outside the paper.
-- **Reproduction observation:** a result produced in this task under stated conditions.
+- **Code-confirmed fact:** behavior directly established by the pinned authoritative implementation.
 
 Never slide from one voice to another inside a sentence. “This proves” is rarely justified when the source only reports an experiment.
 
@@ -50,16 +48,13 @@ Use the narrowest stable anchor available:
 - Paper: `§3.2, Eq. 4, p. 6`, `Fig. 2`, `Table 3`, `Appendix B.1`.
 - Official HTML: section heading plus canonical URL fragment.
 - Code: repository, exact revision, file path, and line range or symbol.
-- Run: `R1`, command, log filename, artifact, seed/sample count, and observed metric.
 - External source: direct primary-source URL and accessed version/date when it can change.
 
 If PDF page numbering and printed page numbering differ, state which convention the report uses. If only HTML/full text is available, do not invent page numbers.
 
 ### Permitted external scope
 
-- **Brief:** the paper and source supplied by the user.
-- **Compact:** official project/code availability and paper-cited primary sources needed to check a material comparison. No open-ended literature search.
-- **Deep:** official repository, data/checkpoints, issues, release notes, and upstream dependency documentation needed for reproduction.
+Inspect the official project and authoritative code repository read-only. Check paper-cited primary sources only when needed to avoid a misleading material comparison. Do not perform open-ended literature search, install or execute code, or download datasets/checkpoints as part of the reading workflow.
 
 Broader prior-art or novelty checking requires a separately stated scope.
 

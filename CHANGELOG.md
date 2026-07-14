@@ -3,25 +3,28 @@
 ## [Unreleased] - 2026-07-14
 
 ### Features
-- Rebuilt `paper-reading` as a portable layered skill with explicit Markdown/HTML choice and three work scopes: brief, compact close-reading, and deep reproduction.
-- Added a shared claim/evidence/limitation/reproduction ledger, paper-type references, immutable PDF extraction, and a tested bilingual Proof Spine HTML scaffold with one left outline navigation, title-focus hierarchy, static MathML, and structural report validation.
+- Rebuilt `paper-reading` as a portable layered skill with an explicit Markdown/HTML choice and one complete, concise close-reading depth; removed the reading-level chooser and reproduction mode.
+- Added a shared claim/evidence/limitation ledger, paper-type references, immutable PDF extraction, and a tested bilingual Proof Spine HTML scaffold with one left outline navigation, title-focus hierarchy, static MathML, and structural report validation.
+- Restored the original technical template as mandatory per-module anatomy for empirical and systems papers: purpose, exact inputs/outputs, architecture, training data, training method, inference role, interfaces, and pinned code evidence.
+- Made each load-bearing module visually reconstructable with a full-width horizontal interface SVG above its fields, separate nodes for every listed input/output, MathML symbols in the matching field lists, and validator checks for visual order and interface-node coverage.
+- Required empirical reports to retain the paper's original load-bearing result plots or qualitative panels alongside numerical summaries; recreated tables and explanatory SVGs no longer satisfy the central-result evidence gate.
+- Added a mandatory read-only audit of authoritative public code when available, without installing, importing, downloading weights/data, or executing the project.
 - Restored the original concise basic-information list, with verified homepage links for principal authors, corresponding authors or paper contacts, and the labs/research groups that host them; institution-level links are explicit fallbacks and technical extraction provenance stays internal.
 - Added restrained fit-to-view lightboxes with pointer-centered desktop wheel zoom, touch pinch zoom, zoom-only panning, bounded controls, and captions that remain inside the viewer.
-- Added bounded deep reproduction with pinned provenance, isolated `uv`/`venv` environments, an execution confirmation gate, and machine-readable run/blocker manifests.
+- Normalized converter-emitted named mathematical operators such as `TopK` and `softmax` to upright MathML identifiers with explicit function-application semantics.
 
 ### Design Rationale
-- Keep the familiar Empirical/Theoretical/Survey/Systems report backbone while loading level-, type-, HTML-, visual-, and reproduction-specific guidance only when selected.
-- Use one article-first visual system across all levels; vary source coverage and verification rather than changing the page identity or padding prose. Keep the type scale compact and limit the left rail to the section outline and source link.
-- Require diagrams to earn their place through explanatory gain, while keeping every original figure and explanatory SVG inspectable in the same accessible lightbox.
+- Keep the familiar Empirical/Theoretical/Survey/Systems report backbone while loading only type-, code-audit-, HTML-, and visual-specific guidance as needed.
+- Use one article-first visual system and one analytical depth so core engineering detail cannot disappear through mode selection. Keep the type scale compact and limit the left rail to the section outline and source link.
+- Require diagrams to earn their place through explanatory gain, with module interface maps as the one systematic exception; keep every original figure and explanatory SVG inspectable in the same accessible lightbox.
 - Preserve LaTeX source while emitting offline MathML, require natural prose under every display equation that defines every symbol before interpreting the relation, keep inline math atomic and free of scroll controls, and split overlong equations into explained, paper-faithful subexpressions instead of shrinking them or fragmenting the surrounding prose.
 
 ### Notes & Caveats
 - This is an approval candidate on an isolated feature branch; `main` and `codex` remain unchanged until the user approves the generated reports.
 - PDF extraction pins `pymupdf4llm==1.28.0` in a project-independent isolated environment and records that version while preserving raw assets/graphics metadata; final visual selection still requires human/agent render inspection.
-- The validator rejects duplicate/removed navigation surfaces, reading-lens and evidence-index controls, metadata tables or visible extraction bookkeeping, missing author/contact/lab homepage links, unmarked institution-level affiliation fallbacks, unexplained display equations, code-styled or legacy-script mathematics, unwrapped visuals, remote `srcset`/SVG image fetches, unsafe or escaping local links, and empty deep-reproduction evidence manifests. The enforced browser test covers the single outline, inline-math overflow, local equation explanations, initial image size, wheel/pinch zoom without scroll leakage, and contained captions.
+- The validator rejects duplicate/removed navigation surfaces, reading-lens and evidence-index controls, metadata tables or visible extraction bookkeeping, missing author/contact/lab homepage links, unmarked institution-level affiliation fallbacks, incomplete module anatomy, module visuals placed after their fields, merged interface nodes, missing original empirical result figures, vague code evidence, unexplained display equations, code-styled or legacy-script mathematics, unwrapped visuals, remote `srcset`/SVG image fetches, and unsafe or escaping local links. The enforced browser test covers the single outline, inline-math overflow, local equation explanations, initial image size, wheel/pinch zoom without scroll leakage, and contained captions.
 - Math rendering pins `latex2mathml==3.78.1`, parses converter output with `defusedxml==0.7.1`, enforces a shared inert presentation-MathML tag/attribute allowlist, and reserializes the checked tree before HTML embedding. Reports admit exactly one marked inline enhancement script, preventing XML/HTML parser differences from reactivating converter text; generated equations have no network dependency.
-- Blocked reproductions require pinned repository provenance when code exists; a documented `code_status=not-found` plus audit artifacts is the only no-repository exception.
-- Deep mode reproduces the smallest representative central claim by default. Full training or benchmark reproduction requires a separate resource confirmation.
+- Code inspection is deliberately read-only and must distinguish paper-stated, code-confirmed, discrepant, inferred, and unavailable details. Reproduction remains outside this report workflow.
 
 ## [2.10.0] - 2026-07-13
 

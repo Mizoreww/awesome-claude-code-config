@@ -31,4 +31,4 @@ For each central theorem:
 
 When experiments exist, add a bounded validation subsection: do observations test the theorem's regime, or merely illustrate behavior? Keep empirical support distinct from proof.
 
-Do not reproduce every algebraic step. Preserve steps that carry novelty or expose a limitation. In deep mode, reproduce a proof-critical numerical/symbolic check or official artifact when code is absent; do not invent a software benchmark solely to satisfy the mode.
+Do not restate every algebraic step. Preserve steps that carry novelty or expose a limitation. Inspect official proof artifacts or symbolic-check code read-only when available; do not invent or run a software benchmark as part of the reading workflow.

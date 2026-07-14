@@ -1,6 +1,6 @@
 # Shared report backbone
 
-Keep this sequence recognizable in every paper type. The selected level controls coverage inside each section.
+Keep this sequence recognizable in every paper type. Use the same complete, concise close-reading depth in every report.
 
 ## 1. Basic information
 
@@ -46,7 +46,7 @@ Separate these headings:
 - **What the evidence supports:** strongest claim justified by the reported setup.
 - **Author-acknowledged limitations:** quote only short necessary phrases and anchor them.
 - **Report assessment:** assumption failures, missing comparisons, metric blind spots, compute/data dependence, generalization gaps, or proof/measurement gaps.
-- **Reproducibility:** availability and sufficiency of code, data, checkpoints, specifications, and environment details.
+- **Implementation audit:** availability and sufficiency of code, data, checkpoints, specifications, and environment details; identify what the pinned public code confirms or contradicts without executing it.
 
 Pair every criticism with the evidence or missing test that makes it consequential. Avoid generic “more experiments are needed.”
 

@@ -59,7 +59,9 @@ def _assert_lightboxes(page: Any) -> None:
     assert page.locator("#lightbox").evaluate("node => node.open") is True
     page.keyboard.press("Escape")
     assert page.locator("#lightbox").evaluate("node => node.open") is False
-    svg_figure = page.locator("figure[data-lightbox]").nth(1)
+    svg_figure = page.locator(
+        'figure[data-lightbox][aria-label="SVG diagram, click to enlarge"]'
+    )
     svg_figure.click()
     assert page.locator("#diagram-clip").count() == 1
     assert page.locator("#lightbox #diagram-clip").count() == 1
@@ -96,7 +98,7 @@ def _assert_outline_and_math(page: Any) -> None:
           return location.hash === '#C1' && box.top < innerHeight && box.bottom > 0;
         }"""
     )
-    inline_metrics = page.locator(".math-inline").evaluate(
+    inline_metrics = page.locator("#inline-math-test .math-inline").evaluate(
         """node => ({
           display: getComputedStyle(node).display,
           overflowX: getComputedStyle(node).overflowX,
@@ -161,7 +163,9 @@ def _assert_reading_surface(page: Any) -> None:
 
 
 def _assert_wheel_zoom(page: Any) -> None:
-    page.locator("figure[data-lightbox]").nth(1).click()
+    page.locator(
+        'figure[data-lightbox][aria-label="SVG diagram, click to enlarge"]'
+    ).click()
     stage = page.locator("#lightbox .lightbox-stage")
     visual = stage.locator("img, svg").first
     box = visual.bounding_box()

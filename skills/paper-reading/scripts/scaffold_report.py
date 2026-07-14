@@ -10,8 +10,8 @@ from html import escape
 from pathlib import Path
 from urllib.parse import urlsplit
 
-LEVELS = {"brief", "compact", "deep"}
 PAPER_TYPES = {"empirical", "theoretical", "survey", "systems"}
+MODULE_PAPER_TYPES = {"empirical", "systems"}
 TYPE_SECTIONS = {
     "empirical": (
         ("technical-method", "C3"),
@@ -35,7 +35,6 @@ SECTION_HEADINGS = {
         "basic-information": "基本信息",
         "research-problem": "研究问题",
         "key-insight": "关键洞见",
-        "headline-evidence": "决定性证据",
         "technical-method": "技术方法",
         "experimental-results": "实验结果",
         "theoretical-framework": "理论框架",
@@ -45,14 +44,12 @@ SECTION_HEADINGS = {
         "system-design": "系统设计",
         "performance-evaluation": "性能评估",
         "critical-analysis": "批判分析",
-        "reproduction": "最小复现",
         "summary": "总结与评价",
     },
     "en": {
         "basic-information": "Basic information",
         "research-problem": "Research problem",
         "key-insight": "Key insight",
-        "headline-evidence": "Decisive evidence",
         "technical-method": "Technical method",
         "experimental-results": "Experimental results",
         "theoretical-framework": "Theoretical framework",
@@ -62,7 +59,6 @@ SECTION_HEADINGS = {
         "system-design": "System design",
         "performance-evaluation": "Performance evaluation",
         "critical-analysis": "Critical analysis",
-        "reproduction": "Minimal reproduction",
         "summary": "Summary and assessment",
     },
 }
@@ -116,6 +112,52 @@ BASIC_FACT_LABELS = {
         "one-line-summary": "One-line summary",
     },
 }
+MODULE_FIELD_LABELS = {
+    "zh": {
+        "module": "模块名称",
+        "purpose": "职责",
+        "inputs": "具体输入",
+        "outputs": "具体输出",
+        "architecture": "架构与关键参数",
+        "training-data": "训练数据与监督",
+        "training-method": "训练方法、目标与优化",
+        "inference-role": "推理时角色",
+        "interfaces": "与前后模块的接口",
+        "code-evidence": "代码核查",
+    },
+    "en": {
+        "module": "Module name",
+        "purpose": "Purpose",
+        "inputs": "Exact inputs",
+        "outputs": "Exact outputs",
+        "architecture": "Architecture and key parameters",
+        "training-data": "Training data and supervision",
+        "training-method": "Training method, objectives, and optimization",
+        "inference-role": "Inference-time role",
+        "interfaces": "Interfaces to adjacent modules",
+        "code-evidence": "Code evidence",
+    },
+}
+MODULE_DIAGRAM_COPY = {
+    "zh": {
+        "figure_label": "模块输入、变换与输出示意图，点击放大",
+        "input_a": "输入 x₁",
+        "input_b": "输入 x₂",
+        "module": "核心变换",
+        "output_a": "输出 y₁",
+        "output_b": "输出 y₂",
+        "caption": "请用论文与代码核实后的模块数据流替换此图。",
+    },
+    "en": {
+        "figure_label": "Module inputs, transformation, and outputs; click to enlarge",
+        "input_a": "Input x₁",
+        "input_b": "Input x₂",
+        "module": "Core transform",
+        "output_a": "Output y₁",
+        "output_b": "Output y₂",
+        "caption": "Replace with the module flow verified from the paper and code.",
+    },
+}
 TOKEN_RE = re.compile(r"\{\{[A-Z0-9_]+\}\}")
 
 
@@ -147,6 +189,7 @@ def _section(
     coordinate: str | None = None,
     kind: str | None = None,
     supports: str = "",
+    body_html: str | None = None,
 ) -> str:
     html_id = coordinate or section_name
     attributes = [
@@ -160,12 +203,75 @@ def _section(
     if supports:
         attributes.append(f'data-supports="{escape(supports)}"')
     marker = coordinate or number
+    body = body_html or f"<p>{escape(placeholder)}</p>"
     return f"""
         <section {" ".join(attributes)} class="argument-block">
           <div class="section-mark"><span>{escape(marker)}</span><small>{escape(section_name)}</small></div>
           <h2>{escape(heading)}</h2>
-          <p>{escape(placeholder)}</p>
+          {body}
         </section>"""
+
+
+def _module_anatomy(locale: str, placeholder: str) -> str:
+    labels = MODULE_FIELD_LABELS[locale]
+    diagram = MODULE_DIAGRAM_COPY[locale]
+    fields = (
+        "purpose",
+        "inputs",
+        "outputs",
+        "architecture",
+        "training-data",
+        "training-method",
+        "inference-role",
+        "interfaces",
+        "code-evidence",
+    )
+    field_fragments: list[str] = []
+    for field in fields:
+        if field in {"inputs", "outputs"}:
+            symbol = "x" if field == "inputs" else "y"
+            content = f'''<ul class="module-io-list">
+                  <li><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><msub><mi>{symbol}</mi><mn>1</mn></msub><annotation encoding="application/x-tex">{symbol}_1</annotation></semantics></math></span> {escape(placeholder)}</li>
+                  <li><span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><semantics><msub><mi>{symbol}</mi><mn>2</mn></msub><annotation encoding="application/x-tex">{symbol}_2</annotation></semantics></math></span> {escape(placeholder)}</li>
+                </ul>'''
+        else:
+            content = f"<p>{escape(placeholder)}</p>"
+        field_fragments.append(
+            f'''              <div class="module-field" data-module-field="{field}">
+                <h4>{escape(labels[field])}</h4>
+                {content}
+              </div>'''
+        )
+    field_html = "\n".join(field_fragments)
+    return f'''<p>{escape(placeholder)}</p>
+          <div class="module-anatomy" data-module-anatomy>
+            <article class="module-card" data-module="replace-with-module-name">
+              <h3>{escape(labels["module"])}</h3>
+              <figure class="module-visual" data-module-visual data-lightbox tabindex="0" role="button" aria-label="{escape(diagram["figure_label"])}">
+                <svg class="module-diagram" viewBox="0 0 960 240" role="img" aria-label="{escape(diagram["figure_label"])}">
+                  <rect class="diagram-node diagram-input" x="24" y="32" width="180" height="64" rx="10"></rect>
+                  <rect class="diagram-node diagram-input" x="24" y="144" width="180" height="64" rx="10"></rect>
+                  <path class="diagram-arrow" d="M204 64 H302 V120 H370"></path>
+                  <path class="diagram-arrow" d="M204 176 H302 V120"></path>
+                  <path class="diagram-arrowhead" d="M370 120 l-11 -7 v14 z"></path>
+                  <rect class="diagram-node diagram-core" x="370" y="70" width="220" height="100" rx="12"></rect>
+                  <path class="diagram-arrow" d="M590 120 H674 V64 H756"></path>
+                  <path class="diagram-arrow" d="M674 120 V176 H756"></path>
+                  <path class="diagram-arrowhead" d="M756 64 l-11 -7 v14 z"></path>
+                  <path class="diagram-arrowhead" d="M756 176 l-11 -7 v14 z"></path>
+                  <rect class="diagram-node diagram-output" x="756" y="32" width="180" height="64" rx="10"></rect>
+                  <rect class="diagram-node diagram-output" x="756" y="144" width="180" height="64" rx="10"></rect>
+                  <text x="114" y="64">{escape(diagram["input_a"])}</text>
+                  <text x="114" y="176">{escape(diagram["input_b"])}</text>
+                  <text x="480" y="120">{escape(diagram["module"])}</text>
+                  <text x="846" y="64">{escape(diagram["output_a"])}</text>
+                  <text x="846" y="176">{escape(diagram["output_b"])}</text>
+                </svg>
+                <figcaption>{escape(diagram["caption"])}</figcaption>
+              </figure>
+{field_html}
+            </article>
+          </div>'''
 
 
 def _basic_information_section(
@@ -226,11 +332,7 @@ def _core_sections(headings: dict[str, str]) -> list[SectionSpec]:
     ]
 
 
-def _evidence_sections(
-    paper_type: str, level: str, headings: dict[str, str]
-) -> list[SectionSpec]:
-    if level == "brief":
-        return [("headline-evidence", headings["headline-evidence"], "E1", "evidence")]
+def _type_sections(paper_type: str, headings: dict[str, str]) -> list[SectionSpec]:
     return [
         (
             section_name,
@@ -242,11 +344,9 @@ def _evidence_sections(
     ]
 
 
-def _report_sections(
-    paper_type: str, level: str, headings: dict[str, str]
-) -> list[SectionSpec]:
+def _report_sections(paper_type: str, headings: dict[str, str]) -> list[SectionSpec]:
     sections = _core_sections(headings)
-    sections.extend(_evidence_sections(paper_type, level, headings))
+    sections.extend(_type_sections(paper_type, headings))
     sections.append(
         (
             "critical-analysis",
@@ -255,15 +355,6 @@ def _report_sections(
             "limitation",
         )
     )
-    if level == "deep":
-        sections.append(
-            (
-                "reproduction",
-                headings["reproduction"],
-                "R1",
-                "reproduction",
-            )
-        )
     sections.append(("summary", headings["summary"], None, None))
     return sections
 
@@ -271,7 +362,6 @@ def _report_sections(
 def _render_sections(
     *,
     paper_type: str,
-    level: str,
     locale: str,
     title: str,
     authors: str,
@@ -282,7 +372,7 @@ def _render_sections(
     outline_html: list[str] = []
     copy = UI_COPY[locale]
     for index, spec in enumerate(
-        _report_sections(paper_type, level, SECTION_HEADINGS[locale]), start=1
+        _report_sections(paper_type, SECTION_HEADINGS[locale]), start=1
     ):
         section_name, heading, coordinate, kind = spec
         section_id = coordinate or section_name
@@ -311,6 +401,12 @@ def _render_sections(
                     coordinate=coordinate,
                     kind=kind,
                     supports=supports,
+                    body_html=(
+                        _module_anatomy(locale, copy["placeholder"])
+                        if paper_type in MODULE_PAPER_TYPES
+                        and section_name in {"technical-method", "system-design"}
+                        else None
+                    ),
                 )
             )
         outline_html.append(f'<a href="#{escape(section_id)}">{escape(heading)}</a>')
@@ -323,7 +419,6 @@ def _render_sections(
 def _validate_inputs(
     *,
     paper_type: str,
-    level: str,
     language: str,
     title: str,
     title_focus: str,
@@ -333,8 +428,6 @@ def _validate_inputs(
 ) -> tuple[str, str, str]:
     if paper_type not in PAPER_TYPES:
         raise ValueError(f"unknown paper type: {paper_type}")
-    if level not in LEVELS:
-        raise ValueError(f"unknown reading level: {level}")
     if not language.strip():
         raise ValueError("language cannot be empty")
     _language_family(language)
@@ -362,7 +455,6 @@ def _template_replacements(
     authors: str,
     thesis: str,
     paper_type: str,
-    level: str,
     source: str,
     sections: tuple[str, str],
     style: str,
@@ -385,7 +477,6 @@ def _template_replacements(
             "{{TITLE_AFTER}}": escape(title_after),
             "{{AUTHORS}}": escape(authors),
             "{{THESIS}}": escape(thesis),
-            "{{LEVEL}}": escape(level),
             "{{PAPER_TYPE}}": escape(paper_type),
             "{{OUTLINE}}": outline,
             "{{REPORT_SECTIONS}}": report_sections,
@@ -416,11 +507,9 @@ def _load_report_assets() -> tuple[str, str, str]:
     return template, style, script
 
 
-def _write_report(output_dir: Path, level: str, html: str) -> Path:
+def _write_report(output_dir: Path, html: str) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "assets").mkdir()
-    if level == "deep":
-        (output_dir / "reproduction").mkdir()
     summary_path = output_dir / "summary.html"
     summary_path.write_text(html, encoding="utf-8")
     return summary_path
@@ -439,7 +528,6 @@ def scaffold_report(
     title_focus: str,
     authors: str,
     paper_type: str,
-    level: str,
     thesis: str,
     language: str = "zh-CN",
     source: str = "",
@@ -448,7 +536,6 @@ def scaffold_report(
     output_dir = Path(output_dir)
     title_parts = _validate_inputs(
         paper_type=paper_type,
-        level=level,
         language=language,
         title=title,
         title_focus=title_focus,
@@ -462,7 +549,6 @@ def scaffold_report(
     locale = _language_family(language)
     sections = _render_sections(
         paper_type=paper_type,
-        level=level,
         locale=locale,
         title=title,
         authors=authors,
@@ -477,14 +563,13 @@ def scaffold_report(
         authors=authors,
         thesis=thesis,
         paper_type=paper_type,
-        level=level,
         source=source,
         sections=sections,
         style=style,
         script=script,
     )
     html = _apply_replacements(template, replacements)
-    return _write_report(output_dir, level, html)
+    return _write_report(output_dir, html)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -496,7 +581,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--paper-type", required=True, choices=tuple(sorted(PAPER_TYPES))
     )
-    parser.add_argument("--level", required=True, choices=tuple(sorted(LEVELS)))
     parser.add_argument("--thesis", required=True)
     parser.add_argument("--language", default="zh-CN")
     parser.add_argument("--source", default="")
@@ -512,7 +596,6 @@ def main(argv: list[str] | None = None) -> int:
             title_focus=args.title_focus,
             authors=args.authors,
             paper_type=args.paper_type,
-            level=args.level,
             thesis=args.thesis,
             language=args.language,
             source=args.source,

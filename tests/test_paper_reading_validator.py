@@ -1,9 +1,7 @@
-import json
 import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 
 import pytest
 from paper_reading_helpers import SCRIPTS_DIR, load_script, write_valid_report
@@ -21,7 +19,10 @@ CONTRACT_CORRUPTIONS = (
         "<script data-report-script>",
         '<script src="https://example.test/app.js"></script><script data-report-script>',
     ),
-    ('data-level="compact"', 'data-level="wide"'),
+    (
+        'data-paper-report data-paper-type="empirical"',
+        'data-paper-report data-level="brief" data-paper-type="empirical"',
+    ),
     ('data-paper-type="empirical"', 'data-paper-type="unknown"'),
     ('class="report-hero"', 'class="plain"'),
     ('aria-label="阅读导航"', ""),
@@ -66,24 +67,109 @@ EXPECTED_CONTRACT_ERRORS = (
     "E404",
     "does not match data-kind",
 )
-
-
-def _blocked_report(tmp_path: Path, name: str) -> tuple[Any, Path, Path]:
-    validator = load_script("validate_report")
-    report = write_valid_report(tmp_path / name, level="deep")
-    reproduction = report.parent / "reproduction"
-    reproduction.mkdir()
-    (reproduction / "audit.log").write_text(
-        "audited official sources\n", encoding="utf-8"
-    )
-    return validator, report, reproduction
-
-
 @pytest.mark.unit
-def test_validator_accepts_a_complete_compact_report(tmp_path: Path) -> None:
+def test_validator_accepts_a_complete_report(tmp_path: Path) -> None:
     validator = load_script("validate_report")
     report = write_valid_report(tmp_path / "report")
     assert validator.validate_report(report) == []
+
+
+@pytest.mark.unit
+def test_validator_requires_original_result_evidence_for_empirical_reports(
+    tmp_path: Path,
+) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "missing-original-result")
+    report.write_text(
+        report.read_text(encoding="utf-8").replace(
+            "data-original-result", "data-recreated-result", 1
+        ),
+        encoding="utf-8",
+    )
+    assert any(
+        "original paper result figure" in error
+        for error in validator.validate_report(report)
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("old", "new", "message"),
+    (
+        ("data-module-anatomy", "data-missing-module-anatomy", "module-anatomy"),
+        (
+            'data-module-field="inputs"',
+            'data-module-field="unknown-inputs"',
+            "missing field: inputs",
+        ),
+        (
+            "commit 0123456 · models/encoder.py::Encoder。",
+            "代码主页中似乎存在对应实现。",
+            "code-evidence requires",
+        ),
+        (
+            "data-module-visual",
+            "data-missing-module-visual",
+            "requires exactly one adjacent data-module-visual SVG",
+        ),
+        (
+            '<ul class="module-io-list">',
+            '<div class="module-io-list">',
+            "inputs must use an unordered list",
+        ),
+        (
+            '<math display="inline"><semantics><mi>x</mi><annotation encoding="application/x-tex">x</annotation></semantics></math>',
+            "x",
+            "inputs requires static MathML symbols",
+        ),
+    ),
+)
+def test_validator_requires_complete_module_anatomy(
+    tmp_path: Path, old: str, new: str, message: str
+) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / message.replace(" ", "-"))
+    report.write_text(
+        report.read_text(encoding="utf-8").replace(old, new, 1),
+        encoding="utf-8",
+    )
+    assert any(message in error for error in validator.validate_report(report))
+
+
+@pytest.mark.unit
+def test_validator_requires_module_visual_before_fields(tmp_path: Path) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "visual-order")
+    html = report.read_text(encoding="utf-8")
+    visual = re.search(
+        r'\s*<figure class="module-visual".*?</figure>', html, re.DOTALL
+    )
+    assert visual is not None
+    moved = html[: visual.start()] + html[visual.end() :]
+    moved = moved.replace("</article>", visual.group(0) + "\n          </article>", 1)
+    report.write_text(moved, encoding="utf-8")
+    assert any(
+        "module visual must appear above every detail field" in error
+        for error in validator.validate_report(report)
+    )
+
+
+@pytest.mark.unit
+def test_validator_requires_separate_nodes_for_parallel_interfaces(
+    tmp_path: Path,
+) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "separate-interface-nodes")
+    html = report.read_text(encoding="utf-8").replace(
+        "归一化图像张量。</li></ul>",
+        "归一化图像张量。</li><li>第二个独立输入。</li></ul>",
+        1,
+    )
+    report.write_text(html, encoding="utf-8")
+    assert any(
+        "separate diagram input node" in error
+        for error in validator.validate_report(report)
+    )
 
 
 @pytest.mark.unit
@@ -516,7 +602,7 @@ def test_validator_checks_local_hyperlinks_and_unsafe_schemes(tmp_path: Path) ->
     report = write_valid_report(tmp_path / "report")
     html = report.read_text(encoding="utf-8").replace(
         "</main>",
-        '<a href="reproduction/missing.json">missing</a>'
+        '<a href="notes/missing.md">missing</a>'
         '<a href="../escape.txt">escape</a>'
         '<a href="javascript:alert(1)">unsafe</a>'
         '<a href="https://example.test/allowed">external</a>'
@@ -524,59 +610,10 @@ def test_validator_checks_local_hyperlinks_and_unsafe_schemes(tmp_path: Path) ->
     )
     report.write_text(html, encoding="utf-8")
     errors = validator.validate_report(report)
-    assert any("reproduction/missing.json" in error for error in errors)
+    assert any("notes/missing.md" in error for error in errors)
     assert any("../escape.txt" in error for error in errors)
     assert any("javascript" in error for error in errors)
     assert not any("example.test/allowed" in error for error in errors)
-
-
-@pytest.mark.unit
-def test_validator_requires_a_complete_deep_reproduction_manifest(
-    tmp_path: Path,
-) -> None:
-    validator = load_script("validate_report")
-    output_dir = tmp_path / "report"
-    report = write_valid_report(output_dir, level="deep")
-    errors = validator.validate_report(report)
-    assert any("reproduction/manifest.json" in error for error in errors)
-
-    reproduction_dir = output_dir / "reproduction"
-    reproduction_dir.mkdir()
-    (reproduction_dir / "run.log").write_text(
-        "representative check: passed\n", encoding="utf-8"
-    )
-    (reproduction_dir / "manifest.json").write_text(
-        json.dumps(
-            {
-                "status": "passed",
-                "repository": "https://github.com/example/project",
-                "commit": "0123456789abcdef0123456789abcdef01234567",
-                "claim": "C1",
-                "command": "uv run reproduce.py",
-                "environment": "Python 3.12, CPU",
-                "result": "The representative check passed.",
-                "artifacts": ["run.log"],
-            }
-        ),
-        encoding="utf-8",
-    )
-    assert validator.validate_report(report) == []
-
-    manifest = json.loads(
-        (reproduction_dir / "manifest.json").read_text(encoding="utf-8")
-    )
-    manifest["artifacts"] = []
-    (reproduction_dir / "manifest.json").write_text(
-        json.dumps(manifest), encoding="utf-8"
-    )
-    assert any("artifacts" in error for error in validator.validate_report(report))
-
-    manifest["artifacts"] = ["run.log"]
-    manifest["repository"] = "javascript:alert(1)"
-    (reproduction_dir / "manifest.json").write_text(
-        json.dumps(manifest), encoding="utf-8"
-    )
-    assert any("repository" in error for error in validator.validate_report(report))
 
 
 @pytest.mark.unit
@@ -588,7 +625,7 @@ def test_validator_requires_a_complete_deep_reproduction_manifest(
         ("systems", "system-design", "performance-evaluation"),
     ],
 )
-def test_validator_accepts_each_compact_paper_type(
+def test_validator_accepts_each_paper_type(
     tmp_path: Path, paper_type: str, first_section: str, second_section: str
 ) -> None:
     validator = load_script("validate_report")
@@ -607,64 +644,6 @@ def test_validator_rejects_generic_hybrid_paper_type(tmp_path: Path) -> None:
     report = write_valid_report(tmp_path / "hybrid", paper_type="hybrid")
     errors = validator.validate_report(report)
     assert any("data-paper-type" in error for error in errors)
-
-
-@pytest.mark.unit
-def test_validator_accepts_brief_contract(tmp_path: Path) -> None:
-    validator = load_script("validate_report")
-    brief = write_valid_report(tmp_path / "brief", level="brief")
-    brief.write_text(
-        brief.read_text(encoding="utf-8").replace(
-            "experimental-results", "headline-evidence"
-        ),
-        encoding="utf-8",
-    )
-    assert validator.validate_report(brief) == []
-
-
-@pytest.mark.unit
-def test_validator_accepts_blocked_repository_contract(tmp_path: Path) -> None:
-    validator, deep, reproduction = _blocked_report(tmp_path, "blocked-repository")
-    (reproduction / "manifest.json").write_text(
-        json.dumps(
-            {
-                "status": "blocked",
-                "repository": "https://github.com/example/project",
-                "commit": "0123456789abcdef0123456789abcdef01234567",
-                "claim": "C1",
-                "environment": "Python 3.12, CPU",
-                "artifacts": ["audit.log"],
-                "blocker": "Official checkpoint requires unavailable gated data.",
-                "audited_sources": ["https://example.test/official"],
-            }
-        ),
-        encoding="utf-8",
-    )
-    assert validator.validate_report(deep) == []
-
-
-@pytest.mark.unit
-def test_validator_accepts_blocked_no_code_contract(tmp_path: Path) -> None:
-    validator, deep, reproduction = _blocked_report(tmp_path, "blocked-no-code")
-    (reproduction / "manifest.json").write_text(
-        json.dumps(
-            {
-                "status": "blocked",
-                "code_status": "not-found",
-                "claim": "C1",
-                "environment": "Python 3.12, CPU",
-                "artifacts": ["audit.log"],
-                "blocker": "No authoritative implementation was released or linked.",
-                "audited_sources": ["https://example.test/official"],
-            }
-        ),
-        encoding="utf-8",
-    )
-    assert validator.validate_report(deep) == []
-    manifest = json.loads((reproduction / "manifest.json").read_text(encoding="utf-8"))
-    manifest["commit"] = "abcdef0"
-    (reproduction / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-    assert any("must omit" in error for error in validator.validate_report(deep))
 
 
 @pytest.mark.unit
@@ -722,40 +701,11 @@ def test_validator_surfaces_independent_contract_violations(tmp_path: Path) -> N
 
 
 @pytest.mark.unit
-def test_validator_handles_missing_and_malformed_reproduction_files(
-    tmp_path: Path,
-) -> None:
+def test_validator_handles_a_missing_report(tmp_path: Path) -> None:
     validator = load_script("validate_report")
     assert validator.validate_report(tmp_path / "missing.html") == [
         f"report does not exist: {tmp_path / 'missing.html'}"
     ]
-
-    output_dir = tmp_path / "deep"
-    report = write_valid_report(output_dir, level="deep")
-    reproduction = output_dir / "reproduction"
-    reproduction.mkdir()
-    (reproduction / "manifest.json").write_text("not json", encoding="utf-8")
-    assert any("not valid JSON" in error for error in validator.validate_report(report))
-    (reproduction / "manifest.json").write_text("[]", encoding="utf-8")
-    assert any("JSON object" in error for error in validator.validate_report(report))
-    (reproduction / "manifest.json").write_text(
-        json.dumps(
-            {
-                "status": "blocked",
-                "claim": "E1",
-                "environment": "",
-                "artifacts": [],
-                "audited_sources": [None],
-            }
-        ),
-        encoding="utf-8",
-    )
-    errors = validator.validate_report(report)
-    assert any("status" not in error and "claim" in error for error in errors)
-    assert any("repository" in error and "code_status" in error for error in errors)
-    assert any("artifacts" in error for error in errors)
-    assert any("blocker" in error for error in errors)
-    assert any("audited_sources" in error for error in errors)
 
 
 @pytest.mark.integration
