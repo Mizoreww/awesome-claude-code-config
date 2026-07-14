@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -39,6 +40,16 @@ def test_skill_is_layered_portable_and_points_to_every_reference() -> None:
         encoding="utf-8"
     )
     assert "shallow clone" in level_guidance
+
+    script = (SKILL_DIR / "assets" / "report.js").read_text(encoding="utf-8")
+    assert not re.search(r"\bview\.(?:x|y|scale)\s*=", script)
+    assert "pointers.set(" not in script
+    policy = SKILL_DIR / "scripts" / "mathml_policy.py"
+    assert policy.is_file()
+    for consumer in ("render_math.py", "validate_report.py"):
+        assert "from mathml_policy import" in (
+            SKILL_DIR / "scripts" / consumer
+        ).read_text(encoding="utf-8")
 
 
 @pytest.mark.unit

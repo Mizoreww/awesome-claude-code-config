@@ -107,7 +107,7 @@ def _assert_reading_surface(page: Any) -> None:
 
 
 def _assert_wheel_zoom(page: Any) -> None:
-    page.locator("figure[data-lightbox]").first.click()
+    page.locator("figure[data-lightbox]").nth(1).click()
     stage = page.locator("#lightbox .lightbox-stage")
     visual = stage.locator("img, svg").first
     box = visual.bounding_box()
@@ -116,19 +116,33 @@ def _assert_wheel_zoom(page: Any) -> None:
     assert viewport is not None
     assert box["width"] <= viewport["width"] * 0.86
     assert box["height"] <= viewport["height"] * 0.78
-    stage_box = stage.bounding_box()
-    assert stage_box is not None
+    pointer = {
+        "x": box["x"] + box["width"] * 0.68,
+        "y": box["y"] + box["height"] * 0.35,
+    }
+    anchor_before = {
+        "x": (pointer["x"] - box["x"]) / box["width"],
+        "y": (pointer["y"] - box["y"]) / box["height"],
+    }
     page.mouse.move(
-        stage_box["x"] + stage_box["width"] / 2,
-        stage_box["y"] + stage_box["height"] / 2,
+        pointer["x"],
+        pointer["y"],
     )
     before = float(stage.get_attribute("data-zoom") or "1")
     scroll_before = page.evaluate(
         "() => ({page: window.scrollY, stage: document.querySelector('.lightbox-stage').scrollTop})"
     )
-    page.mouse.wheel(0, -260)
+    page.mouse.wheel(0, -600)
     page.wait_for_timeout(50)
     assert float(stage.get_attribute("data-zoom") or "1") > before
+    zoomed_box = visual.bounding_box()
+    assert zoomed_box is not None
+    anchor_after = {
+        "x": (pointer["x"] - zoomed_box["x"]) / zoomed_box["width"],
+        "y": (pointer["y"] - zoomed_box["y"]) / zoomed_box["height"],
+    }
+    assert abs(anchor_after["x"] - anchor_before["x"]) < 0.015
+    assert abs(anchor_after["y"] - anchor_before["y"]) < 0.015
     assert (
         page.evaluate(
             "() => ({page: window.scrollY, stage: document.querySelector('.lightbox-stage').scrollTop})"

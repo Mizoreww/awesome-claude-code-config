@@ -108,6 +108,57 @@ def test_validator_requires_static_mathml_in_math_blocks(tmp_path: Path) -> None
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    "replacement",
+    (
+        '<em class="title-focus"></em>',
+        '</h1><em class="title-focus">精读</em><h1>',
+    ),
+)
+def test_validator_requires_nonempty_title_focus_inside_h1(
+    tmp_path: Path, replacement: str
+) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "report")
+    html = report.read_text(encoding="utf-8").replace(
+        '<em class="title-focus">精读</em>', replacement
+    )
+    report.write_text(html, encoding="utf-8")
+    assert any("title focus" in error for error in validator.validate_report(report))
+
+
+@pytest.mark.unit
+def test_validator_rejects_legacy_inline_math_markup(tmp_path: Path) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "report")
+    html = report.read_text(encoding="utf-8").replace(
+        "</main>", "<p><em>q=f#p<sub>ε</sub></em> and <code>φ</code></p></main>"
+    )
+    report.write_text(html, encoding="utf-8")
+    errors = validator.validate_report(report)
+    assert any("legacy inline math" in error for error in errors)
+    assert any("math-like code" in error for error in errors)
+
+
+@pytest.mark.unit
+def test_validator_rejects_unsafe_mathml_markup(tmp_path: Path) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "report")
+    unsafe_math = (
+        '<span class="math-inline"><math xmlns="http://www.w3.org/1998/Math/MathML" '
+        'display="inline"><semantics><mrow style="position:fixed"><mtext '
+        'href="javascript:alert(1)">x</mtext></mrow><annotation '
+        'encoding="application/x-tex">x</annotation></semantics></math></span>'
+    )
+    html = report.read_text(encoding="utf-8").replace(
+        "</main>", f"{unsafe_math}</main>"
+    )
+    report.write_text(html, encoding="utf-8")
+    errors = validator.validate_report(report)
+    assert any("unsafe MathML" in error for error in errors)
+
+
+@pytest.mark.unit
 def test_validator_reports_broken_assets_and_inaccessible_visuals(
     tmp_path: Path,
 ) -> None:
