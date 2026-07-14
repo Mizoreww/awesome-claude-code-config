@@ -4,10 +4,18 @@ Keep this sequence recognizable in every paper type. The selected level controls
 
 ## 1. Basic information
 
-- Title, authors, affiliations when relevant, venue/version/date, canonical paper link, and code/project links.
-- Primary paper type and any secondary module.
-- One sentence containing the problem, mechanism, and demonstrated result.
-- Reading level, source version, and coverage boundary.
+Follow the original compact list shape rather than a table or metadata grid:
+
+- **Title**
+- **Authors** — link each principal author to an official or personal homepage.
+- **Corresponding author / paper contact** — link the explicitly named corresponding author; when the public paper does not identify one, say so and link a verified paper contact such as the official submitter instead of guessing.
+- **Affiliation / lab** — link each represented lab or research group to its authoritative homepage. Prefer the group that actually hosts the named authors, not the university root. Use a department or institution homepage only when no authoritative lab/group page can be verified, and label that fallback explicitly.
+- **Published** — venue, version, and date when available.
+- **Link** — canonical paper page; add project/code links only when useful.
+- **Paper Type** — primary type and any named secondary module.
+- **One-line summary** — one sentence containing the problem, mechanism, and demonstrated result.
+
+Keep PDF hashes, physical-page conventions, extraction directories, raw-asset counts, and other implementation provenance in internal manifests or working notes, never in this visible section.
 
 ## 2. Research problem
 

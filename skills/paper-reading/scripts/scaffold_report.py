@@ -14,20 +14,20 @@ LEVELS = {"brief", "compact", "deep"}
 PAPER_TYPES = {"empirical", "theoretical", "survey", "systems"}
 TYPE_SECTIONS = {
     "empirical": (
-        ("technical-method", "C3", "method"),
-        ("experimental-results", "E1", "evidence"),
+        ("technical-method", "C3"),
+        ("experimental-results", "E1"),
     ),
     "theoretical": (
-        ("theoretical-framework", "C3", "method"),
-        ("theoretical-analysis", "E1", "evidence"),
+        ("theoretical-framework", "C3"),
+        ("theoretical-analysis", "E1"),
     ),
     "survey": (
-        ("taxonomy", "C3", "method"),
-        ("open-problems", "E1", "evidence"),
+        ("taxonomy", "C3"),
+        ("open-problems", "E1"),
     ),
     "systems": (
-        ("system-design", "C3", "method"),
-        ("performance-evaluation", "E1", "evidence"),
+        ("system-design", "C3"),
+        ("performance-evaluation", "E1"),
     ),
 }
 SECTION_HEADINGS = {
@@ -70,15 +70,7 @@ UI_COPY = {
     "zh": {
         "skip_link": "跳到正文",
         "reader_navigation_label": "阅读导航",
-        "reading_lenses_label": "阅读视角",
-        "all_label": "全部",
-        "method_label": "方法",
-        "evidence_label": "证据",
-        "critique_label": "批判",
-        "reproduction_label": "复现",
         "outline_label": "文章目录",
-        "evidence_index_label": "证据索引",
-        "evidence_rail_label": "证据",
         "lightbox_label": "大图查看器",
         "close_lightbox_label": "关闭大图",
         "zoom_controls_label": "图像缩放",
@@ -91,15 +83,7 @@ UI_COPY = {
     "en": {
         "skip_link": "Skip to report",
         "reader_navigation_label": "Reading navigation",
-        "reading_lenses_label": "Reading lenses",
-        "all_label": "All",
-        "method_label": "Method",
-        "evidence_label": "Evidence",
-        "critique_label": "Critique",
-        "reproduction_label": "Reproduction",
         "outline_label": "Report outline",
-        "evidence_index_label": "Evidence index",
-        "evidence_rail_label": "Evidence",
         "lightbox_label": "Enlarged visual viewer",
         "close_lightbox_label": "Close enlarged visual",
         "zoom_controls_label": "Image zoom",
@@ -108,6 +92,28 @@ UI_COPY = {
         "zoom_in_label": "Zoom in",
         "view_source_label": "View source ↗",
         "placeholder": "[Replace this paragraph with dense, evidence-anchored content.]",
+    },
+}
+BASIC_FACT_LABELS = {
+    "zh": {
+        "title": "标题",
+        "authors": "作者",
+        "contact": "通讯作者 / 论文联系人",
+        "affiliation": "机构",
+        "published": "发表信息",
+        "link": "链接",
+        "paper-type": "论文类型",
+        "one-line-summary": "一句话总结",
+    },
+    "en": {
+        "title": "Title",
+        "authors": "Authors",
+        "contact": "Corresponding author / paper contact",
+        "affiliation": "Affiliation",
+        "published": "Published",
+        "link": "Link",
+        "paper-type": "Paper Type",
+        "one-line-summary": "One-line summary",
     },
 }
 TOKEN_RE = re.compile(r"\{\{[A-Z0-9_]+\}\}")
@@ -140,14 +146,12 @@ def _section(
     placeholder: str,
     coordinate: str | None = None,
     kind: str | None = None,
-    lenses: str = "",
     supports: str = "",
 ) -> str:
     html_id = coordinate or section_name
     attributes = [
         f'id="{escape(html_id)}"',
         f'data-section="{escape(section_name)}"',
-        f'data-lenses="{escape(lenses)}"',
     ]
     if coordinate:
         attributes.append(f'data-coordinate="{escape(coordinate)}"')
@@ -164,26 +168,61 @@ def _section(
         </section>"""
 
 
-SectionSpec = tuple[str, str, str | None, str | None, str]
+def _basic_information_section(
+    *,
+    number: str,
+    heading: str,
+    locale: str,
+    title: str,
+    authors: str,
+    paper_type: str,
+    thesis: str,
+    source: str,
+    placeholder: str,
+) -> str:
+    labels = BASIC_FACT_LABELS[locale]
+    source_value = (
+        f'<a href="{escape(source, quote=True)}">{escape(source)}</a>'
+        if source
+        else escape(placeholder)
+    )
+    facts = (
+        ("title", escape(title)),
+        ("authors", escape(authors)),
+        ("contact", escape(placeholder)),
+        ("affiliation", escape(placeholder)),
+        ("published", escape(placeholder)),
+        ("link", source_value),
+        ("paper-type", escape(paper_type)),
+        ("one-line-summary", escape(thesis)),
+    )
+    items = "\n".join(
+        f'            <li data-paper-field="{field}"><strong>{escape(labels[field])}:</strong> {value}</li>'
+        for field, value in facts
+    )
+    return f"""
+        <section id="basic-information" data-section="basic-information" class="argument-block">
+          <div class="section-mark"><span>{escape(number)}</span><small>basic-information</small></div>
+          <h2>{escape(heading)}</h2>
+          <ul class="paper-facts" data-paper-facts>
+{items}
+          </ul>
+        </section>"""
+
+
+SectionSpec = tuple[str, str, str | None, str | None]
 
 
 def _core_sections(headings: dict[str, str]) -> list[SectionSpec]:
     return [
-        (
-            "basic-information",
-            headings["basic-information"],
-            None,
-            None,
-            "method evidence",
-        ),
+        ("basic-information", headings["basic-information"], None, None),
         (
             "research-problem",
             headings["research-problem"],
             "C1",
             "claim",
-            "method critique",
         ),
-        ("key-insight", headings["key-insight"], "C2", "claim", "method"),
+        ("key-insight", headings["key-insight"], "C2", "claim"),
     ]
 
 
@@ -191,24 +230,15 @@ def _evidence_sections(
     paper_type: str, level: str, headings: dict[str, str]
 ) -> list[SectionSpec]:
     if level == "brief":
-        return [
-            (
-                "headline-evidence",
-                headings["headline-evidence"],
-                "E1",
-                "evidence",
-                "evidence",
-            )
-        ]
+        return [("headline-evidence", headings["headline-evidence"], "E1", "evidence")]
     return [
         (
             section_name,
             headings[section_name],
             coordinate,
             "evidence" if coordinate.startswith("E") else "claim",
-            lens,
         )
-        for section_name, coordinate, lens in TYPE_SECTIONS[paper_type]
+        for section_name, coordinate in TYPE_SECTIONS[paper_type]
     ]
 
 
@@ -223,7 +253,6 @@ def _report_sections(
             headings["critical-analysis"],
             "L1",
             "limitation",
-            "critique",
         )
     )
     if level == "deep":
@@ -233,48 +262,61 @@ def _report_sections(
                 headings["reproduction"],
                 "R1",
                 "reproduction",
-                "reproduction",
             )
         )
-    sections.append(
-        ("summary", headings["summary"], None, None, "method evidence critique")
-    )
+    sections.append(("summary", headings["summary"], None, None))
     return sections
 
 
-def _render_sections(paper_type: str, level: str, locale: str) -> tuple[str, str, str]:
+def _render_sections(
+    *,
+    paper_type: str,
+    level: str,
+    locale: str,
+    title: str,
+    authors: str,
+    thesis: str,
+    source: str,
+) -> tuple[str, str]:
     section_html: list[str] = []
     outline_html: list[str] = []
-    evidence_html: list[str] = []
     copy = UI_COPY[locale]
     for index, spec in enumerate(
         _report_sections(paper_type, level, SECTION_HEADINGS[locale]), start=1
     ):
-        section_name, heading, coordinate, kind, lenses = spec
+        section_name, heading, coordinate, kind = spec
         section_id = coordinate or section_name
         supports = "E1" if kind in {"claim", "limitation"} else ""
-        section_html.append(
-            _section(
-                number=f"{index:02d}",
-                section_name=section_name,
-                heading=heading,
-                placeholder=copy["placeholder"],
-                coordinate=coordinate,
-                kind=kind,
-                lenses=lenses,
-                supports=supports,
+        if section_name == "basic-information":
+            section_html.append(
+                _basic_information_section(
+                    number=f"{index:02d}",
+                    heading=heading,
+                    locale=locale,
+                    title=title,
+                    authors=authors,
+                    paper_type=paper_type,
+                    thesis=thesis,
+                    source=source,
+                    placeholder=copy["placeholder"],
+                )
             )
-        )
+        else:
+            section_html.append(
+                _section(
+                    number=f"{index:02d}",
+                    section_name=section_name,
+                    heading=heading,
+                    placeholder=copy["placeholder"],
+                    coordinate=coordinate,
+                    kind=kind,
+                    supports=supports,
+                )
+            )
         outline_html.append(f'<a href="#{escape(section_id)}">{escape(heading)}</a>')
-        if coordinate and kind:
-            evidence_html.append(
-                f'<a class="rail-item" data-kind="{escape(kind)}" data-trace="{escape(coordinate)}" '
-                f'href="#{escape(coordinate)}"><b>{escape(coordinate)}</b><span>{escape(heading)}</span></a>'
-            )
     return (
         "\n".join(section_html),
         "\n        ".join(outline_html),
-        "\n        ".join(evidence_html),
     )
 
 
@@ -322,12 +364,12 @@ def _template_replacements(
     paper_type: str,
     level: str,
     source: str,
-    sections: tuple[str, str, str],
+    sections: tuple[str, str],
     style: str,
     script: str,
 ) -> dict[str, str]:
     copy = UI_COPY[locale]
-    report_sections, outline, evidence_rail = sections
+    report_sections, outline = sections
     title_before, title_focus, title_after = title_parts
     replacements = {
         f"{{{{{key.upper()}}}}}": escape(value)
@@ -347,29 +389,20 @@ def _template_replacements(
             "{{PAPER_TYPE}}": escape(paper_type),
             "{{OUTLINE}}": outline,
             "{{REPORT_SECTIONS}}": report_sections,
-            "{{EVIDENCE_RAIL}}": evidence_rail,
             "{{REPORT_STYLE}}": style,
             "{{REPORT_SCRIPT}}": script,
         }
     )
-    replacements.update(_optional_replacements(copy, level, source))
+    replacements.update(_optional_replacements(copy, source))
     return replacements
 
 
-def _optional_replacements(
-    copy: dict[str, str], level: str, source: str
-) -> dict[str, str]:
-    deep = level == "deep"
+def _optional_replacements(copy: dict[str, str], source: str) -> dict[str, str]:
     return {
         "{{SOURCE_LINK}}": (
             f'<a class="nav-source" href="{escape(source, quote=True)}">'
             f"{escape(copy['view_source_label'])}</a>"
             if source
-            else ""
-        ),
-        "{{REPRODUCTION_LENS}}": (
-            f'<button type="button" data-lens="reproduction">{escape(copy["reproduction_label"])}</button>'
-            if deep
             else ""
         ),
     }
@@ -427,7 +460,15 @@ def scaffold_report(
         raise FileExistsError(f"output directory is not empty: {output_dir}")
     template, style, script = _load_report_assets()
     locale = _language_family(language)
-    sections = _render_sections(paper_type, level, locale)
+    sections = _render_sections(
+        paper_type=paper_type,
+        level=level,
+        locale=locale,
+        title=title,
+        authors=authors,
+        thesis=thesis,
+        source=source,
+    )
     replacements = _template_replacements(
         language=language,
         locale=locale,

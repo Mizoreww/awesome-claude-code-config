@@ -36,6 +36,12 @@ def test_skill_is_layered_portable_and_points_to_every_reference() -> None:
     assert "PYTHON_EXE" in html_guidance
     assert "latex2mathml==3.78.1" in html_guidance
     assert "defusedxml==0.7.1" in html_guidance
+    assert "--explanation" in html_guidance
+    assert "data-paper-facts" in html_guidance
+    assert "data-author-homepage" in html_guidance
+    assert "data-contact-homepage" in html_guidance
+    assert "data-lab-homepage" in html_guidance
+    assert "data-affiliation-fallback" in html_guidance
     level_guidance = (SKILL_DIR / "references" / "levels.md").read_text(
         encoding="utf-8"
     )
@@ -44,6 +50,16 @@ def test_skill_is_layered_portable_and_points_to_every_reference() -> None:
     script = (SKILL_DIR / "assets" / "report.js").read_text(encoding="utf-8")
     assert not re.search(r"\bview\.(?:x|y|scale)\s*=", script)
     assert "pointers.set(" not in script
+    assert 'lightbox.setAttribute("open"' not in script
+    assert 'lightbox.removeAttribute("open"' not in script
+    assert "data-lens" not in script
+    assert "data-trace" not in script
+    style = (SKILL_DIR / "assets" / "report.css").read_text(encoding="utf-8")
+    inline_rule = re.search(r"\.math-inline\s*\{(?P<body>[^}]*)\}", style)
+    assert inline_rule is not None
+    assert "display: inline-block" in inline_rule.group("body")
+    assert "overflow: visible" in inline_rule.group("body")
+    assert ".equation-explanation::before" not in style
     policy = SKILL_DIR / "scripts" / "mathml_policy.py"
     assert policy.is_file()
     for consumer in ("render_math.py", "validate_report.py"):
@@ -76,6 +92,13 @@ def test_scaffold_escapes_metadata_and_creates_level_directories(
     assert "data-reader-navigation" in html
     assert "paper-fingerprint" not in html
     assert "evidence-rail" not in html
+    assert "reading-lenses" not in html
+    assert "data-evidence-index" not in html
+    assert "data-lens=" not in html
+    assert "data-trace=" not in html
+    assert "data-paper-facts" in html
+    assert 'data-paper-field="title"' in html
+    assert "<table" not in html
     assert "Ada &amp; Lin" in html
     assert 'data-level="deep"' in html
     assert "<style data-report-style>" in html
@@ -153,18 +176,25 @@ def test_scaffold_localizes_visible_ui_and_accessible_names(tmp_path: Path) -> N
         '<html lang="en-US">',
         "Skip to report",
         'aria-label="Reading navigation"',
-        'aria-label="Reading lenses"',
-        'data-evidence-index aria-label="Evidence index"',
         'aria-label="Enlarged visual viewer"',
         'aria-label="Close enlarged visual"',
         'aria-label="Image zoom"',
         'aria-label="Zoom in"',
         "View source",
         "Basic information",
+        "Corresponding author / paper contact",
+        "One-line summary",
         "Research problem",
         "Critical analysis",
     ):
         assert expected in html
+    for removed_control in (
+        "Reading lenses",
+        "Evidence index",
+        "data-lens=",
+        "data-trace=",
+    ):
+        assert removed_control not in html
     for chinese_ui in ("跳到正文", "阅读视角", "文章目录", "关闭大图", "查看原文"):
         assert chinese_ui not in html
 

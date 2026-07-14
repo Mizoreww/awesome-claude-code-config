@@ -17,7 +17,7 @@ There is no minimum or maximum SVG count. A report with zero SVGs can pass; a re
 |---|---|---|
 | Exact quantitative result | Original table/plot or an accurate HTML table | Redrawing values by eye |
 | Non-obvious pipeline or state change | Concise SVG or HTML/CSS flow | A paragraph that forces mental simulation |
-| Equation and symbol relation | Equation plus nearby prose; small SVG only for geometry | Turning ordinary algebra into a poster |
+| Equation and symbol relation | Equation plus an immediate plain-language explanation; small SVG only for geometry | A formula wall, or turning ordinary algebra into a poster |
 | Method A vs B | Two-column comparison or paired schematic | Two unrelated decorative illustrations |
 | Exact architecture/detail | Original paper figure with evidentiary caption | Oversimplifying away the evaluated mechanism |
 | Small set of categorical facts | Table or aligned list | SVG boxes with no added relationship |

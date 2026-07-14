@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -30,7 +31,7 @@ CONTRACT_CORRUPTIONS = (
         '<nav aria-label="重复导航"></nav><nav class="reader-nav"',
     ),
     ('id="report-content"', 'id="C1"'),
-    ("data-evidence-index", "data-missing-evidence-index"),
+    ('class="outline-links"', 'class="missing-outline"'),
     ('id="lightbox"', 'id="other-dialog"'),
     ('src="assets/figure.png"', 'src="https://example.test/figure.png"'),
     ('alt="主结果图"', 'alt=""'),
@@ -53,7 +54,7 @@ EXPECTED_CONTRACT_ERRORS = (
     "title focus",
     "exactly one navigation",
     "report-content",
-    "evidence index",
+    "section outline",
     "lightbox",
     "duplicate id",
     "#missing",
@@ -96,9 +97,12 @@ def test_validator_requires_static_mathml_in_math_blocks(tmp_path: Path) -> None
     report.write_text(html, encoding="utf-8")
     assert any("math-like code" in error for error in validator.validate_report(report))
     mathml = (
-        '<div class="math-display"><math display="block"><semantics><mi>L</mi>'
+        '<div class="equation-block"><div class="math-display">'
+        '<math display="block"><semantics><mi>L</mi>'
         '<annotation encoding="application/x-tex">\\mathcal{L}=0</annotation>'
-        "</semantics></math></div>"
+        '</semantics></math></div><p class="equation-explanation">'
+        "这个目标函数衡量模型输出与冻结训练目标之间的距离，数值越小表示本轮更新越接近期望漂移。"
+        "</p></div>"
     )
     report.write_text(
         html.replace(
@@ -108,6 +112,155 @@ def test_validator_requires_static_mathml_in_math_blocks(tmp_path: Path) -> None
         encoding="utf-8",
     )
     assert validator.validate_report(report) == []
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("fragment", "message"),
+    (
+        (
+            '<div class="math-display"><math display="block"><semantics><mi>x</mi>'
+            '<annotation encoding="application/x-tex">x</annotation>'
+            "</semantics></math></div>",
+            "own equation-block",
+        ),
+        (
+            '<div class="equation-block"><div class="math-display">'
+            '<math display="block"><semantics><mi>x</mi>'
+            '<annotation encoding="application/x-tex">x</annotation>'
+            "</semantics></math></div></div>",
+            "plain-language explanation",
+        ),
+        (
+            '<div class="equation-block"><div class="math-display">'
+            '<math display="block"><semantics><mi>x</mi>'
+            '<annotation encoding="application/x-tex">x</annotation>'
+            '</semantics></math></div><p class="equation-explanation">太短</p></div>',
+            "too short",
+        ),
+        (
+            '<div class="equation-block"><p class="equation-explanation">'
+            "这段解释虽然足够长，但错误地放在公式前面。"
+            '</p><div class="math-display"><math display="block"><semantics><mi>x</mi>'
+            '<annotation encoding="application/x-tex">x</annotation>'
+            "</semantics></math></div></div>",
+            "immediately followed",
+        ),
+        (
+            '<p class="equation-explanation">这段解释没有紧邻并归属于任何独立展示公式。</p>',
+            "not attached",
+        ),
+    ),
+)
+def test_validator_requires_one_local_explanation_per_display_equation(
+    tmp_path: Path, fragment: str, message: str
+) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / message.replace(" ", "-"))
+    report.write_text(
+        report.read_text(encoding="utf-8").replace("</main>", f"{fragment}</main>"),
+        encoding="utf-8",
+    )
+    assert any(message in error for error in validator.validate_report(report))
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("old", "new", "message"),
+    (
+        (
+            "这个目标函数衡量模型输出与冻结训练目标之间的距离，数值越小表示本轮更新越接近期望漂移。",
+            "直观解释 · 这个目标函数衡量模型输出与冻结训练目标之间的距离。",
+            "natural prose",
+        ),
+        (
+            "</style>",
+            '.equation-explanation::before { content: "直观解释 · "; }</style>',
+            "CSS generated content",
+        ),
+    ),
+)
+def test_validator_rejects_canned_equation_explanation_labels(
+    tmp_path: Path, old: str, new: str, message: str
+) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / message.replace(" ", "-"))
+    html = report.read_text(encoding="utf-8").replace(
+        "</main>",
+        '<div class="equation-block"><div class="math-display">'
+        '<math display="block"><semantics><mi>L</mi>'
+        '<annotation encoding="application/x-tex">L</annotation>'
+        '</semantics></math></div><p class="equation-explanation">'
+        "这个目标函数衡量模型输出与冻结训练目标之间的距离，数值越小表示本轮更新越接近期望漂移。"
+        "</p></div></main>",
+    )
+    report.write_text(html.replace(old, new, 1), encoding="utf-8")
+    assert any(message in error for error in validator.validate_report(report))
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("old", "new", "message"),
+    (
+        (
+            '<ul class="paper-facts" data-paper-facts>',
+            "<table data-paper-facts>",
+            "original list template",
+        ),
+        (
+            'data-paper-field="title"',
+            'data-unknown-field="title"',
+            "missing field: title",
+        ),
+        (
+            "data-author-homepage",
+            "data-missing-author-homepage",
+            "principal-author homepage",
+        ),
+        (
+            "data-contact-homepage",
+            "data-missing-contact-homepage",
+            "paper-contact homepage",
+        ),
+        (
+            "data-lab-homepage",
+            "data-missing-lab-homepage",
+            "lab/research-group homepage",
+        ),
+        (
+            "<h2>基本信息</h2>",
+            "<h2>基本信息</h2><p>页码约定：物理页码；SHA-256: deadbeef；extracted-v2 原始视觉资产 157 个。</p>",
+            "extraction bookkeeping",
+        ),
+    ),
+)
+def test_validator_keeps_basic_information_reader_facing(
+    tmp_path: Path, old: str, new: str, message: str
+) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / message.replace(" ", "-"))
+    report.write_text(
+        report.read_text(encoding="utf-8").replace(old, new, 1),
+        encoding="utf-8",
+    )
+    assert any(message in error for error in validator.validate_report(report))
+
+
+@pytest.mark.unit
+def test_validator_rejects_removed_navigation_controls(tmp_path: Path) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "removed-controls")
+    report.write_text(
+        report.read_text(encoding="utf-8").replace(
+            '<div class="outline-links">',
+            '<div class="outline-links"><button data-lens="evidence">证据</button>'
+            '<a data-trace="C1" href="#C1">C1</a><div data-evidence-index>索引</div>',
+            1,
+        ),
+        encoding="utf-8",
+    )
+    errors = validator.validate_report(report)
+    assert sum("not allowed" in error for error in errors) == 3
 
 
 @pytest.mark.unit
@@ -141,6 +294,94 @@ def test_validator_rejects_legacy_inline_math_markup(tmp_path: Path) -> None:
     errors = validator.validate_report(report)
     assert any("legacy inline math" in error for error in errors)
     assert any("math-like code" in error for error in errors)
+
+
+@pytest.mark.unit
+def test_validator_allows_semantic_non_math_sub_and_sup(tmp_path: Path) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "semantic-script")
+    report.write_text(
+        report.read_text(encoding="utf-8").replace(
+            "</main>",
+            "<p>H<sub>2</sub>O、CO<sub>2</sub> 与 21<sup>st</sup> 都是语义标记。</p></main>",
+        ),
+        encoding="utf-8",
+    )
+    assert validator.validate_report(report) == []
+
+
+@pytest.mark.unit
+def test_validator_allows_explicit_semantic_script_and_affiliation_fallback(
+    tmp_path: Path,
+) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "marked-fallback")
+    html = report.read_text(encoding="utf-8")
+    html = html.replace(
+        '<a data-lab-homepage href="https://example.test/lab">测试实验室（测试大学）</a>',
+        "<a data-institution-homepage "
+        'data-affiliation-fallback="no-authoritative-lab-homepage" '
+        'href="https://example.test/institution">测试大学（未找到权威实验室主页）</a>',
+    )
+    html = html.replace(
+        "</main>",
+        "<p>脚注<sup data-semantic-script>†</sup>与 N"
+        "<sub data-semantic-script>2</sub> 是显式语义标记。</p></main>",
+    )
+    report.write_text(html, encoding="utf-8")
+    assert validator.validate_report(report) == []
+
+
+@pytest.mark.unit
+def test_validator_rejects_unmarked_institution_affiliation_fallback(
+    tmp_path: Path,
+) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "unmarked-fallback")
+    report.write_text(
+        report.read_text(encoding="utf-8").replace(
+            '<a data-lab-homepage href="https://example.test/lab">测试实验室（测试大学）</a>',
+            "<a data-institution-homepage "
+            'href="https://example.test/institution">测试大学</a>',
+        ),
+        encoding="utf-8",
+    )
+    assert any(
+        "explicitly marked institution fallback" in error
+        for error in validator.validate_report(report)
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "fragment",
+    (
+        "x<sub>1</sub>",
+        "x<sup>2</sup>",
+        "q<sub>theta</sub>",
+        "log<sub>2</sub>",
+        "V<sub>p</sub>",
+        "2<sup>3</sup>",
+        "β<sub>1</sub>",
+        "x<sub>i=1</sub>",
+        "(x+y)<sup>2</sup>",
+        "x<sup>i/2</sup>",
+    ),
+)
+def test_validator_rejects_obvious_ascii_math_sub_and_sup(
+    tmp_path: Path, fragment: str
+) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / re.sub(r"\W+", "-", fragment))
+    report.write_text(
+        report.read_text(encoding="utf-8").replace(
+            "</main>", f"<p>旧式近似：{fragment}</p></main>"
+        ),
+        encoding="utf-8",
+    )
+    assert any(
+        "legacy inline math" in error for error in validator.validate_report(report)
+    )
 
 
 @pytest.mark.unit
