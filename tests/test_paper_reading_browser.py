@@ -1,10 +1,11 @@
 import os
 import shutil
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
 import pytest
-from paper_reading_helpers import SKILL_DIR, write_valid_report
+from paper_reading_helpers import SKILL_DIR, load_script, write_valid_report
 
 
 def _playwright_entry() -> Any:
@@ -197,4 +198,37 @@ def test_html_interactions_work_in_a_real_browser(tmp_path: Path) -> None:
             viewport={"width": 390, "height": 844}, has_touch=True
         )
         _assert_pinch_zoom(mobile, report)
+        browser.close()
+
+
+@pytest.mark.e2e
+def test_reserialized_mathml_cannot_create_active_html(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sync_playwright = _playwright_entry()
+    renderer = load_script("render_math")
+    monkeypatch.setattr(renderer, "_load_xml_parser", lambda: ET.fromstring)
+
+    def converter(latex: str, *, display: str) -> str:
+        del latex, display
+        return (
+            '<math xmlns="http://www.w3.org/1998/Math/MathML"><mtext><![CDATA['
+            "</mtext></math><script>globalThis.__unexpectedMathScript=1</script>"
+            "<math><mtext>]]></mtext></math>"
+        )
+
+    fragment = renderer.render_math("x", display="inline", converter=converter)
+    report = write_valid_report(tmp_path / "math-security")
+    html = report.read_text(encoding="utf-8").replace("</main>", f"{fragment}</main>")
+    report.write_text(html, encoding="utf-8")
+    chrome = shutil.which("google-chrome") or shutil.which("chromium")
+    with sync_playwright() as playwright:
+        options: dict[str, Any] = {"headless": True}
+        if chrome:
+            options["executable_path"] = chrome
+        browser = playwright.chromium.launch(**options)
+        page = browser.new_page()
+        page.goto(report.as_uri())
+        assert page.evaluate("typeof globalThis.__unexpectedMathScript") == "undefined"
+        assert page.locator("script").count() == 1
         browser.close()

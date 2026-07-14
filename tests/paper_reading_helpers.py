@@ -105,7 +105,7 @@ REPORT_TEMPLATE = """<!doctype html>
     </div>
     <div class="lightbox-stage" data-zoom="1"></div><p class="lightbox-caption"></p>
   </dialog>
-  <script>{script}</script>
+  <script data-report-script>{script}</script>
 </body>
 </html>
 """

@@ -402,6 +402,13 @@ def _validate_manifest_fields(
 
 def _validate_active_content(document: ReportDocument) -> list[str]:
     errors: list[str] = []
+    marked_scripts = [
+        script for script in document.scripts if "data-report-script" in script.attrs
+    ]
+    if len(document.scripts) != 1 or len(marked_scripts) != 1:
+        errors.append(
+            "report requires exactly one inline script marked data-report-script"
+        )
     for script in document.scripts:
         dependency = next(
             (

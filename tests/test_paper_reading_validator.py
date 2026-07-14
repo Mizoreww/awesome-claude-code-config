@@ -16,7 +16,10 @@ CONTRACT_CORRUPTIONS = (
         "<style>",
         '<link rel="stylesheet" href="remote.css"><style>@import "https://example.test/x.css";',
     ),
-    ("<script>", '<script src="https://example.test/app.js"></script><script>'),
+    (
+        "<script data-report-script>",
+        '<script src="https://example.test/app.js"></script><script data-report-script>',
+    ),
     ('data-level="compact"', 'data-level="wide"'),
     ('data-paper-type="empirical"', 'data-paper-type="unknown"'),
     ('class="report-hero"', 'class="plain"'),
@@ -156,6 +159,22 @@ def test_validator_rejects_unsafe_mathml_markup(tmp_path: Path) -> None:
     report.write_text(html, encoding="utf-8")
     errors = validator.validate_report(report)
     assert any("unsafe MathML" in error for error in errors)
+
+
+@pytest.mark.unit
+def test_validator_rejects_an_extra_inline_script_from_math_markup(
+    tmp_path: Path,
+) -> None:
+    validator = load_script("validate_report")
+    report = write_valid_report(tmp_path / "report")
+    html = report.read_text(encoding="utf-8").replace(
+        "</main>",
+        "<math><mtext></math><script>globalThis.__unexpectedMathScript=1</script>"
+        "<math><mtext>x</mtext></math></main>",
+    )
+    report.write_text(html, encoding="utf-8")
+    errors = validator.validate_report(report)
+    assert any("exactly one inline script" in error for error in errors)
 
 
 @pytest.mark.unit
