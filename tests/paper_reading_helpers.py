@@ -30,7 +30,7 @@ PNG_FIXTURE = bytes.fromhex(
 )
 DEEP_SECTION = """
         <section id="R1" data-section="reproduction" data-kind="reproduction"
-                 data-coordinate="R1" data-lenses="reproduction">
+                 data-coordinate="R1">
           <h2>最小复现</h2><p>复现记录见本地 manifest。</p>
         </section>
         """
@@ -41,7 +41,6 @@ REPORT_TEMPLATE = """<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>测试论文精读</title>
   <style>
-    .is-dimmed {{ opacity: .25; }}
     dialog[open] {{ display: block; }}
   </style>
 </head>
@@ -53,34 +52,46 @@ REPORT_TEMPLATE = """<!doctype html>
     </header>
     <div class="proof-layout">
     <nav class="reader-nav" data-reader-navigation aria-label="阅读导航">
-      <div class="reading-lenses" aria-label="阅读视角">
-        <button type="button" data-lens="all" class="active">全部</button>
-        <button type="button" data-lens="evidence">证据</button>
-      </div>
       <div class="outline-links">
         <a href="#C1">研究问题</a><a href="#E1">实验结果</a><a href="#L1">批判分析</a>
       </div>
-      <div data-evidence-index aria-label="证据索引">
-        <a data-trace="C1" href="#C1">C1 · Claim</a>
-        <a data-trace="E1" href="#E1">E1 · Figure 1</a>
-      </div>
     </nav>
     <main id="report-content">
-      <section data-section="basic-information"><h2>基本信息</h2><p>作者与出处。</p></section>
+      <section data-section="basic-information">
+        <h2>基本信息</h2>
+        <ul class="paper-facts" data-paper-facts>
+          <li data-paper-field="title"><strong>标题:</strong> 测试论文</li>
+          <li data-paper-field="authors"><strong>作者:</strong>
+            <a data-author-homepage href="https://example.test/author">测试作者</a>
+          </li>
+          <li data-paper-field="contact"><strong>通讯作者 / 论文联系人:</strong>
+            <a data-contact-homepage href="https://example.test/contact">测试联系人</a>
+          </li>
+          <li data-paper-field="affiliation"><strong>机构 / 实验室:</strong>
+            <a data-lab-homepage href="https://example.test/lab">测试实验室（测试大学）</a>
+          </li>
+          <li data-paper-field="published"><strong>发表信息:</strong> 2026</li>
+          <li data-paper-field="link"><strong>链接:</strong>
+            <a href="https://example.test/paper">论文主页</a>
+          </li>
+          <li data-paper-field="paper-type"><strong>论文类型:</strong> Empirical</li>
+          <li data-paper-field="one-line-summary"><strong>一句话总结:</strong> 一条可核查的判断。</li>
+        </ul>
+      </section>
       <section id="C1" data-section="research-problem" data-kind="claim"
-               data-coordinate="C1" data-supports="E1" data-lenses="method">
+               data-coordinate="C1" data-supports="E1">
         <h2>研究问题</h2><p>问题定义。</p>
       </section>
       <section id="C2" data-section="key-insight" data-kind="claim"
-               data-coordinate="C2" data-supports="E1" data-lenses="method">
+               data-coordinate="C2" data-supports="E1">
         <h2>关键洞见</h2><p>机制解释。</p>
       </section>
       <section id="C3" data-section="technical-method" data-kind="claim"
-               data-coordinate="C3" data-supports="E1" data-lenses="method">
+               data-coordinate="C3" data-supports="E1">
         <h2>技术方法</h2><p>训练目标。</p>
       </section>
       <section id="E1" data-section="experimental-results" data-kind="evidence"
-               data-coordinate="E1" data-lenses="evidence">
+               data-coordinate="E1">
         <h2>实验结果</h2>
         <figure data-lightbox tabindex="0" role="button" aria-label="主结果图，点击放大">
           <img src="assets/figure.png" alt="主结果图">
@@ -88,7 +99,7 @@ REPORT_TEMPLATE = """<!doctype html>
         </figure>
       </section>
       <section id="L1" data-section="critical-analysis" data-kind="limitation"
-               data-coordinate="L1" data-supports="E1" data-lenses="critique">
+               data-coordinate="L1" data-supports="E1">
         <h2>批判分析</h2><p>一项有边界的限制。</p>
       </section>
       {deep_section}

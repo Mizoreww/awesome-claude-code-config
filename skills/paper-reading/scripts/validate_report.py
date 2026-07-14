@@ -8,6 +8,7 @@ import json
 import re
 import sys
 from dataclasses import dataclass, field, replace
+from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -23,15 +24,63 @@ PLACEHOLDER_RE = re.compile(
     r"\[请用有证据锚点的高密度内容替换本段。\]|"
     r"\[Replace this paragraph with dense, evidence-anchored content\.\]"
 )
+BASIC_INFORMATION_RE = re.compile(
+    r'<section\b(?=[^>]*\bdata-section\s*=\s*["\']basic-information["\'])'
+    r"[^>]*>(?P<body>.*?)</section\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+BASIC_FIELD_RE = re.compile(
+    r'<li\b(?=[^>]*\bdata-paper-field\s*=\s*["\'](?P<field>[^"\']+)["\'])[^>]*>',
+    re.IGNORECASE,
+)
+HTML_TAG_RE = re.compile(r"<[^>]+>", re.DOTALL)
+TECHNICAL_PROVENANCE_RE = re.compile(
+    r"SHA\s*-?\s*256|\bsha256\b|页码约定|物理页码|"
+    r"extracted-v\d*|原始视觉资产|原始提取|raw visual assets?|"
+    r"source hash|extraction director(?:y|ies)|输入\s*PDF\s*共\s*\d+\s*页",
+    re.IGNORECASE,
+)
+REQUIRED_BASIC_FIELDS = {
+    "title",
+    "authors",
+    "contact",
+    "affiliation",
+    "published",
+    "link",
+    "paper-type",
+    "one-line-summary",
+}
 MATH_BLOCK_RE = re.compile(
     r'<(?P<tag>div|span)\b(?=[^>]*class\s*=\s*["\'][^"\']*\bmath-(?:display|inline)\b)'
     r"[^>]*>(?P<body>.*?)</(?P=tag)>",
+    re.IGNORECASE | re.DOTALL,
+)
+CANNED_EXPLANATION_PREFIX_RE = re.compile(
+    r"^(?:直观解释|公式解释|intuition|explanation)\s*[·:：—-]",
+    re.IGNORECASE,
+)
+CANNED_EXPLANATION_DECORATION_RE = re.compile(
+    r"\.equation-explanation\s*::?before\s*\{[^}]*\bcontent\s*:",
     re.IGNORECASE | re.DOTALL,
 )
 LEGACY_EQUATION_RE = re.compile(
     r'<(?:div|span)\b(?=[^>]*class\s*=\s*["\'][^"\']*\bequation-card\b)',
     re.IGNORECASE,
 )
+LEGACY_SCRIPT_RE = re.compile(
+    r"<(?P<tag>sub|sup)\b[^>]*>(?P<body>.*?)</(?P=tag)\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+ORDINAL_SUFFIXES = {"st", "nd", "rd", "th"}
+CHEMICAL_ELEMENT_SYMBOLS = frozenset(
+    "H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni "
+    "Cu Zn Ga Ge As Se Br Kr Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I "
+    "Xe Cs Ba La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb Lu Hf Ta W Re Os Ir Pt "
+    "Au Hg Tl Pb Bi Po At Rn Fr Ra Ac Th Pa U Np Pu Am Cm Bk Cf Es Fm Md No Lr Rf "
+    "Db Sg Bh Hs Mt Ds Rg Cn Nh Fl Mc Lv Ts Og".split()
+)
+CHEMICAL_FORMULA_BEFORE_RE = re.compile(r"(?P<formula>(?:[A-Z][a-z]?)+)\s*$")
+CHEMICAL_ELEMENT_AFTER_RE = re.compile(r"^\s*(?P<element>[A-Z][a-z]?)")
 MATH_LIKE_TEXT_RE = re.compile(
     r"\\(?:frac|mathcal|mathbf|mathbb|ell|sum|int|lVert|rVert)|"
     r"[φθτσεℒ‖⇒≈≠→∼]"
@@ -59,6 +108,22 @@ FORBIDDEN_ELEMENTS = {
     "object",
     "portal",
 }
+HTML_VOID_ELEMENTS = {
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "param",
+    "source",
+    "track",
+    "wbr",
+}
 
 
 @dataclass
@@ -73,6 +138,15 @@ class VisualRecord:
     attrs: dict[str, str | None]
     line: int
     contains_visual: bool = False
+
+
+@dataclass
+class EquationRecord:
+    line: int
+    display_count: int = 0
+    explanation_count: int = 0
+    explanation_text: str = ""
+    direct_children: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -109,10 +183,11 @@ class ReportDocument:
     styles: list[ElementRecord] = field(default_factory=list)
     title_count: int = 0
     title_focuses: list[TextRecord] = field(default_factory=list)
-    evidence_indexes: list[ElementRecord] = field(default_factory=list)
     math_elements: list[ElementRecord] = field(default_factory=list)
-    legacy_inline_math: list[ElementRecord] = field(default_factory=list)
     code_fragments: list[TextRecord] = field(default_factory=list)
+    equation_blocks: list[EquationRecord] = field(default_factory=list)
+    unwrapped_math_displays: list[ElementRecord] = field(default_factory=list)
+    orphan_equation_explanations: list[ElementRecord] = field(default_factory=list)
 
 
 class ReportParser(HTMLParser):
@@ -126,6 +201,9 @@ class ReportParser(HTMLParser):
         self._h1_depth = 0
         self._title_focus_stack: list[tuple[str, int]] = []
         self._code_stack: list[tuple[str, int]] = []
+        self._equation_stack: list[tuple[str, int, int]] = []
+        self._explanation_stack: list[tuple[str, int, int]] = []
+        self._tag_stack: list[str] = []
 
     def _record_structure(self, record: ElementRecord) -> None:
         collection = {
@@ -182,15 +260,45 @@ class ReportParser(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         record = ElementRecord(tag=tag, attrs=dict(attrs), line=self.getpos()[0])
         self.document.elements.append(record)
+        if tag not in HTML_VOID_ELEMENTS:
+            self._tag_stack.append(tag)
         if tag == "h1":
             self._h1_depth += 1
         if tag == "math":
             self._math_depth += 1
         if self._math_depth:
             self.document.math_elements.append(record)
-        elif tag in {"sub", "sup"}:
-            self.document.legacy_inline_math.append(record)
         classes = set((record.attrs.get("class") or "").split())
+        if "equation-block" in classes:
+            self.document.equation_blocks.append(EquationRecord(line=record.line))
+            self._equation_stack.append(
+                (tag, len(self._tag_stack), len(self.document.equation_blocks) - 1)
+            )
+        elif self._equation_stack and len(self._tag_stack) == (
+            self._equation_stack[-1][1] + 1
+        ):
+            equation = self.document.equation_blocks[self._equation_stack[-1][2]]
+            if "math-display" in classes:
+                equation.direct_children.append("math-display")
+            elif "equation-explanation" in classes:
+                equation.direct_children.append("equation-explanation")
+            else:
+                equation.direct_children.append(record.tag)
+        if "math-display" in classes:
+            if self._equation_stack:
+                equation = self.document.equation_blocks[self._equation_stack[-1][2]]
+                equation.display_count += 1
+            else:
+                self.document.unwrapped_math_displays.append(record)
+        if "equation-explanation" in classes:
+            if self._equation_stack:
+                equation_index = self._equation_stack[-1][2]
+                self.document.equation_blocks[equation_index].explanation_count += 1
+                self._explanation_stack.append(
+                    (tag, len(self._tag_stack), equation_index)
+                )
+            else:
+                self.document.orphan_equation_explanations.append(record)
         if "title-focus" in classes:
             focus = TextRecord(tag=tag, line=record.line, inside_h1=self._h1_depth > 0)
             self.document.title_focuses.append(focus)
@@ -199,8 +307,6 @@ class ReportParser(HTMLParser):
             code = TextRecord(tag=tag, line=record.line)
             self.document.code_fragments.append(code)
             self._code_stack.append((tag, len(self.document.code_fragments) - 1))
-        if "data-evidence-index" in record.attrs:
-            self.document.evidence_indexes.append(record)
         identifier = record.attrs.get("id")
         if identifier:
             self.document.ids.setdefault(identifier, []).append(record.line)
@@ -232,6 +338,9 @@ class ReportParser(HTMLParser):
             self.document.code_fragments[index] = replace(
                 current, text=f"{current.text}{data}"
             )
+        for _, _, index in self._explanation_stack:
+            equation = self.document.equation_blocks[index]
+            equation.explanation_text = f"{equation.explanation_text}{data}"
 
     def handle_endtag(self, tag: str) -> None:
         if tag == "figure" and self._figure_stack:
@@ -244,6 +353,23 @@ class ReportParser(HTMLParser):
             self._math_depth -= 1
         if tag == "h1" and self._h1_depth:
             self._h1_depth -= 1
+        depth = len(self._tag_stack)
+        if (
+            self._explanation_stack
+            and self._explanation_stack[-1][0] == tag
+            and self._explanation_stack[-1][1] == depth
+        ):
+            self._explanation_stack.pop()
+        if (
+            self._equation_stack
+            and self._equation_stack[-1][0] == tag
+            and self._equation_stack[-1][1] == depth
+        ):
+            self._equation_stack.pop()
+        if tag in self._tag_stack:
+            while self._tag_stack:
+                if self._tag_stack.pop() == tag:
+                    break
 
 
 def _classes(record: ElementRecord) -> set[str]:
@@ -483,12 +609,17 @@ def _validate_shell(source: str, document: ReportDocument) -> list[str]:
 
 def _validate_math(source: str, document: ReportDocument) -> list[str]:
     errors: list[str] = []
+    if CANNED_EXPLANATION_DECORATION_RE.search(source):
+        errors.append(
+            "equation explanations must not add a canned label with CSS generated content"
+        )
     if LEGACY_EQUATION_RE.search(source):
         errors.append("math-like code must use a static MathML math-display block")
-    for legacy in document.legacy_inline_math:
-        errors.append(
-            f"line {legacy.line}: legacy inline math <{legacy.tag}> must use static MathML"
-        )
+    for match in LEGACY_SCRIPT_RE.finditer(source):
+        if not _legacy_script_is_semantic(source, match):
+            errors.append(
+                "legacy inline math in HTML sub/sup must use static inline MathML"
+            )
     for code_fragment in document.code_fragments:
         if MATH_LIKE_TEXT_RE.search(code_fragment.text):
             errors.append(
@@ -500,6 +631,37 @@ def _validate_math(source: str, document: ReportDocument) -> list[str]:
         )
         if policy_error:
             errors.append(f"line {math_element.line}: unsafe MathML: {policy_error}")
+    for display in document.unwrapped_math_displays:
+        errors.append(
+            f"line {display.line}: every display equation requires its own equation-block"
+        )
+    for explanation in document.orphan_equation_explanations:
+        errors.append(
+            f"line {explanation.line}: equation explanation is not attached to a display equation"
+        )
+    for equation in document.equation_blocks:
+        if equation.display_count != 1:
+            errors.append(
+                f"line {equation.line}: equation-block requires exactly one math-display"
+            )
+        if equation.explanation_count != 1:
+            errors.append(
+                f"line {equation.line}: each display equation requires exactly one plain-language explanation"
+            )
+        else:
+            explanation_text = " ".join(equation.explanation_text.split())
+            if len(explanation_text) < 10:
+                errors.append(
+                    f"line {equation.line}: equation explanation is too short to be useful"
+                )
+            if CANNED_EXPLANATION_PREFIX_RE.search(explanation_text):
+                errors.append(
+                    f"line {equation.line}: equation explanation must start as natural prose, not a canned label"
+                )
+        if equation.direct_children != ["math-display", "equation-explanation"]:
+            errors.append(
+                f"line {equation.line}: math-display must be immediately followed by its equation-explanation"
+            )
     for match in MATH_BLOCK_RE.finditer(source):
         body = match.group("body")
         if not re.search(r"<math\b", body, re.IGNORECASE):
@@ -508,6 +670,95 @@ def _validate_math(source: str, document: ReportDocument) -> list[str]:
             errors.append("math-like code is not allowed inside a MathML block")
         if "application/x-tex" not in body:
             errors.append("MathML block requires an application/x-tex annotation")
+    return errors
+
+
+def _legacy_script_is_semantic(source: str, match: re.Match[str]) -> bool:
+    if re.search(r"\bdata-semantic-script\b", match.group(0), re.IGNORECASE):
+        return True
+    body = unescape(HTML_TAG_RE.sub(" ", match.group("body"))).strip()
+    context_start = max(0, match.start() - 160)
+    before = unescape(HTML_TAG_RE.sub(" ", source[context_start : match.start()]))
+    context_end = min(len(source), match.end() + 160)
+    after = unescape(HTML_TAG_RE.sub(" ", source[match.end() : context_end]))
+    tag = match.group("tag").lower()
+    if (
+        tag == "sup"
+        and body.lower() in ORDINAL_SUFFIXES
+        and re.search(r"\d\s*$", before)
+    ):
+        return True
+    if tag != "sub" or not body.isdigit():
+        return False
+    formula_match = CHEMICAL_FORMULA_BEFORE_RE.search(before)
+    if formula_match is None:
+        return False
+    symbols = re.findall(r"[A-Z][a-z]?", formula_match.group("formula"))
+    if not symbols or any(symbol not in CHEMICAL_ELEMENT_SYMBOLS for symbol in symbols):
+        return False
+    following_element = CHEMICAL_ELEMENT_AFTER_RE.match(after)
+    return len(symbols) > 1 or (
+        following_element is not None
+        and following_element.group("element") in CHEMICAL_ELEMENT_SYMBOLS
+    )
+
+
+def _has_marked_homepage(body: str, marker: str) -> bool:
+    pattern = re.compile(
+        rf"<a\b(?=[^>]*\b{re.escape(marker)}\b)"
+        r'(?=[^>]*\bhref\s*=\s*["\']https?://)[^>]*>',
+        re.IGNORECASE,
+    )
+    return bool(pattern.search(body))
+
+
+def _has_affiliation_homepage(body: str) -> bool:
+    if _has_marked_homepage(body, "data-lab-homepage"):
+        return True
+    fallback_pattern = re.compile(
+        r"<a\b(?=[^>]*\bdata-institution-homepage\b)"
+        r"(?=[^>]*\bdata-affiliation-fallback\s*=\s*"
+        r"[\"']no-authoritative-lab-homepage[\"'])"
+        r"(?=[^>]*\bhref\s*=\s*[\"']https?://)[^>]*>",
+        re.IGNORECASE,
+    )
+    return bool(fallback_pattern.search(body))
+
+
+def _validate_basic_information(source: str) -> list[str]:
+    matches = list(BASIC_INFORMATION_RE.finditer(source))
+    if len(matches) != 1:
+        return ["report requires exactly one basic-information section"]
+    body = matches[0].group("body")
+    errors: list[str] = []
+    if not re.search(r"<ul\b(?=[^>]*\bdata-paper-facts\b)[^>]*>", body, re.I):
+        errors.append("basic information requires one vertical data-paper-facts list")
+    if re.search(r"<(?:table|dl)\b", body, re.IGNORECASE):
+        errors.append(
+            "basic information must use the original list template, not a table"
+        )
+    fields = {match.group("field").lower() for match in BASIC_FIELD_RE.finditer(body)}
+    for field_name in sorted(REQUIRED_BASIC_FIELDS - fields):
+        errors.append(f"basic information is missing field: {field_name}")
+    if not _has_marked_homepage(body, "data-author-homepage"):
+        errors.append("basic information requires a principal-author homepage link")
+    if not any(
+        _has_marked_homepage(body, marker)
+        for marker in ("data-corresponding-homepage", "data-contact-homepage")
+    ):
+        errors.append(
+            "basic information requires a corresponding-author or paper-contact homepage link"
+        )
+    if not _has_affiliation_homepage(body):
+        errors.append(
+            "basic information requires a lab/research-group homepage link or an "
+            "explicitly marked institution fallback"
+        )
+    visible_text = unescape(HTML_TAG_RE.sub(" ", body))
+    if TECHNICAL_PROVENANCE_RE.search(visible_text):
+        errors.append(
+            "basic information must not expose PDF hashes, page conventions, or extraction bookkeeping"
+        )
     return errors
 
 
@@ -542,10 +793,26 @@ def _validate_landmarks(document: ReportDocument) -> list[str]:
         errors.append("report navigation requires an aria-label and reader marker")
     if not _has_landmark(document.mains, id="report-content"):
         errors.append('report requires <main id="report-content">')
-    if len(document.evidence_indexes) != 1 or not document.evidence_indexes[
-        0
-    ].attrs.get("aria-label"):
-        errors.append("report requires an aria-labelled evidence index")
+    if not any("outline-links" in _classes(record) for record in document.elements):
+        errors.append("report navigation requires a section outline")
+    forbidden_controls = [
+        record
+        for record in document.elements
+        if {"reading-lenses", "evidence-index"} & _classes(record)
+        or any(
+            attribute in record.attrs
+            for attribute in (
+                "data-evidence-index",
+                "data-lens",
+                "data-lenses",
+                "data-trace",
+            )
+        )
+    ]
+    for record in forbidden_controls:
+        errors.append(
+            f"line {record.line}: reading lenses and evidence-index controls are not allowed"
+        )
     if not _has_landmark(document.dialogs, id="lightbox"):
         errors.append('report requires <dialog id="lightbox">')
     return errors
@@ -751,16 +1018,14 @@ def validate_report(report_path: Path) -> list[str]:
     except (OSError, UnicodeDecodeError) as exc:
         return [f"report is not readable UTF-8: {exc}"]
     parser = ReportParser()
-    try:
-        parser.feed(source)
-        parser.close()
-    except Exception as exc:
-        return [f"report HTML could not be parsed: {exc}"]
+    parser.feed(source)
+    parser.close()
     document = parser.document
     errors = _validate_shell(source, document)
     identity_errors, level, paper_type = _report_identity(document)
     errors.extend(identity_errors)
     errors.extend(_validate_landmarks(document))
+    errors.extend(_validate_basic_information(source))
     errors.extend(_validate_math(source, document))
     errors.extend(_validate_hyperlinks(document, report_path))
     errors.extend(_validate_assets(document, report_path))

@@ -95,7 +95,7 @@
   }
 
   function openLightbox(figure) {
-    if (!lightbox || !stage || !caption) return;
+    if (!lightbox || !stage || !caption || typeof lightbox.showModal !== "function") return;
     const visual = figure.querySelector("img, svg");
     if (!visual) return;
     previousFocus = document.activeElement;
@@ -116,18 +116,12 @@
     }
     caption.textContent = figure.querySelector("figcaption")?.textContent?.trim()
       || visual.getAttribute("aria-label") || visual.getAttribute("alt") || "";
-    if (typeof lightbox.showModal === "function") lightbox.showModal();
-    else lightbox.setAttribute("open", "");
+    lightbox.showModal();
     resetView();
   }
 
   function closeLightbox() {
-    if (!lightbox) return;
-    if (typeof lightbox.close === "function" && lightbox.open) lightbox.close();
-    else {
-      lightbox.removeAttribute("open");
-      finishClose();
-    }
+    if (lightbox?.open) lightbox.close();
   }
 
   function pointerDistance(first, second) {
@@ -221,19 +215,6 @@
     });
   }
 
-  const lensButtons = document.querySelectorAll("[data-lens]");
-  const lensBlocks = document.querySelectorAll("[data-lenses]");
-  lensButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      const lens = button.dataset.lens || "all";
-      lensButtons.forEach((candidate) => candidate.classList.toggle("active", candidate === button));
-      lensBlocks.forEach((block) => {
-        const lenses = (block.dataset.lenses || "").split(/\s+/).filter(Boolean);
-        block.classList.toggle("is-dimmed", lens !== "all" && !lenses.includes(lens));
-      });
-    });
-  });
-
   const outlineLinks = [...document.querySelectorAll(".outline-links a[href^='#']")];
   const observedSections = outlineLinks
     .map((link) => document.querySelector(link.getAttribute("href")))
@@ -251,26 +232,4 @@
     observedSections.forEach((section) => observer.observe(section));
   }
 
-  function traceCoordinate(coordinate) {
-    const blocks = [...document.querySelectorAll("[data-coordinate]")];
-    blocks.forEach((block) => block.classList.remove("trace-active", "trace-origin"));
-    document.querySelectorAll("[data-trace]").forEach((control) => {
-      control.classList.toggle("trace-active", control.dataset.trace === coordinate);
-    });
-    const origin = blocks.find((block) => block.dataset.coordinate === coordinate);
-    if (!origin) return;
-    origin.classList.add("trace-active", "trace-origin");
-    const related = new Set((origin.dataset.supports || "").split(/\s+/).filter(Boolean));
-    blocks.forEach((block) => {
-      const supports = (block.dataset.supports || "").split(/\s+/).filter(Boolean);
-      if (supports.includes(coordinate)) related.add(block.dataset.coordinate);
-    });
-    blocks.forEach((block) => {
-      if (related.has(block.dataset.coordinate)) block.classList.add("trace-active");
-    });
-  }
-
-  document.querySelectorAll("[data-trace]").forEach((control) => {
-    control.addEventListener("click", () => traceCoordinate(control.dataset.trace));
-  });
 })();

@@ -15,7 +15,7 @@ In examples, `PYTHON_EXE` means the actual interpreter of the compatible active 
 
 Honor choices already stated or clearly implied. Otherwise ask in this order and wait after each question.
 
-1. Ask for **Markdown or HTML**. Explain briefly: Markdown is light and editable; HTML adds the designed reading surface, evidence tracing, and click-to-enlarge visuals.
+1. Ask for **Markdown or HTML**. Explain briefly: Markdown is light and editable; HTML adds the designed reading surface, a single section outline, and click-to-enlarge visuals.
 2. Ask for one scope: **brief**, **compact close-reading (recommended)**, or **deep reproduction**.
 
 Map intent without asking when it is unambiguous:
@@ -88,7 +88,7 @@ For HTML, read both [visuals.md](references/visuals.md) and [html-report.md](ref
 
 There is no SVG quota. Use prose, a table, an original figure, HTML/CSS, or SVG according to explanatory gain. Draw SVG only when it unlocks non-obvious structure, flow, contrast, or interaction; render-inspect every SVG. Every image and SVG in HTML must open in the lightbox.
 
-Preserve important equations as LaTeX source and render them to static MathML with `scripts/render_math.py` as specified in the HTML reference. Keep code styling for executable code, paths, and identifiers.
+Preserve important equations as LaTeX source and render them to static MathML with `scripts/render_math.py` as specified in the HTML reference. Put natural prose immediately below every display equation: define every letter, operator, index, and non-obvious symbol in that equation, then explain what the complete relation does and why it matters. Do not prefix the prose with a canned label such as “直观解释”. Inline notation must remain one atomic, non-scrollable inline unit; move longer causal chains into display blocks instead of letting prose fragment around them. Keep code styling for executable code, paths, and identifiers.
 
 For Markdown, use the same content and evidence model, with selected original figures placed next to the claims they support.
 
@@ -123,8 +123,8 @@ Deep HTML also includes `reproduction/manifest.json` and its local logs/artifact
 Before delivery:
 
 1. Remove scaffold markers and any sentence that adds no mechanism, evidence, comparison, limitation, or implication.
-2. Check all local links, evidence coordinates, captions, equations, and asset paths.
-3. For HTML, render at desktop and narrow-mobile widths; verify the single reader navigation, title hierarchy, MathML, every visual, wheel/pinch zoom, keyboard close, lenses, print, and reduced-motion behavior.
+2. Check all local links, evidence coordinates, captions, equations, and asset paths. Keep the visible basic-information section to the original concise list (title, linked authors/contact/labs or research groups, publication, link, paper type, and one-line summary); use an institution homepage only as a labelled fallback when no authoritative group page exists, and keep hashes, page conventions, extraction directories, and asset counts internal.
+3. For HTML, render at desktop and narrow-mobile widths; verify the single outline navigation, title hierarchy, MathML, a natural symbol-complete explanation below every display equation, atomic non-scrollable inline math with no one-token line fragmentation, every visual, wheel/pinch zoom, keyboard close, print, and reduced-motion behavior.
 4. Run the validator until it passes.
 5. State the selected level, source boundaries, and reproduction status without overstating certainty.
 

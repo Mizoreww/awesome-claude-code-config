@@ -36,7 +36,17 @@ def _browser_report(output_dir: Path) -> Path:
         <g id="diagram-shape"><circle cx="5" cy="5" r="5"></circle></g>
       </svg><figcaption>SVG test</figcaption>
     </figure>"""
-    html = report.read_text(encoding="utf-8").replace("</main>", f"{svg}</main>")
+    math = """<p id="inline-math-test">内联记号
+      <span class="math-inline"><math display="inline"><semantics><mi>x</mi>
+        <annotation encoding="application/x-tex">x</annotation>
+      </semantics></math></span> 不应出现滚动控件。</p>
+    <div class="equation-block">
+      <div class="math-display"><math display="block"><semantics><mi>x</mi>
+        <annotation encoding="application/x-tex">x</annotation>
+      </semantics></math></div>
+      <p class="equation-explanation">这里 x 表示被解释的量；整式说明该量保持不变，用来验证公式下方直接跟随自然语言。</p>
+    </div>"""
+    html = report.read_text(encoding="utf-8").replace("</main>", f"{math}{svg}</main>")
     style_start = html.index("<style>") + len("<style>")
     style_end = html.index("</style>", style_start)
     html = f"{html[:style_start]}{style}{html[style_end:]}"
@@ -69,25 +79,51 @@ def _assert_lightboxes(page: Any) -> None:
     assert svg_figure.locator("#diagram-clip").count() == 1
 
 
-def _assert_lenses_and_trace(page: Any) -> None:
-    page.locator('[data-lens="evidence"]').click()
-    assert page.locator('[data-lenses="method"]').first.evaluate(
-        "node => node.classList.contains('is-dimmed')"
+def _assert_outline_and_math(page: Any) -> None:
+    assert (
+        page.locator(
+            "[data-lens], [data-lenses], [data-trace], [data-evidence-index], "
+            ".reading-lenses, .evidence-index"
+        ).count()
+        == 0
     )
-    assert not page.locator('[data-lenses="evidence"]').evaluate(
-        "node => node.classList.contains('is-dimmed')"
+    first_outline_link = page.locator(".outline-links a").first
+    assert first_outline_link.get_attribute("href") == "#C1"
+    first_outline_link.click()
+    page.wait_for_function(
+        """() => {
+          const box = document.querySelector('#C1').getBoundingClientRect();
+          return location.hash === '#C1' && box.top < innerHeight && box.bottom > 0;
+        }"""
     )
-    page.locator('[data-trace="C1"]').click()
-    assert page.locator("#C1").evaluate(
-        "node => node.classList.contains('trace-origin')"
+    inline_metrics = page.locator(".math-inline").evaluate(
+        """node => ({
+          display: getComputedStyle(node).display,
+          overflowX: getComputedStyle(node).overflowX,
+          overflowY: getComputedStyle(node).overflowY
+        })"""
     )
-    assert page.locator("#E1").evaluate(
-        "node => node.classList.contains('trace-active')"
+    assert inline_metrics == {
+        "display": "inline-block",
+        "overflowX": "visible",
+        "overflowY": "visible",
+    }
+    inline_alignment = page.locator("#inline-math-test").evaluate(
+        """node => {
+          const leading = document.createRange();
+          leading.selectNodeContents(node.firstChild);
+          const textBox = leading.getBoundingClientRect();
+          const mathBox = node.querySelector('.math-inline').getBoundingClientRect();
+          return {
+            sameLine: Math.abs(textBox.bottom - mathBox.bottom) < 8,
+            oneMathFragment: node.querySelector('.math-inline').getClientRects().length
+          };
+        }"""
     )
-    page.locator('[data-trace="E1"]').click()
-    assert page.locator("#C1").evaluate(
-        "node => node.classList.contains('trace-active')"
-    )
+    assert inline_alignment == {"sameLine": True, "oneMathFragment": 1}
+    equation = page.locator(".equation-block").first
+    assert equation.locator(":scope > .math-display").count() == 1
+    assert equation.locator(":scope > .equation-explanation").count() == 1
 
 
 def _assert_reading_surface(page: Any) -> None:
@@ -98,6 +134,23 @@ def _assert_reading_surface(page: Any) -> None:
         == 0
     )
     assert page.locator("h1 .title-focus").count() == 1
+    assert (
+        page.locator('[data-section="basic-information"] [data-paper-facts]').count()
+        == 1
+    )
+    assert (
+        page.locator(
+            '[data-section="basic-information"] table, '
+            '[data-section="basic-information"] dl'
+        ).count()
+        == 0
+    )
+    for marker in (
+        "data-author-homepage",
+        "data-contact-homepage",
+        "data-lab-homepage",
+    ):
+        assert page.locator(f'[data-section="basic-information"] a[{marker}]').count()
     sizes = page.evaluate(
         """() => ({
           body: parseFloat(getComputedStyle(document.body).fontSize),
@@ -191,8 +244,8 @@ def test_html_interactions_work_in_a_real_browser(tmp_path: Path) -> None:
         page.goto(report.as_uri())
         assert page.locator("html").get_attribute("data-enhanced") == "true"
         _assert_reading_surface(page)
+        _assert_outline_and_math(page)
         _assert_lightboxes(page)
-        _assert_lenses_and_trace(page)
         _assert_wheel_zoom(page)
         mobile = browser.new_page(
             viewport={"width": 390, "height": 844}, has_touch=True

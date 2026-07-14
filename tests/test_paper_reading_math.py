@@ -24,9 +24,15 @@ def test_math_renderer_emits_static_mathml_and_tex_annotation(
     renderer = load_script("render_math")
     _use_test_parser(renderer, monkeypatch)
     fragment = renderer.render_math(
-        r"x_1 = 1 & y", display="block", converter=_fake_converter
+        r"x_1 = 1 & y",
+        display="block",
+        explanation="这个等式说明 x 与 y 的关系，并解释为什么它对当前论证重要 <清楚>。",
+        converter=_fake_converter,
     )
-    assert fragment.startswith('<div class="math-display"')
+    assert fragment.startswith('<div class="equation-block">')
+    assert '<div class="math-display">' in fragment
+    assert '<p class="equation-explanation">' in fragment
+    assert "&lt;清楚&gt;" in fragment
     assert (
         '<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">' in fragment
     )
@@ -47,7 +53,32 @@ def test_math_renderer_supports_inline_math_and_rejects_empty_input(
     fragment = renderer.render_math("x=1", display="inline", converter=_fake_converter)
     assert fragment.startswith('<span class="math-inline"')
     with pytest.raises(ValueError, match="empty"):
-        renderer.render_math("  ", display="block", converter=_fake_converter)
+        renderer.render_math(
+            "  ",
+            display="block",
+            explanation="这是一段足够清楚的解释。",
+            converter=_fake_converter,
+        )
+    with pytest.raises(ValueError, match="requires"):
+        renderer.render_math("x=1", display="block", converter=_fake_converter)
+    with pytest.raises(ValueError, match="too short"):
+        renderer.render_math(
+            "x=1", display="block", explanation="太短", converter=_fake_converter
+        )
+    with pytest.raises(ValueError, match="natural prose"):
+        renderer.render_math(
+            "x=1",
+            display="block",
+            explanation="直观解释 · 这里 x 表示输入，等号表示两边相等。",
+            converter=_fake_converter,
+        )
+    with pytest.raises(ValueError, match="does not accept"):
+        renderer.render_math(
+            "x=1",
+            display="inline",
+            explanation="内联公式不应附带块级解释。",
+            converter=_fake_converter,
+        )
 
 
 @pytest.mark.unit
@@ -64,7 +95,9 @@ def test_math_renderer_rejects_xml_entities() -> None:
         )
 
     with pytest.raises(ValueError, match="invalid MathML"):
-        renderer.render_math("x", converter=unsafe_converter)
+        renderer.render_math(
+            "x", explanation="解释该公式在论证中的作用。", converter=unsafe_converter
+        )
 
 
 @pytest.mark.unit
@@ -86,7 +119,11 @@ def test_math_renderer_rejects_foreign_xml_namespaces(
         return f'<math xmlns="http://www.w3.org/1998/Math/MathML">{body}</math>'
 
     with pytest.raises(ValueError, match="unsafe MathML"):
-        renderer.render_math("x", converter=namespaced_converter)
+        renderer.render_math(
+            "x",
+            explanation="解释该公式在论证中的作用。",
+            converter=namespaced_converter,
+        )
 
 
 @pytest.mark.integration
@@ -102,7 +139,7 @@ def test_math_renderer_rejects_unsafe_real_converter_output(latex: str) -> None:
     pytest.importorskip("defusedxml")
     renderer = load_script("render_math")
     with pytest.raises(ValueError, match="unsafe MathML"):
-        renderer.render_math(latex)
+        renderer.render_math(latex, explanation="解释该公式在论证中的作用。")
 
 
 @pytest.mark.integration
@@ -133,7 +170,9 @@ def test_math_renderer_accepts_safe_real_converter_output(latex: str) -> None:
     pytest.importorskip("latex2mathml")
     pytest.importorskip("defusedxml")
     renderer = load_script("render_math")
-    assert "<math" in renderer.render_math(latex)
+    assert "<math" in renderer.render_math(
+        latex, explanation="解释该公式在论证中的作用。"
+    )
 
 
 @pytest.mark.integration
@@ -145,5 +184,18 @@ def test_math_renderer_cli_reads_a_tex_file(
     source.write_text(r"\mathcal{L}(\theta)=0", encoding="utf-8")
     monkeypatch.setattr(renderer, "_load_converter", lambda: _fake_converter)
     _use_test_parser(renderer, monkeypatch)
-    assert renderer.main([str(source), "--display", "block"]) == 0
-    assert 'class="math-display"' in capsys.readouterr().out
+    assert (
+        renderer.main(
+            [
+                str(source),
+                "--display",
+                "block",
+                "--explanation",
+                "这个目标函数说明本轮训练需要逼近的量。",
+            ]
+        )
+        == 0
+    )
+    output = capsys.readouterr().out
+    assert 'class="equation-block"' in output
+    assert 'class="math-display"' in output

@@ -94,7 +94,7 @@ button { font: inherit; }
 .hero-thesis p { margin: 0; font: 500 clamp(18px, 1.8vw, 21px)/1.5 var(--display); }
 .proof-layout {
   display: grid;
-  grid-template-columns: minmax(190px, 230px) minmax(0, 800px);
+  grid-template-columns: minmax(150px, 190px) minmax(0, 800px);
   gap: clamp(42px, 5vw, 72px);
   justify-content: center;
   align-items: start;
@@ -110,20 +110,9 @@ button { font: inherit; }
   scrollbar-width: thin;
 }
 .reader-nav-toggle { display: none; }
-.reader-nav-body, .nav-group, .outline-links, .evidence-index { display: grid; gap: 7px; }
+.reader-nav-body, .nav-group, .outline-links { display: grid; gap: 7px; }
 .nav-group { padding: 16px 0; border-bottom: 1px solid var(--rule); }
 .nav-heading { margin: 0 0 5px; color: var(--ink); font-size: 13px; font-weight: 700; }
-.lens-options { display: flex; flex-wrap: wrap; gap: 6px; }
-.lens-options button {
-  padding: 5px 9px;
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  color: var(--muted);
-  background: var(--paper);
-  cursor: pointer;
-  font-size: 13px;
-}
-.lens-options button.active { color: var(--claim); border-color: var(--claim); background: rgba(49, 87, 200, .06); }
 .outline-links > a {
   padding: 5px 0;
   color: var(--muted);
@@ -151,18 +140,22 @@ button { font: inherit; }
   background: linear-gradient(var(--claim), rgba(49, 87, 200, .08));
 }
 .argument-block:last-child::before { bottom: 0; background: linear-gradient(var(--limitation), transparent); }
-.argument-block:target, .argument-block.trace-origin {
+.argument-block:target {
   border-radius: 2px;
   box-shadow: -10px 0 0 rgba(49, 87, 200, .12);
 }
-.argument-block.trace-active:not(.trace-origin) {
-  border-radius: 2px;
-  box-shadow: -10px 0 0 rgba(8, 127, 140, .13);
-}
-.rail-item.trace-active { color: var(--claim); border-color: var(--claim); }
 .argument-block h2 { margin: 15px 0 20px; font: 540 clamp(28px, 3vw, 34px)/1.22 var(--display); letter-spacing: -.025em; }
 .argument-block h3 { margin-top: 34px; font: 600 22px/1.3 var(--display); }
 .argument-block p, .argument-block li { font-size: 18px; }
+.paper-facts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.paper-facts li { margin: 0; padding: 8px 0; border-bottom: 1px solid var(--rule); }
+.paper-facts li:last-child { border-bottom: 0; }
+.paper-facts strong { color: var(--ink); font-weight: 700; }
+.paper-facts a { color: var(--claim); text-underline-offset: .18em; }
 .section-mark { display: flex; align-items: baseline; gap: 14px; }
 .section-mark span { color: var(--claim); font: 750 16px/1 var(--utility); }
 .section-mark small { color: var(--muted); font: 650 12px/1.2 var(--utility); letter-spacing: .04em; }
@@ -185,19 +178,30 @@ blockquote {
   background: rgba(8, 127, 140, .07);
   font: 13px/1.4 var(--utility);
 }
-.math-display {
-  overflow-x: auto;
+.equation-block {
   margin: 28px 0;
-  padding: 20px 22px;
   border: 1px solid var(--rule);
   border-left: 3px solid var(--claim);
   background: var(--paper);
+}
+.math-display {
+  overflow-x: auto;
+  padding: 20px 22px;
   font: 21px/1.5 var(--math);
 }
 .math-display math { min-width: max-content; font-family: var(--math); }
-.math-inline { display: inline-flex; max-width: 100%; overflow-x: auto; vertical-align: -.16em; font-family: var(--math); }
+.math-inline { display: inline-block; max-width: none; overflow: visible; vertical-align: -.16em; white-space: nowrap; font-family: var(--math); }
+.math-inline math { display: block; white-space: nowrap; font-family: var(--math); }
 .math-group { display: grid; gap: 10px; margin: 28px 0; }
-.math-group .math-display { margin: 0; }
+.math-group .equation-block { margin: 0; }
+.equation-explanation {
+  margin: 0;
+  padding: 13px 18px 15px;
+  border-top: 1px solid var(--rule);
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.65;
+}
 .equation-note { display: block; margin-top: 12px; color: var(--muted); font-size: 14px; }
 pre {
   overflow-x: auto;
@@ -230,16 +234,6 @@ tbody tr:nth-child(even) { background: rgba(24, 34, 48, .025); }
 details { margin: 26px 0; border: 1px solid var(--rule); background: var(--paper); }
 summary { padding: 13px 16px; cursor: pointer; font: 650 14px/1.5 var(--utility); }
 details > :not(summary) { margin-inline: 18px; }
-.is-dimmed { opacity: .2; filter: grayscale(.8); transform: scale(.99); }
-
-.rail-item { display: grid; grid-template-columns: 31px 1fr; gap: 7px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--rule); text-decoration: none; }
-.rail-item b { font: 750 12px/1.3 var(--utility); }
-.rail-item span { color: var(--muted); font-size: 13px; }
-.rail-item[data-kind="claim"] b { color: var(--claim); }
-.rail-item[data-kind="evidence"] b { color: var(--evidence); }
-.rail-item[data-kind="limitation"] b { color: var(--limitation); }
-.rail-item[data-kind="reproduction"] b { color: var(--reproduction); }
-
 .lightbox {
   width: min(92vw, 1280px);
   max-width: none;
@@ -299,7 +293,7 @@ details > :not(summary) { margin-inline: 18px; }
 .lightbox-close { position: absolute; z-index: 2; top: 13px; right: 13px; width: 38px; height: 38px; border: 0; border-radius: 50%; color: var(--ink); background: white; cursor: pointer; font-size: 24px; }
 
 @media (max-width: 1080px) {
-  .proof-layout { grid-template-columns: 190px minmax(0, 1fr); gap: 38px; }
+  .proof-layout { grid-template-columns: 170px minmax(0, 1fr); gap: 38px; }
 }
 
 @media (max-width: 720px) {
@@ -319,6 +313,7 @@ details > :not(summary) { margin-inline: 18px; }
   .argument-block p, .argument-block li { font-size: 17px; }
   .visual-compare { grid-template-columns: 1fr; }
   .math-display { padding: 16px 12px; font-size: 17px; }
+  .equation-explanation { padding: 12px; font-size: 16px; }
   .lightbox { width: 94vw; height: 86vh; padding: 14px; }
   .lightbox-stage img, .lightbox-stage svg { max-width: 86vw; max-height: 68vh; }
   .lightbox-stage svg { width: 86vw; }
@@ -330,7 +325,6 @@ details > :not(summary) { margin-inline: 18px; }
   .report-hero { min-height: 0; padding-block: 42px; }
   .proof-layout { display: block; padding-top: 42px; }
   .argument-block { break-inside: avoid; }
-  .is-dimmed { opacity: 1; filter: none; transform: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

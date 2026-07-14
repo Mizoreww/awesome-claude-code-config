@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+import html
 import importlib
 import importlib.metadata
+import re
 import sys
 
 # Used only to build and serialize a tree parsed by defusedxml.
@@ -20,6 +22,10 @@ CONVERTER_PACKAGE = "latex2mathml"
 CONVERTER_VERSION = "3.78.1"
 XML_PACKAGE = "defusedxml"
 XML_VERSION = "0.7.1"
+CANNED_EXPLANATION_PREFIX_RE = re.compile(
+    r"^(?:直观解释|公式解释|intuition|explanation)\s*[·:：—-]",
+    re.IGNORECASE,
+)
 Converter = Callable[..., str]
 
 
@@ -69,7 +75,7 @@ def _annotate_mathml(
     source = mathml.strip()
     try:
         root = (parser or _load_xml_parser())(source)
-    except Exception as exc:
+    except (ET.ParseError, ValueError) as exc:
         raise ValueError(f"converter returned invalid MathML: {exc}") from exc
     if root.tag != f"{{{MATHML_NAMESPACE}}}math":
         raise ValueError("converter output must have a MathML <math> root")
@@ -102,7 +108,11 @@ def _annotate_mathml(
 
 
 def render_math(
-    latex: str, *, display: str = "block", converter: Converter | None = None
+    latex: str,
+    *,
+    display: str = "block",
+    explanation: str | None = None,
+    converter: Converter | None = None,
 ) -> str:
     """Return an offline HTML fragment containing MathML and its LaTeX source."""
     latex = latex.strip()
@@ -110,12 +120,30 @@ def render_math(
         raise ValueError("LaTeX source cannot be empty")
     if display not in {"block", "inline"}:
         raise ValueError("display must be block or inline")
+    normalized_explanation = " ".join((explanation or "").split())
+    if display == "block" and not normalized_explanation:
+        raise ValueError("block mathematics requires a plain-language explanation")
+    if display == "block" and len(normalized_explanation) < 10:
+        raise ValueError("block mathematics explanation is too short to be useful")
+    if display == "block" and CANNED_EXPLANATION_PREFIX_RE.search(
+        normalized_explanation
+    ):
+        raise ValueError(
+            "block mathematics explanation must start as natural prose, not a canned label"
+        )
+    if display == "inline" and explanation is not None:
+        raise ValueError("inline mathematics does not accept a block explanation")
     convert = converter or _load_converter()
     mathml = _annotate_mathml(convert(latex, display=display), latex, display)
-    tag, class_name = (
-        ("div", "math-display") if display == "block" else ("span", "math-inline")
+    if display == "inline":
+        return f'<span class="math-inline">{mathml}</span>'
+    explanation_html = html.escape(normalized_explanation, quote=False)
+    return (
+        '<div class="equation-block">'
+        f'<div class="math-display">{mathml}</div>'
+        f'<p class="equation-explanation">{explanation_html}</p>'
+        "</div>"
     )
-    return f'<{tag} class="{class_name}">{mathml}</{tag}>'
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -124,6 +152,10 @@ def build_parser() -> argparse.ArgumentParser:
         "source", type=Path, help="UTF-8 file containing one TeX formula"
     )
     parser.add_argument("--display", choices=("block", "inline"), default="block")
+    parser.add_argument(
+        "--explanation",
+        help="Plain-language explanation required directly below block mathematics",
+    )
     parser.add_argument(
         "--output", type=Path, help="Write the HTML fragment to this file"
     )
@@ -134,7 +166,9 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         latex = args.source.read_text(encoding="utf-8")
-        fragment = render_math(latex, display=args.display)
+        fragment = render_math(
+            latex, display=args.display, explanation=args.explanation
+        )
         if args.output:
             args.output.write_text(f"{fragment}\n", encoding="utf-8")
         else:
