@@ -1949,7 +1949,8 @@ reconcile_interactive_skills() {
         npx_removal_succeeded=true
       fi
 
-      if $npx_removal_succeeded && ! $DRY_RUN; then
+      if $npx_removal_succeeded && ! $DRY_RUN &&
+         [[ ${#verified_npx_skills[@]} -gt 0 ]]; then
         for skill in "${verified_npx_skills[@]}"; do
           rm -rf "$CODEX_DIR/skills/$skill"
         done
@@ -1957,15 +1958,17 @@ reconcile_interactive_skills() {
 
       local restoration_failed=false
       if ! $DRY_RUN && [[ -n "$protection_dir" ]]; then
-        for skill in "${protected_npx_skills[@]}"; do
-          local codex_skill_path="$CODEX_DIR/skills/$skill"
-          rm -rf "$codex_skill_path"
-          mkdir -p "$(dirname "$codex_skill_path")"
-          if ! mv "$protection_dir/$skill" "$codex_skill_path"; then
-            restoration_failed=true
-            warn "Could not restore the protected user skill; recover it from $protection_dir/$skill"
-          fi
-        done
+        if [[ ${#protected_npx_skills[@]} -gt 0 ]]; then
+          for skill in "${protected_npx_skills[@]}"; do
+            local codex_skill_path="$CODEX_DIR/skills/$skill"
+            rm -rf "$codex_skill_path"
+            mkdir -p "$(dirname "$codex_skill_path")"
+            if ! mv "$protection_dir/$skill" "$codex_skill_path"; then
+              restoration_failed=true
+              warn "Could not restore the protected user skill; recover it from $protection_dir/$skill"
+            fi
+          done
+        fi
         if ! $restoration_failed; then
           rm -rf "$protection_dir"
         fi
@@ -1976,23 +1979,25 @@ reconcile_interactive_skills() {
       fi
     fi
 
-    for skill in "${direct_stale[@]}"; do
-      if $DRY_RUN; then
-        if [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ]]; then
-          info "Would remove unselected managed skill: $CODEX_DIR/skills/$skill"
-        fi
-      elif [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ]]; then
-        if rm -rf "$CODEX_DIR/skills/$skill"; then
-          ok "Removed unselected managed skill: $skill"
-          removed_stale+=("$skill")
+    if [[ ${#direct_stale[@]} -gt 0 ]]; then
+      for skill in "${direct_stale[@]}"; do
+        if $DRY_RUN; then
+          if [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ]]; then
+            info "Would remove unselected managed skill: $CODEX_DIR/skills/$skill"
+          fi
+        elif [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ]]; then
+          if rm -rf "$CODEX_DIR/skills/$skill"; then
+            ok "Removed unselected managed skill: $skill"
+            removed_stale+=("$skill")
+          else
+            warn "Could not remove unselected managed skill: $skill"
+            SKIPPED_COMPONENTS+=("unselected managed skill removal failed: $skill")
+          fi
         else
-          warn "Could not remove unselected managed skill: $skill"
-          SKIPPED_COMPONENTS+=("unselected managed skill removal failed: $skill")
+          removed_stale+=("$skill")
         fi
-      else
-        removed_stale+=("$skill")
-      fi
-    done
+      done
+    fi
     if $researchstudio_removed && [[ -f "$CODEX_DIR/skills/.env" ]]; then
       warn "Preserving $CODEX_DIR/skills/.env because it may contain user-managed ResearchStudio credentials; remove it manually if no other skill uses it"
     fi
