@@ -120,7 +120,7 @@ assert_file_contains "install.sh" 'skills/.skill-lock.json'
 assert_file_contains "install.sh" 'local -a args=("${SKILLS_NPX_LAUNCHER_ARGS[@]}" remove "${removable[@]}" --global --yes)'
 assert_file_not_contains "install.sh" "SELECT_SKILL_CODING_FOUNDATIONS"
 assert_file_contains "install.sh" "handoff|Conversation handoff skill|1|skill-handoff"
-assert_file_contains "install.sh" 'managed_directory_trees_equal "$canonical_skill_path" "$codex_skill_path"'
+assert_file_contains "install.sh" 'remove_managed_staging_skill "$skill"'
 assert_file_contains "install.sh" "install-skill-from-github.py"
 assert_file_contains "install.ps1" "skills@latest"
 assert_file_contains "install.ps1" "--agent"
@@ -150,7 +150,7 @@ assert_file_contains "install.ps1" 'skills/.skill-lock.json'
 assert_file_contains "install.ps1" '@("--global", "--yes")'
 assert_file_contains "install.ps1" 'Label = "handoff"; Description = "Conversation handoff skill"; Default = $true; StateVar = "SelectSkillHandoff"'
 assert_file_not_contains "install.ps1" 'SelectSkillCodingFoundations'
-assert_file_contains "install.ps1" 'Test-DirectoryTreeEqual $canonicalPath $codexPath'
+assert_file_contains "install.ps1" 'Remove-ManagedStagingSkill $skill'
 assert_file_contains "install.ps1" "Resolve-PythonCommand"
 
 assert_file_contains "install.sh" "affaan-m/everything-claude-code"

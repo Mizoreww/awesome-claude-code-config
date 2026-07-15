@@ -104,7 +104,12 @@ $INSTALLER            = Join-Path $CODEX_DIR "skills/.system/skill-installer/scr
 $SUPERPOWERS_REPO_URL = "https://github.com/obra/superpowers.git"
 $SUPERPOWERS_DIR      = Join-Path $CODEX_DIR "superpowers"
 $AGENTS_SKILLS_DIR    = Join-Path $HOME ".agents/skills"
-$SUPERPOWERS_LINK     = Join-Path $AGENTS_SKILLS_DIR "superpowers"
+# skills@latest currently stages universal Codex installs under ~/.agents/skills
+# even with --agent codex --copy. Keep that directory as an upstream
+# staging/compatibility location only; Codex-branch skills are owned and loaded
+# from ~/.codex/skills.
+$SUPERPOWERS_LINK     = Join-Path $CODEX_DIR "skills/superpowers"
+$LEGACY_SUPERPOWERS_LINK = Join-Path $AGENTS_SKILLS_DIR "superpowers"
 
 $script:InteractiveMode = $false
 $script:InteractiveSelectionHasAny = $false
@@ -689,6 +694,13 @@ function Copy-SelectedDirectory {
 
     if (-not $Selected) { return }
 
+    $skillName = Split-Path $Target -Leaf
+    $stagingWasOwned = $false
+    if (-not $DryRun -and (Test-ManagedSkillName $skillName)) {
+        Initialize-ManagedSkillOwnership
+        $stagingWasOwned = $script:OwnedManagedSkills.Contains($skillName)
+    }
+
     if (Test-Path $Target) {
         Backup-IfExists $Target
     }
@@ -704,7 +716,9 @@ function Copy-SelectedDirectory {
             Remove-Item -Recurse -Force $Target
         }
         Copy-Item $Source $Target -Recurse -Force
-        $skillName = Split-Path $Target -Leaf
+        if ($stagingWasOwned) {
+            [void](Remove-ManagedStagingSkill $skillName)
+        }
         if (Test-ManagedSkillName $skillName) {
             Add-ManagedSkillOwnership @($skillName)
         }
@@ -1652,10 +1666,7 @@ function Get-SkillNameFromPath {
 
 function Test-InstalledSkill {
     param([string]$Skill)
-    return (
-        (Test-Path -LiteralPath (Join-Path $CODEX_DIR "skills/$Skill/SKILL.md") -PathType Leaf) -or
-        (Test-Path -LiteralPath (Join-Path $AGENTS_SKILLS_DIR "$Skill/SKILL.md") -PathType Leaf)
-    )
+    return (Test-Path -LiteralPath (Join-Path $CODEX_DIR "skills/$Skill/SKILL.md") -PathType Leaf)
 }
 
 function Test-SkillInList {
@@ -1822,11 +1833,11 @@ function Initialize-ManagedSkillOwnership {
                 $name = $property.Name
                 $source = $property.Value.source
                 $expected = Get-ExpectedSkillSource $name
-                $canonicalPath = Join-Path $AGENTS_SKILLS_DIR $name
                 $codexPath = Join-Path $CODEX_DIR "skills/$name"
                 if ((Test-ManagedSkillName $name) -and $expected -and
                     -not $expected.StartsWith("local:") -and $source -ceq $expected -and
-                    (Test-DirectoryTreeEqual $canonicalPath $codexPath)) {
+                    (Test-Path -LiteralPath (Join-Path $codexPath "SKILL.md") -PathType Leaf) -and
+                    (Test-DirectoryTreeEqual (Join-Path $AGENTS_SKILLS_DIR $name) $codexPath)) {
                     [void]$script:OwnedManagedSkills.Add($name)
                 }
             }
@@ -1912,10 +1923,8 @@ function Test-InstalledSkillNames {
 
     $missing = @()
     foreach ($skill in $SkillNames) {
-        $canonicalSkill = Join-Path $AGENTS_SKILLS_DIR "$skill/SKILL.md"
         $codexSkill = Join-Path $CODEX_DIR "skills/$skill/SKILL.md"
-        if (-not (Test-Path -LiteralPath $canonicalSkill -PathType Leaf) -and
-            -not (Test-Path -LiteralPath $codexSkill -PathType Leaf)) {
+        if (-not (Test-Path -LiteralPath $codexSkill -PathType Leaf)) {
             $missing += $skill
         }
     }
@@ -1925,6 +1934,67 @@ function Test-InstalledSkillNames {
         return $false
     }
     return $true
+}
+
+function Sync-NpxSkillToCodex {
+    param([string]$Skill)
+
+    $source = Join-Path $AGENTS_SKILLS_DIR $Skill
+    $target = Join-Path $CODEX_DIR "skills/$Skill"
+    $temporaryTarget = "$target.tmp.$PID"
+    if (-not (Test-ManagedSkillName $Skill)) {
+        return $false
+    }
+    $sourceAvailable = (Test-Path -LiteralPath $source -PathType Container) -and
+        (Test-Path -LiteralPath (Join-Path $source "SKILL.md") -PathType Leaf)
+    if (-not $sourceAvailable) { return $false }
+    try {
+        $sourceItem = Get-Item -LiteralPath $source -Force
+        if (($sourceItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            return $false
+        }
+        New-Item -ItemType Directory -Path (Join-Path $CODEX_DIR "skills") -Force | Out-Null
+        Remove-Item -LiteralPath $temporaryTarget -Recurse -Force -ErrorAction SilentlyContinue
+        Copy-Item -LiteralPath $source -Destination $temporaryTarget -Recurse -Force
+        if (-not (Test-Path -LiteralPath (Join-Path $temporaryTarget "SKILL.md") -PathType Leaf)) {
+            Remove-Item -LiteralPath $temporaryTarget -Recurse -Force -ErrorAction SilentlyContinue
+            return $false
+        }
+        if (Test-Path -LiteralPath $target) {
+            Remove-Item -LiteralPath $target -Recurse -Force
+        }
+        Move-Item -LiteralPath $temporaryTarget -Destination $target -Force
+        return (Test-Path -LiteralPath (Join-Path $target "SKILL.md") -PathType Leaf)
+    } catch {
+        Remove-Item -LiteralPath $temporaryTarget -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Warn "Could not copy npx skill $Skill into ${target}: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+function Remove-ManagedStagingSkill {
+    param([string]$Skill)
+
+    if (-not (Test-ManagedSkillName $Skill)) {
+        return $false
+    }
+    $staging = Join-Path $AGENTS_SKILLS_DIR $Skill
+    if (-not (Test-Path -LiteralPath $staging)) {
+        return $true
+    }
+    try {
+        $item = Get-Item -LiteralPath $staging -Force
+        if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            cmd /c rmdir "$staging" | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "failed to remove staging reparse point" }
+        } else {
+            Remove-Item -LiteralPath $staging -Recurse -Force
+        }
+        return $true
+    } catch {
+        Write-Warn "Could not remove the legacy staging copy: ${staging}: $($_.Exception.Message)"
+        return $false
+    }
 }
 
 function Remove-MattPocockSkillLockEntries {
@@ -1991,9 +2061,28 @@ function Install-NpxSkillNames {
         # Pinned installer-owned snapshots use a local temporary checkout. The
         # caller performs an exact tree comparison before retaining ownership.
         if ($localSource) {
-            if ($exitCode -eq 0 -and (Test-InstalledSkillNames $SkillNames)) {
+            $syncFailed = $false
+            if ($exitCode -eq 0) {
+                foreach ($skill in $SkillNames) {
+                    $sourceSkill = @(Get-ChildItem -LiteralPath (Join-Path $Repo "skills") `
+                        -Recurse -Filter "SKILL.md" -File |
+                        Where-Object { $_.Directory.Name -ceq $skill })[0]
+                    $sourceSkillDir = if ($sourceSkill) { $sourceSkill.Directory.FullName } else { $null }
+                    if (-not $sourceSkillDir -or
+                        -not (Test-DirectoryTreeEqual $sourceSkillDir (Join-Path $AGENTS_SKILLS_DIR $skill)) -or
+                        -not (Sync-NpxSkillToCodex $skill)) {
+                        $syncFailed = $true
+                    }
+                }
+            } else {
+                $syncFailed = $true
+            }
+            if ($exitCode -eq 0 -and -not $syncFailed -and (Test-InstalledSkillNames $SkillNames)) {
                 $script:NpxVerifiedSkillNames = @($SkillNames)
                 Add-ManagedSkillOwnership $SkillNames
+                foreach ($skill in $SkillNames) {
+                    [void](Remove-ManagedStagingSkill $skill)
+                }
                 return $true
             }
             return $false
@@ -2004,7 +2093,8 @@ function Install-NpxSkillNames {
             $afterFingerprint = Get-NpxSkillLockFingerprint -Skill $skill -ExpectedSource $Repo
             if ((Test-Path -LiteralPath (Join-Path $AGENTS_SKILLS_DIR "$skill/SKILL.md") -PathType Leaf) -and
                 $null -ne $afterFingerprint -and
-                $afterFingerprint -cne $beforeFingerprints[$skill]) {
+                $afterFingerprint -cne $beforeFingerprints[$skill] -and
+                (Sync-NpxSkillToCodex $skill)) {
                 $script:NpxVerifiedSkillNames += $skill
             } else {
                 $missingNames += $skill
@@ -2012,6 +2102,9 @@ function Install-NpxSkillNames {
         }
         if ($script:NpxVerifiedSkillNames.Count -gt 0) {
             Add-ManagedSkillOwnership $script:NpxVerifiedSkillNames
+            foreach ($skill in $script:NpxVerifiedSkillNames) {
+                [void](Remove-ManagedStagingSkill $skill)
+            }
         }
         if ($missingNames.Count -gt 0) {
             if ($exitCode -eq 0) {
@@ -2214,10 +2307,7 @@ function Install-MattPocockSkillNames {
         foreach ($skill in $SkillNames) {
             $sourceSkill = @(Get-ChildItem -LiteralPath (Join-Path $sourceDir.FullName "skills") `
                 -Recurse -Filter "SKILL.md" -File | Where-Object { $_.Directory.Name -ceq $skill })[0].Directory.FullName
-            $targetSkill = Join-Path $AGENTS_SKILLS_DIR $skill
-            if (-not (Test-Path -LiteralPath $targetSkill -PathType Container)) {
-                $targetSkill = Join-Path $CODEX_DIR "skills/$skill"
-            }
+            $targetSkill = Join-Path $CODEX_DIR "skills/$skill"
             if (-not (Test-DirectoryTreeEqual $sourceSkill $targetSkill)) {
                 Write-Warn "Installed Matt Pocock skill does not match pinned snapshot: $skill"
                 Remove-ManagedSkillOwnership $SkillNames
@@ -2422,6 +2512,7 @@ function Remove-SuperpowersFallback {
         }
     }
 
+    Remove-LegacySuperPowersLink
     if (Test-Path $SUPERPOWERS_DIR) {
         Remove-Item -Recurse -Force $SUPERPOWERS_DIR
         Write-Ok "Removed superpowers repository"
@@ -2470,60 +2561,17 @@ function Sync-InteractiveSkills {
         }
 
         if ($npxStale.Count -gt 0) {
-            $protectionDir = $null
-            $protectedNpxSkills = @()
-            $verifiedNpxSkills = @()
-            $protectionFailed = $false
-            if (-not $DryRun) {
-                $protectionDir = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-skill-protection-" + [guid]::NewGuid().ToString("N"))
-                New-Item -ItemType Directory -Path $protectionDir -Force | Out-Null
-                foreach ($skill in $npxStale) {
-                    $codexPath = Join-Path $CODEX_DIR "skills/$skill"
-                    $canonicalPath = Join-Path $AGENTS_SKILLS_DIR $skill
-                    if (-not (Test-Path -LiteralPath $codexPath)) { continue }
-                    if (Test-DirectoryTreeEqual $canonicalPath $codexPath) {
-                        $verifiedNpxSkills += $skill
-                        continue
-                    }
-                    try {
-                        Move-Item -LiteralPath $codexPath -Destination (Join-Path $protectionDir $skill) -Force
-                        $protectedNpxSkills += $skill
-                    } catch {
-                        $protectionFailed = $true
-                        Write-Warn "Could not protect the unverified local skill at ${codexPath}; preserving the whole npx removal batch"
-                        break
-                    }
-                }
-            }
-
             $npxRemovalSucceeded = $false
-            if (-not $protectionFailed) {
-                $npxRemovalSucceeded = [bool](Remove-NpxSkillNames $npxStale)
-            }
+            $npxRemovalSucceeded = [bool](Remove-NpxSkillNames $npxStale)
             if ($npxRemovalSucceeded -and -not $DryRun) {
-                foreach ($skill in $verifiedNpxSkills) {
+                $stagingCleanupFailed = $false
+                foreach ($skill in $npxStale) {
                     Remove-Item -LiteralPath (Join-Path $CODEX_DIR "skills/$skill") -Recurse -Force -ErrorAction SilentlyContinue
+                    if (-not (Remove-ManagedStagingSkill $skill)) { $stagingCleanupFailed = $true }
                 }
+                if ($stagingCleanupFailed) { $npxRemovalSucceeded = $false }
             }
-
-            $restorationFailed = $false
-            if (-not $DryRun -and $protectionDir) {
-                foreach ($skill in $protectedNpxSkills) {
-                    $codexPath = Join-Path $CODEX_DIR "skills/$skill"
-                    Remove-Item -LiteralPath $codexPath -Recurse -Force -ErrorAction SilentlyContinue
-                    New-Item -ItemType Directory -Path (Split-Path -Parent $codexPath) -Force | Out-Null
-                    try {
-                        Move-Item -LiteralPath (Join-Path $protectionDir $skill) -Destination $codexPath -Force
-                    } catch {
-                        $restorationFailed = $true
-                        Write-Warn "Could not restore the protected user skill; recover it from $(Join-Path $protectionDir $skill)"
-                    }
-                }
-                if (-not $restorationFailed) {
-                    Remove-Item -LiteralPath $protectionDir -Recurse -Force -ErrorAction SilentlyContinue
-                }
-            }
-            if ($npxRemovalSucceeded -and -not $restorationFailed) {
+            if ($npxRemovalSucceeded) {
                 $removedStale += $npxStale
             }
         }
@@ -2537,8 +2585,13 @@ function Sync-InteractiveSkills {
             } elseif (Test-Path $codexPath) {
                 try {
                     Remove-Item -Recurse -Force $codexPath
-                    Write-Ok "Removed unselected managed skill: $skill"
-                    $removedStale += $skill
+                    if (Remove-ManagedStagingSkill $skill) {
+                        Write-Ok "Removed unselected managed skill: $skill"
+                        $removedStale += $skill
+                    } else {
+                        Write-Warn "Could not remove the managed staging copy: $(Join-Path $AGENTS_SKILLS_DIR $skill)"
+                        $script:SKIPPED_COMPONENTS += "unselected managed staging removal failed: $skill"
+                    }
                 } catch {
                     Write-Warn "Could not remove unselected managed skill: $skill"
                     $script:SKIPPED_COMPONENTS += "unselected managed skill removal failed: $skill"
@@ -2587,12 +2640,17 @@ function Install-SkillPathsFallback {
     $failed = $false
     foreach ($path in $Paths) {
         $skillName = Get-SkillNameFromPath $path
+        Initialize-ManagedSkillOwnership
+        $stagingWasOwned = $script:OwnedManagedSkills.Contains($skillName)
         & $exe @pyArgs $INSTALLER --repo $Repo --path $path --name $skillName 2>&1 |
             ForEach-Object { Write-Host $_ }
         $exitCode = $LASTEXITCODE
         $codexLocalSkill = Join-Path $CODEX_DIR "skills/$skillName/SKILL.md"
         if ($exitCode -eq 0 -and (Test-Path -LiteralPath $codexLocalSkill -PathType Leaf)) {
             $installedNames += $skillName
+            if ($stagingWasOwned) {
+                [void](Remove-ManagedStagingSkill $skillName)
+            }
         } else {
             Write-Warn "Could not install $skillName from $Repo path $path"
             $failed = $true
@@ -2693,6 +2751,33 @@ function Remove-LegacySuperPowersSkills {
     }
 }
 
+function Remove-LegacySuperPowersLink {
+    $item = Get-Item -LiteralPath $LEGACY_SUPERPOWERS_LINK -Force -ErrorAction SilentlyContinue
+    if (-not $item) { return }
+    $isReparsePoint = ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0
+    if ($isReparsePoint) {
+        try {
+            $legacyTarget = (Resolve-Path -LiteralPath $LEGACY_SUPERPOWERS_LINK -ErrorAction Stop).Path
+            $managedTarget = (Resolve-Path -LiteralPath (Join-Path $SUPERPOWERS_DIR "skills") -ErrorAction Stop).Path
+            if ($legacyTarget -ne $managedTarget) {
+                Write-Warn "Preserving unrecognized legacy superpowers path: $LEGACY_SUPERPOWERS_LINK"
+                return
+            }
+        } catch {
+            Write-Warn "Could not verify legacy superpowers staging link: $LEGACY_SUPERPOWERS_LINK"
+            return
+        }
+        cmd /c rmdir "$LEGACY_SUPERPOWERS_LINK" | Out-Null
+        if ($LASTEXITCODE -eq 0) {
+            Write-Ok "Removed legacy superpowers staging link"
+        } else {
+            Write-Warn "Could not remove legacy superpowers staging link: $LEGACY_SUPERPOWERS_LINK"
+        }
+    } else {
+        Write-Warn "Preserving unrecognized legacy superpowers path: $LEGACY_SUPERPOWERS_LINK"
+    }
+}
+
 function Skip-UnsupportedItem {
     param([string]$Item, [string]$Reason)
     Write-Warn "Could not install ${Item}: $Reason"
@@ -2712,6 +2797,7 @@ function Install-Superpowers {
     if (Install-NpxSkillNames "obra/superpowers" $SUPERPOWERS_SKILLS) {
         Write-Ok "Installed superpowers via npx skills"
         Remove-LegacySuperPowersSkills
+        Remove-LegacySuperPowersLink
         return
     }
 
@@ -2748,7 +2834,7 @@ function Install-Superpowers {
         Write-Ok "Cloned superpowers repo to $SUPERPOWERS_DIR"
     }
 
-    New-Item -ItemType Directory -Path $AGENTS_SKILLS_DIR -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $CODEX_DIR "skills") -Force | Out-Null
 
     $superPowersSkillsDir = Join-Path $SUPERPOWERS_DIR "skills"
 
@@ -2775,23 +2861,30 @@ function Install-Superpowers {
     }
 
     Remove-LegacySuperPowersSkills
+    Remove-LegacySuperPowersLink
 }
 
 function Install-LocalSkills {
     $skillsDir = Join-Path $script:SCRIPT_DIR "skills"
     if (-not (Test-Path $skillsDir)) { return }
 
+    Initialize-ManagedSkillOwnership
+
     Get-ChildItem -Path $skillsDir -Directory |
         Where-Object { $_.Name -ne "adversarial-review" } |
         ForEach-Object {
         $skill = $_.Name
         $dest  = Join-Path $CODEX_DIR "skills/$skill"
+        $stagingWasOwned = $script:OwnedManagedSkills.Contains($skill)
         if ($DryRun) {
             Write-Info "Would copy: skills/$skill/ -> $dest/"
         } else {
             New-Item -ItemType Directory -Path (Join-Path $CODEX_DIR "skills") -Force | Out-Null
             if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
             Copy-Item -Recurse $_.FullName $dest
+            if ($stagingWasOwned) {
+                [void](Remove-ManagedStagingSkill $skill)
+            }
             Add-ManagedSkillOwnership @($skill)
             Write-Ok "Installed local skill: $skill"
         }
@@ -2953,6 +3046,7 @@ function Invoke-Uninstall {
                 }
             }
             "skills" {
+                Initialize-ManagedSkillOwnership
                 foreach ($skill in $MANAGED_SKILLS) {
                     Remove-Item -Recurse -Force (Join-Path $CODEX_DIR "skills/$skill") -ErrorAction SilentlyContinue
                 }
@@ -2965,6 +3059,10 @@ function Invoke-Uninstall {
                         Remove-Item -Force $SUPERPOWERS_LINK -ErrorAction SilentlyContinue
                     }
                 }
+                foreach ($skill in @($script:OwnedManagedSkills)) {
+                    [void](Remove-ManagedStagingSkill $skill)
+                }
+                Remove-LegacySuperPowersLink
                 Remove-Item -Recurse -Force $SUPERPOWERS_DIR -ErrorAction SilentlyContinue
                 Remove-Item -Force $MANAGED_SKILLS_STATE_FILE -ErrorAction SilentlyContinue
                 Write-Ok "Removed managed skills"

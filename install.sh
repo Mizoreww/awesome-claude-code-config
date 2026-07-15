@@ -30,7 +30,12 @@ INSTALLER="$CODEX_DIR/skills/.system/skill-installer/scripts/install-skill-from-
 SUPERPOWERS_REPO_URL="https://github.com/obra/superpowers.git"
 SUPERPOWERS_DIR="$CODEX_DIR/superpowers"
 AGENTS_SKILLS_DIR="$HOME/.agents/skills"
-SUPERPOWERS_LINK="$AGENTS_SKILLS_DIR/superpowers"
+# `skills@latest` currently stages universal Codex installs under
+# ~/.agents/skills even with --agent codex --copy. Keep that directory as an
+# upstream staging/compatibility location only; Codex-branch skills are owned
+# and loaded from ~/.codex/skills.
+SUPERPOWERS_LINK="$CODEX_DIR/skills/superpowers"
+LEGACY_SUPERPOWERS_LINK="$AGENTS_SKILLS_DIR/superpowers"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -1067,7 +1072,7 @@ skill_name_from_path() {
 
 installed_skill_exists() {
   local skill="$1"
-  [[ -f "$CODEX_DIR/skills/$skill/SKILL.md" || -f "$AGENTS_SKILLS_DIR/$skill/SKILL.md" ]]
+  [[ -f "$CODEX_DIR/skills/$skill/SKILL.md" ]]
 }
 
 skill_in_array() {
@@ -1306,6 +1311,7 @@ initialize_managed_skill_ownership() {
     managed_skill_name_is_valid "$locked_name" || continue
     expected=$(expected_source_for_skill "$locked_name")
     if [[ -n "$expected" && "$expected" != local:* && "$locked_source" == "$expected" ]] &&
+       [[ -f "$CODEX_DIR/skills/$locked_name/SKILL.md" ]] &&
        managed_directory_trees_equal "$AGENTS_SKILLS_DIR/$locked_name" "$CODEX_DIR/skills/$locked_name"; then
       append_managed_skill_ownership "$locked_name"
     fi
@@ -1376,8 +1382,7 @@ verify_installed_skill_names() {
   local -a missing=()
   local skill
   for skill in "$@"; do
-    if [[ ! -f "$AGENTS_SKILLS_DIR/$skill/SKILL.md" &&
-          ! -f "$CODEX_DIR/skills/$skill/SKILL.md" ]]; then
+    if [[ ! -f "$CODEX_DIR/skills/$skill/SKILL.md" ]]; then
       missing+=("$skill")
     fi
   done
@@ -1387,6 +1392,32 @@ verify_installed_skill_names() {
     return 1
   fi
   return 0
+}
+
+sync_npx_skill_to_codex() {
+  local skill="$1"
+  local source="$AGENTS_SKILLS_DIR/$skill"
+  local target="$CODEX_DIR/skills/$skill"
+  local temporary_target="${target}.tmp.$$"
+
+  managed_skill_name_is_valid "$skill" || return 1
+  [[ -d "$source" && ! -L "$source" && -f "$source/SKILL.md" ]] || return 1
+  mkdir -p "$CODEX_DIR/skills"
+  rm -rf "$temporary_target"
+  if ! cp -R "$source" "$temporary_target" || [[ ! -f "$temporary_target/SKILL.md" ]]; then
+    rm -rf "$temporary_target"
+    return 1
+  fi
+  rm -rf "$target"
+  mv "$temporary_target" "$target"
+  [[ -f "$target/SKILL.md" ]]
+}
+
+remove_managed_staging_skill() {
+  local skill="$1"
+  managed_skill_name_is_valid "$skill" || return 1
+  [[ -e "$AGENTS_SKILLS_DIR/$skill" || -L "$AGENTS_SKILLS_DIR/$skill" ]] || return 0
+  rm -rf "$AGENTS_SKILLS_DIR/$skill"
 }
 
 remove_mattpocock_skill_lock_entries() {
@@ -1455,9 +1486,27 @@ install_npx_skill_names() {
   # caller performs an exact tree comparison before ownership is retained, so
   # they cannot use the GitHub lock fingerprint required for remote sources.
   if $local_source; then
-    if (( npx_exit == 0 )) && verify_installed_skill_names "${skill_names[@]}"; then
+    local sync_failed=false
+    if (( npx_exit == 0 )); then
+      for skill in "${skill_names[@]}"; do
+        local source_skill
+        source_skill=$(find "$repo/skills" -path "*/$skill/SKILL.md" -type f -print -quit 2>/dev/null || true)
+        source_skill=${source_skill%/SKILL.md}
+        if [[ -z "$source_skill" ]] ||
+           ! managed_directory_trees_equal "$source_skill" "$AGENTS_SKILLS_DIR/$skill" ||
+           ! sync_npx_skill_to_codex "$skill"; then
+          sync_failed=true
+        fi
+      done
+    else
+      sync_failed=true
+    fi
+    if (( npx_exit == 0 )) && ! $sync_failed && verify_installed_skill_names "${skill_names[@]}"; then
       NPX_VERIFIED_SKILL_NAMES=("${skill_names[@]}")
       add_managed_skill_ownership "${skill_names[@]}"
+      for skill in "${skill_names[@]}"; do
+        remove_managed_staging_skill "$skill" || true
+      done
       return 0
     fi
     return 1
@@ -1470,7 +1519,8 @@ install_npx_skill_names() {
     after_fingerprint="$(npx_skill_lock_fingerprint "$skill" "$repo" 2>/dev/null || true)"
     if [[ -f "$AGENTS_SKILLS_DIR/$skill/SKILL.md" ]] &&
        [[ -n "$after_fingerprint" ]] &&
-       [[ "$after_fingerprint" != "${before_fingerprints[$index]}" ]]; then
+       [[ "$after_fingerprint" != "${before_fingerprints[$index]}" ]] &&
+       sync_npx_skill_to_codex "$skill"; then
       NPX_VERIFIED_SKILL_NAMES+=("$skill")
     else
       missing_names+=("$skill")
@@ -1478,6 +1528,9 @@ install_npx_skill_names() {
   done
   if [[ ${#NPX_VERIFIED_SKILL_NAMES[@]} -gt 0 ]]; then
     add_managed_skill_ownership "${NPX_VERIFIED_SKILL_NAMES[@]}"
+    for skill in "${NPX_VERIFIED_SKILL_NAMES[@]}"; do
+      remove_managed_staging_skill "$skill" || true
+    done
   fi
   if [[ ${#missing_names[@]} -gt 0 ]]; then
     if (( npx_exit == 0 )); then
@@ -1704,8 +1757,7 @@ install_mattpocock_skill_names() {
     for skill in "${skill_names[@]}"; do
       source_skill=$(find "$source_dir/skills" -path "*/$skill/SKILL.md" -type f -print -quit)
       source_skill=${source_skill%/SKILL.md}
-      target_skill="$AGENTS_SKILLS_DIR/$skill"
-      [[ -d "$target_skill" ]] || target_skill="$CODEX_DIR/skills/$skill"
+      target_skill="$CODEX_DIR/skills/$skill"
       if ! managed_directory_trees_equal "$source_skill" "$target_skill"; then
         warn "Installed Matt Pocock skill does not match pinned snapshot: $skill"
         remove_managed_skill_ownership "${skill_names[@]}"
@@ -1832,6 +1884,9 @@ remove_superpowers_fallback() {
     if [[ -L "$SUPERPOWERS_LINK" || -e "$SUPERPOWERS_LINK" ]]; then
       info "Would remove superpowers link: $SUPERPOWERS_LINK"
     fi
+    if [[ -L "$LEGACY_SUPERPOWERS_LINK" ]]; then
+      info "Would remove legacy superpowers staging link: $LEGACY_SUPERPOWERS_LINK"
+    fi
     if [[ -e "$SUPERPOWERS_DIR" ]]; then
       info "Would remove superpowers repository: $SUPERPOWERS_DIR"
     fi
@@ -1857,6 +1912,7 @@ remove_superpowers_fallback() {
     rm -rf "$SUPERPOWERS_DIR"
     ok "Removed superpowers repository"
   fi
+  remove_legacy_superpowers_link
 }
 
 reconcile_interactive_skills() {
@@ -1918,60 +1974,21 @@ reconcile_interactive_skills() {
     done
 
     if [[ ${#npx_stale[@]} -gt 0 ]]; then
-      local protection_dir=""
-      local protection_failed=false
-      local -a protected_npx_skills=()
-      local -a verified_npx_skills=()
-      if ! $DRY_RUN; then
-        protection_dir="$(mktemp -d "${TMPDIR:-/tmp}/codex-skill-protection.XXXXXX")"
-        for skill in "${npx_stale[@]}"; do
-          local codex_skill_path="$CODEX_DIR/skills/$skill"
-          local canonical_skill_path="$AGENTS_SKILLS_DIR/$skill"
-          if [[ ! -e "$codex_skill_path" && ! -L "$codex_skill_path" ]]; then
-            continue
-          fi
-          if managed_directory_trees_equal "$canonical_skill_path" "$codex_skill_path"; then
-            verified_npx_skills+=("$skill")
-            continue
-          fi
-          if mv "$codex_skill_path" "$protection_dir/$skill"; then
-            protected_npx_skills+=("$skill")
-          else
-            protection_failed=true
-            warn "Could not protect the unverified local skill at $codex_skill_path; preserving the whole npx removal batch"
-            break
-          fi
-        done
-      fi
-
       local npx_removal_succeeded=false
-      if ! $protection_failed && remove_npx_skill_names "${npx_stale[@]}"; then
+      if remove_npx_skill_names "${npx_stale[@]}"; then
         npx_removal_succeeded=true
       fi
 
       if $npx_removal_succeeded && ! $DRY_RUN; then
-        for skill in "${verified_npx_skills[@]}"; do
+        local staging_cleanup_failed=false
+        for skill in "${npx_stale[@]}"; do
           rm -rf "$CODEX_DIR/skills/$skill"
+          remove_managed_staging_skill "$skill" || staging_cleanup_failed=true
         done
+        $staging_cleanup_failed && npx_removal_succeeded=false
       fi
 
-      local restoration_failed=false
-      if ! $DRY_RUN && [[ -n "$protection_dir" ]]; then
-        for skill in "${protected_npx_skills[@]}"; do
-          local codex_skill_path="$CODEX_DIR/skills/$skill"
-          rm -rf "$codex_skill_path"
-          mkdir -p "$(dirname "$codex_skill_path")"
-          if ! mv "$protection_dir/$skill" "$codex_skill_path"; then
-            restoration_failed=true
-            warn "Could not restore the protected user skill; recover it from $protection_dir/$skill"
-          fi
-        done
-        if ! $restoration_failed; then
-          rm -rf "$protection_dir"
-        fi
-      fi
-
-      if $npx_removal_succeeded && ! $restoration_failed; then
+      if $npx_removal_succeeded; then
         removed_stale+=("${npx_stale[@]}")
       fi
     fi
@@ -1983,8 +2000,13 @@ reconcile_interactive_skills() {
         fi
       elif [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ]]; then
         if rm -rf "$CODEX_DIR/skills/$skill"; then
-          ok "Removed unselected managed skill: $skill"
-          removed_stale+=("$skill")
+          if remove_managed_staging_skill "$skill"; then
+            ok "Removed unselected managed skill: $skill"
+            removed_stale+=("$skill")
+          else
+            warn "Could not remove the managed staging copy: $AGENTS_SKILLS_DIR/$skill"
+            SKIPPED_COMPONENTS+=("unselected managed staging removal failed: $skill")
+          fi
         else
           warn "Could not remove unselected managed skill: $skill"
           SKIPPED_COMPONENTS+=("unselected managed skill removal failed: $skill")
@@ -2018,13 +2040,19 @@ install_skill_paths_fallback() {
   fi
 
   local -a installed_names=()
-  local path skill_name
+  local path skill_name staging_was_owned
   local failed=false
   for path in "$@"; do
     skill_name=$(skill_name_from_path "$path")
+    initialize_managed_skill_ownership
+    staging_was_owned=false
+    owned_managed_skill_contains "$skill_name" && staging_was_owned=true
     if python3 "$INSTALLER" --repo "$repo" --path "$path" --name "$skill_name" &&
        [[ -f "$CODEX_DIR/skills/$skill_name/SKILL.md" ]]; then
       installed_names+=("$skill_name")
+      if $staging_was_owned; then
+        remove_managed_staging_skill "$skill_name" || true
+      fi
     else
       warn "Could not install $skill_name from $repo path $path"
       failed=true
@@ -2126,6 +2154,18 @@ remove_legacy_superpowers_skills() {
   fi
 }
 
+remove_legacy_superpowers_link() {
+  [[ -L "$LEGACY_SUPERPOWERS_LINK" ]] || return 0
+  local link_target
+  link_target=$(readlink "$LEGACY_SUPERPOWERS_LINK" 2>/dev/null || true)
+  if [[ "$link_target" == "$SUPERPOWERS_DIR/skills" ]]; then
+    rm -f "$LEGACY_SUPERPOWERS_LINK"
+    ok "Removed legacy superpowers staging link"
+  else
+    warn "Preserving unrecognized legacy superpowers link: $LEGACY_SUPERPOWERS_LINK"
+  fi
+}
+
 install_superpowers() {
   info "Installing superpowers skill set..."
 
@@ -2139,6 +2179,7 @@ install_superpowers() {
   if install_npx_skill_names obra/superpowers "${SUPERPOWERS_SKILLS[@]}"; then
     ok "Installed superpowers via npx skills"
     remove_legacy_superpowers_skills
+    remove_legacy_superpowers_link
     return 0
   fi
 
@@ -2167,7 +2208,7 @@ install_superpowers() {
     ok "Cloned superpowers repo to $SUPERPOWERS_DIR"
   fi
 
-  mkdir -p "$AGENTS_SKILLS_DIR"
+  mkdir -p "$CODEX_DIR/skills"
   local superpowers_skills_dir="$SUPERPOWERS_DIR/skills"
   if [[ -L "$SUPERPOWERS_LINK" || -e "$SUPERPOWERS_LINK" ]]; then
     if [[ ! -L "$SUPERPOWERS_LINK" ]]; then
@@ -2182,6 +2223,7 @@ install_superpowers() {
   add_managed_skill_ownership "${SUPERPOWERS_SKILLS[@]}"
 
   remove_legacy_superpowers_skills
+  remove_legacy_superpowers_link
 }
 
 skip_unsupported_item() {
@@ -2200,10 +2242,14 @@ copy_local_skill() {
 
   local source="$SCRIPT_DIR/skills/$skill"
   local target="$CODEX_DIR/skills/$skill"
+  local staging_was_owned=false
   if [[ ! -d "$source" ]]; then
     warn "Local skill not found: skills/$skill"
     return 0
   fi
+
+  initialize_managed_skill_ownership
+  owned_managed_skill_contains "$skill" && staging_was_owned=true
 
   if $DRY_RUN; then
     info "Would copy: skills/$skill/ -> $target/"
@@ -2211,6 +2257,10 @@ copy_local_skill() {
     mkdir -p "$CODEX_DIR/skills"
     rm -rf "$target"
     cp -r "$source" "$target"
+    if $staging_was_owned; then
+      remove_managed_staging_skill "$skill" ||
+        warn "Could not remove the legacy staging copy: $AGENTS_SKILLS_DIR/$skill"
+    fi
     add_managed_skill_ownership "$skill"
     ok "Installed local skill: $skill"
   fi
@@ -2921,10 +2971,15 @@ uninstall() {
         fi
         ;;
       skills)
+        initialize_managed_skill_ownership
         for skill in "${MANAGED_SKILLS[@]}"; do
           rm -rf "$CODEX_DIR/skills/$skill"
         done
         rm -f "$SUPERPOWERS_LINK"
+        for skill in "${OWNED_MANAGED_SKILLS[@]}"; do
+          remove_managed_staging_skill "$skill" || true
+        done
+        remove_legacy_superpowers_link
         rm -rf "$SUPERPOWERS_DIR"
         rm -f "$MANAGED_SKILLS_STATE_FILE"
         ok "Removed managed skills"

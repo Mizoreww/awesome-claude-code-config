@@ -60,6 +60,8 @@ foreach ($name in @(
     "Get-NpxSkillLockFingerprint",
     "Test-NpxSkillVerifiedThisRun",
     "Test-InstalledSkillNames",
+    "Sync-NpxSkillToCodex",
+    "Remove-ManagedStagingSkill",
     "Remove-MattPocockSkillLockEntries",
     "Install-NpxSkillNames",
     "Install-MattPocockSkillNames",
@@ -69,6 +71,7 @@ foreach ($name in @(
     "Remove-NpxSkillNames",
     "Test-LockedSkillSource",
     "Remove-LegacyMattPocockSkills",
+    "Remove-LegacySuperPowersLink",
     "Remove-SuperpowersFallback",
     "Sync-InteractiveSkills",
     "Show-MattPocockQuickstart"
@@ -192,7 +195,8 @@ $env:XDG_STATE_HOME = Join-Path $tempDir "xdg-state"
 $CODEX_DIR = Join-Path $tempDir ".codex"
 $AGENTS_SKILLS_DIR = Join-Path $tempDir ".agents/skills"
 $SUPERPOWERS_DIR = Join-Path $CODEX_DIR "superpowers"
-$SUPERPOWERS_LINK = Join-Path $AGENTS_SKILLS_DIR "superpowers"
+$SUPERPOWERS_LINK = Join-Path $CODEX_DIR "skills/superpowers"
+$LEGACY_SUPERPOWERS_LINK = Join-Path $AGENTS_SKILLS_DIR "superpowers"
 $MANAGED_SKILLS_STATE_FILE = Join-Path $CODEX_DIR ".awesome-claude-code-config-managed-skills"
 $GLOBAL_SKILL_LOCK_FILE = Get-GlobalSkillLockFile `
     -HomePath $HOME `
@@ -280,20 +284,19 @@ try {
     Assert-True (-not (Test-Path (Join-Path $CODEX_DIR "skills/pua"))) "reconciliation should remove a stale managed skill"
     Assert-True (Test-Path (Join-Path $CODEX_DIR "skills/handoff")) "a same-name skill without installer ownership should be preserved"
     Assert-True (Test-Path (Join-Path $CODEX_DIR "skills/private-skill")) "reconciliation should preserve an unmanaged skill"
-    Assert-True (Test-Path (Join-Path $AGENTS_SKILLS_DIR "pua")) "reconciliation should preserve shared agent skills"
+    Assert-True (-not (Test-Path (Join-Path $AGENTS_SKILLS_DIR "pua"))) "reconciliation should remove managed staging skills"
     Assert-True ($script:NpxCalls.Count -eq 1) "reconciliation should invoke npx once"
     Assert-True ($script:NpxCalls[0] -contains "--global") "npx removal should be global"
     Assert-True ($script:NpxCalls[0] -contains "codex") "npx removal should be Codex-scoped"
 
-    # Legacy lock provenance alone is insufficient: the Codex copy must match
-    # the canonical copy before ownership is adopted.
+    # A lock entry alone does not claim a mismatched same-name custom copy.
     Remove-Item -Force $MANAGED_SKILLS_STATE_FILE -ErrorAction SilentlyContinue
     $script:ManagedSkillOwnershipLoaded = $false
     $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
-    $canonical = Join-Path $AGENTS_SKILLS_DIR "frontend-slides"
+    $staging = Join-Path $AGENTS_SKILLS_DIR "frontend-slides"
     $codexCopy = Join-Path $CODEX_DIR "skills/frontend-slides"
-    New-Item -ItemType Directory -Path $canonical, $codexCopy -Force | Out-Null
-    Set-Content -LiteralPath (Join-Path $canonical "SKILL.md") -Value "upstream"
+    New-Item -ItemType Directory -Path $staging, $codexCopy -Force | Out-Null
+    Set-Content -LiteralPath (Join-Path $staging "SKILL.md") -Value "upstream"
     Set-Content -LiteralPath (Join-Path $codexCopy "SKILL.md") -Value "custom"
     New-Item -ItemType Directory -Path (Split-Path $GLOBAL_SKILL_LOCK_FILE -Parent) -Force | Out-Null
     Set-Content -LiteralPath $GLOBAL_SKILL_LOCK_FILE -Value '{"version":3,"skills":{"frontend-slides":{"source":"zarazhangrui/frontend-slides"}}}'
@@ -302,11 +305,11 @@ try {
 
     Remove-Item -Force $MANAGED_SKILLS_STATE_FILE -ErrorAction SilentlyContinue
     Remove-Item -Recurse -Force $codexCopy
-    Copy-Item -Recurse $canonical $codexCopy
+    Copy-Item -Recurse $staging $codexCopy
     $script:ManagedSkillOwnershipLoaded = $false
     $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
     Initialize-ManagedSkillOwnership
-    Assert-True ($script:OwnedManagedSkills.Contains("frontend-slides")) "matching lock/canonical copy should be adopted"
+    Assert-True ($script:OwnedManagedSkills.Contains("frontend-slides")) "matching Codex/staging copy should be adopted"
 
     # A successful npx exit must not hide a missing requested skill.
     Remove-Item -Force $MANAGED_SKILLS_STATE_FILE -ErrorAction SilentlyContinue
@@ -321,7 +324,7 @@ try {
     Assert-True (-not $script:OwnedManagedSkills.Contains("to-tickets")) "missing skill should not record ownership"
     $script:NpxSkipSkill = $null
 
-    # Retired Matt Pocock names are removed from the canonical shared path and
+    # Retired Matt Pocock names are removed from the staging shared path and
     # from ownership using all-agent cleanup.
     [System.IO.File]::WriteAllLines($MANAGED_SKILLS_STATE_FILE, @("to-prd", "to-issues"))
     $script:ManagedSkillOwnershipLoaded = $false
@@ -375,6 +378,8 @@ try {
     $script:NpxCalls = @()
     $pinnedResult = Install-MattPocockSkillNames @("ask-matt", "to-spec")
     Assert-True $pinnedResult "matching pinned Matt Pocock snapshot should install"
+    Assert-True (Test-Path (Join-Path $CODEX_DIR "skills/ask-matt/SKILL.md")) "pinned npx skill should be copied into Codex skills"
+    Assert-True (-not (Test-Path (Join-Path $AGENTS_SKILLS_DIR "ask-matt"))) "managed npx staging copy should be removed"
     Assert-True ($script:DownloadUris[-1] -like "*$($script:MATTPOCOCK_COMMIT)*") "archive URL should pin the release commit"
     $pinnedNpxCall = $script:NpxCalls[-1]
     Assert-True (-not ($pinnedNpxCall -contains "mattpocock/skills")) "pinned install should not pass mutable remote source to npx"

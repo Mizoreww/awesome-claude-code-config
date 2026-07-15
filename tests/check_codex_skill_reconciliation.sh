@@ -189,14 +189,18 @@ mkdir -p \
   "$CODEX_DIR/skills/frontend-slides" \
   "$CODEX_DIR/skills/private-skill" \
   "$AGENTS_SKILLS_DIR/frontend-slides" \
+  "$AGENTS_SKILLS_DIR/humanizer-zh" \
   "$AGENTS_SKILLS_DIR/research"
 printf '%s\n' managed > "$CODEX_DIR/skills/frontend-slides/SKILL.md"
 printf '%s\n' managed > "$AGENTS_SKILLS_DIR/frontend-slides/SKILL.md"
+printf '%s\n' stale > "$AGENTS_SKILLS_DIR/humanizer-zh/SKILL.md"
 write_owned_skills humanizer humanizer-zh frontend-slides
 reconcile_interactive_skills
 assert_exists "$CODEX_DIR/skills/humanizer"
 assert_missing "$CODEX_DIR/skills/humanizer-zh"
+assert_missing "$AGENTS_SKILLS_DIR/humanizer-zh"
 assert_missing "$CODEX_DIR/skills/frontend-slides"
+assert_missing "$AGENTS_SKILLS_DIR/frontend-slides"
 assert_exists "$CODEX_DIR/skills/private-skill"
 assert_exists "$AGENTS_SKILLS_DIR/research"
 grep -Eq -- '(skills@latest|-- skills) remove' "$NPX_LOG" || fail "npx removal was not invoked"
@@ -234,6 +238,7 @@ reconcile_interactive_skills
 assert_exists "$CODEX_DIR/skills/research"
 
 reset_ownership_discovery
+# A lock entry alone does not claim a mismatched same-name custom copy.
 mkdir -p "$CODEX_DIR/skills/frontend-slides" "$AGENTS_SKILLS_DIR/frontend-slides" \
   "$(dirname "$GLOBAL_SKILL_LOCK_FILE")"
 printf '%s\n' custom > "$CODEX_DIR/skills/frontend-slides/SKILL.md"
@@ -243,13 +248,20 @@ reconcile_interactive_skills
 assert_exists "$CODEX_DIR/skills/frontend-slides"
 assert_exists "$AGENTS_SKILLS_DIR/frontend-slides"
 
+write_owned_skills frontend-slides
+reconcile_interactive_skills
+assert_missing "$CODEX_DIR/skills/frontend-slides"
+assert_missing "$AGENTS_SKILLS_DIR/frontend-slides"
+
 reset_ownership_discovery
 rm -rf "$CODEX_DIR/skills/frontend-slides"
+mkdir -p "$AGENTS_SKILLS_DIR/frontend-slides"
+printf '%s\n' upstream > "$AGENTS_SKILLS_DIR/frontend-slides/SKILL.md"
 cp -R "$AGENTS_SKILLS_DIR/frontend-slides" "$CODEX_DIR/skills/frontend-slides"
 printf '%s\n' '{"version":3,"skills":{"frontend-slides":{"source":"zarazhangrui/frontend-slides"}}}' > "$GLOBAL_SKILL_LOCK_FILE"
 reconcile_interactive_skills
 assert_missing "$CODEX_DIR/skills/frontend-slides"
-assert_exists "$AGENTS_SKILLS_DIR/frontend-slides"
+assert_missing "$AGENTS_SKILLS_DIR/frontend-slides"
 
 # Retired coding-foundations names remain cleanup-only: they cannot be selected
 # or installed, but a verified legacy copy is removed on the first upgrade.
@@ -261,7 +273,7 @@ cp "$AGENTS_SKILLS_DIR/python-patterns/SKILL.md" "$CODEX_DIR/skills/python-patte
 printf '%s\n' '{"version":3,"skills":{"python-patterns":{"source":"affaan-m/everything-claude-code"}}}' > "$GLOBAL_SKILL_LOCK_FILE"
 reconcile_interactive_skills
 assert_missing "$CODEX_DIR/skills/python-patterns"
-assert_exists "$AGENTS_SKILLS_DIR/python-patterns"
+assert_missing "$AGENTS_SKILLS_DIR/python-patterns"
 
 clear_skill_selections
 mkdir -p "$SUPERPOWERS_DIR/skills" "$SUPERPOWERS_DIR/.git"
@@ -302,8 +314,20 @@ grep -Fxq pua "$MANAGED_SKILLS_STATE_FILE" || fail "failed removal lost retry ow
 
 # Successful local and npx installs register ownership for later reconciliation.
 reset_ownership_discovery
+write_owned_skills humanizer
+mkdir -p "$AGENTS_SKILLS_DIR/humanizer"
+printf '%s\n' stale > "$AGENTS_SKILLS_DIR/humanizer/SKILL.md"
 copy_local_skill true humanizer
 grep -Fxq humanizer "$MANAGED_SKILLS_STATE_FILE" || fail "local install did not record ownership"
+assert_exists "$CODEX_DIR/skills/humanizer/SKILL.md"
+assert_missing "$AGENTS_SKILLS_DIR/humanizer"
+
+reset_ownership_discovery
+rm -rf "$CODEX_DIR/skills/humanizer"
+mkdir -p "$AGENTS_SKILLS_DIR/humanizer"
+printf '%s\n' custom > "$AGENTS_SKILLS_DIR/humanizer/SKILL.md"
+copy_local_skill true humanizer
+assert_exists "$AGENTS_SKILLS_DIR/humanizer"
 mkdir -p "$(dirname "$GLOBAL_SKILL_LOCK_FILE")"
 printf '%s\n' '{"version":3,"skills":{"frontend-slides":{"source":"zarazhangrui/frontend-slides","skillFolderHash":"0123456789abcdef0123456789abcdef01234567"}}}' > "$GLOBAL_SKILL_LOCK_FILE"
 export NPX_REFRESH_LOCK_SKILL=frontend-slides
@@ -312,6 +336,8 @@ export NPX_REFRESH_LOCK_FILE="$GLOBAL_SKILL_LOCK_FILE"
 install_npx_skill_names zarazhangrui/frontend-slides frontend-slides
 unset NPX_REFRESH_LOCK_SKILL NPX_REFRESH_LOCK_SOURCE NPX_REFRESH_LOCK_FILE
 grep -Fxq frontend-slides "$MANAGED_SKILLS_STATE_FILE" || fail "npx install did not record ownership"
+assert_exists "$CODEX_DIR/skills/frontend-slides/SKILL.md"
+assert_missing "$AGENTS_SKILLS_DIR/frontend-slides"
 
 # A zero exit from npx is insufficient when it silently skips a requested
 # skill. The installer must verify every requested directory before recording
@@ -371,7 +397,7 @@ DRY_RUN=true
 DRY_RUN=false
 eval "$real_install_mattpocock_skill_names"
 
-# Retired Matt Pocock names are removed from the shared canonical directory
+# Retired Matt Pocock names are removed from the shared staging directory
 # only when ownership/provenance is known, and their ownership records are
 # retired with them.
 reset_ownership_discovery

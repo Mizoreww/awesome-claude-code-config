@@ -21,6 +21,11 @@ Example lessons (invisible to `cat`, visible in editors):
 **Rule**: Never modify shell config files (~/.bashrc, ~/.profile, ~/.zshrc) unless explicitly requested. Prefer project-local or user-space alternatives.
 -->
 
+## 2026-07-15 - Codex branch skills must be installed under `~/.codex`
+**Context**: Fixing the split where updated Codex-branch skills appeared under `~/.agents/skills` while stale copies remained under `~/.codex/skills`.
+**Mistake**: Treated the shared `~/.agents/skills` location used by `npx skills` as an acceptable Codex installation target.
+**Rule**: The Codex branch owns `~/.codex`; every branch-managed skill, including skills fetched through `npx skills`, must be copied or installed there. Do not rely on `.agents/skills` discovery or leave it as the authoritative copy.
+
 ## 2026-07-13 - Keep this task's changes on codex-dev
 **Context**: ResearchStudio evaluation and correction-memory routing in `awesome-claude-code-config`.
 **Mistake**: Updated only the live `~/.codex/AGENTS.md` and treated the memory-routing request as machine-local, even though the user intended both it and the ResearchStudio work to be versioned Codex-branch changes.
