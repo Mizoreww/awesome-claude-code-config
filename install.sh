@@ -1993,28 +1993,30 @@ reconcile_interactive_skills() {
       fi
     fi
 
-    for skill in "${direct_stale[@]}"; do
-      if $DRY_RUN; then
-        if [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ]]; then
-          info "Would remove unselected managed skill: $CODEX_DIR/skills/$skill"
-        fi
-      elif [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ]]; then
-        if rm -rf "$CODEX_DIR/skills/$skill"; then
-          if remove_managed_staging_skill "$skill"; then
-            ok "Removed unselected managed skill: $skill"
-            removed_stale+=("$skill")
+    if [[ ${#direct_stale[@]} -gt 0 ]]; then
+      for skill in "${direct_stale[@]}"; do
+        if $DRY_RUN; then
+          if [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ]]; then
+            info "Would remove unselected managed skill: $CODEX_DIR/skills/$skill"
+          fi
+        elif [[ -e "$CODEX_DIR/skills/$skill" || -L "$CODEX_DIR/skills/$skill" ]]; then
+          if rm -rf "$CODEX_DIR/skills/$skill"; then
+            if remove_managed_staging_skill "$skill"; then
+              ok "Removed unselected managed skill: $skill"
+              removed_stale+=("$skill")
+            else
+              warn "Could not remove the managed staging copy: $AGENTS_SKILLS_DIR/$skill"
+              SKIPPED_COMPONENTS+=("unselected managed staging removal failed: $skill")
+            fi
           else
-            warn "Could not remove the managed staging copy: $AGENTS_SKILLS_DIR/$skill"
-            SKIPPED_COMPONENTS+=("unselected managed staging removal failed: $skill")
+            warn "Could not remove unselected managed skill: $skill"
+            SKIPPED_COMPONENTS+=("unselected managed skill removal failed: $skill")
           fi
         else
-          warn "Could not remove unselected managed skill: $skill"
-          SKIPPED_COMPONENTS+=("unselected managed skill removal failed: $skill")
+          removed_stale+=("$skill")
         fi
-      else
-        removed_stale+=("$skill")
-      fi
-    done
+      done
+    fi
     if $researchstudio_removed && [[ -f "$CODEX_DIR/skills/.env" ]]; then
       warn "Preserving $CODEX_DIR/skills/.env because it may contain user-managed ResearchStudio credentials; remove it manually if no other skill uses it"
     fi

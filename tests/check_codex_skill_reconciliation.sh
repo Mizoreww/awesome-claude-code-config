@@ -3,7 +3,16 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+TEST_COMPLETED=false
+cleanup() {
+  local status=$?
+  if [[ $status -eq 0 && "$TEST_COMPLETED" != "true" ]]; then
+    status=1
+  fi
+  rm -rf "$TMP"
+  exit "$status"
+}
+trap cleanup EXIT
 
 export HOME="$TMP/home"
 export XDG_STATE_HOME="$TMP/xdg-state"
@@ -285,6 +294,16 @@ reconcile_interactive_skills
 assert_exists "$SUPERPOWERS_LINK"
 assert_exists "$SUPERPOWERS_DIR"
 
+# A first-run migration can adopt only the superpowers fallback while no
+# matching ~/.codex/skills copies exist. All npx cleanup arrays stay empty.
+reset_ownership_discovery
+reconcile_interactive_skills
+assert_missing "$SUPERPOWERS_LINK"
+assert_missing "$SUPERPOWERS_DIR"
+
+mkdir -p "$SUPERPOWERS_DIR/skills" "$SUPERPOWERS_DIR/.git"
+printf '%s\n' '[remote "origin"]' '  url = https://github.com/obra/superpowers.git' > "$SUPERPOWERS_DIR/.git/config"
+ln -s "$SUPERPOWERS_DIR/skills" "$SUPERPOWERS_LINK"
 mkdir -p "$CODEX_DIR/skills/pua" "$AGENTS_SKILLS_DIR/pua"
 printf '%s\n' managed > "$CODEX_DIR/skills/pua/SKILL.md"
 printf '%s\n' managed > "$AGENTS_SKILLS_DIR/pua/SKILL.md"
@@ -508,4 +527,5 @@ if skills.get("custom-skill", {}).get("source") != "user/custom-skills":
     raise SystemExit("unrelated skill lock entry changed during pinned installation")
 PY
 
+TEST_COMPLETED=true
 printf '%s\n' "Codex skill reconciliation checks passed"
