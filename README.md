@@ -6,7 +6,7 @@
 
 ![Statusline](assets/statusline.png)
 
-Production-ready configuration for [Claude Code](https://claude.com/claude-code). One-command install of global instructions, multi-language coding rules (Python / TypeScript / Go), 25 curated plugins across 10 marketplaces, five bundled skills (plus the [mattpocock/skills](https://github.com/mattpocock/skills) collection via npx), a gradient status bar, and a self-improvement loop that remembers corrections across sessions.
+Production-ready configuration for [Claude Code](https://claude.com/claude-code). One-command install of global instructions, multi-language coding rules (Python / TypeScript / Go), 25 curated plugins across 10 marketplaces, six bundled skills (plus the [mattpocock/skills](https://github.com/mattpocock/skills) collection via npx), a gradient status bar, and a self-improvement loop that remembers corrections across sessions.
 
 ## Showcase
 
@@ -35,7 +35,7 @@ Launches a two-level interactive selector. Append `--all` / `-All` to skip the m
   > [5/5] Core                   Global instructions, settings, rules...
     [0/3] Language Rules          Python / TypeScript / Go
     [2/3] Review                  code-review + adversarial-review
-    [7/8] Workflow                karpathy, mattpocock/skills, update-config...
+    [8/9] Workflow                karpathy, mattpocock/skills, neat-freak...
     [3/3] Integrations            context7, github, playwright
     [4/5] Design & Content        document-skills, frontend-design, humanizer...
     [0/2] Slides                  frontend-slides, ppt-master
@@ -75,13 +75,14 @@ Launches a two-level interactive selector. Append `--all` / `-All` to skip the m
 | [**adversarial-review**](https://github.com/poteto/noodle/blob/main/.agents/skills/adversarial-review/SKILL.md) | bundled skill | Cross-model review (Skeptic / Architect / Minimalist lenses) | on |
 | [**codex**](https://github.com/openai/codex-plugin-cc) | openai-codex (plugin) | Codex CLI-backed adversarial review | off |
 
-**Workflow (8)** — planning, iteration, code quality, meta-config.
+**Workflow (9)** — planning, iteration, code quality, meta-config.
 
 | Item | Source | What It Does | Default |
 |------|--------|--------------|---------|
 | [**andrej-karpathy-skills**](https://github.com/forrestchang/andrej-karpathy-skills) | karpathy-skills (plugin) | Karpathy coding guidelines: Think-First, Simplicity, Surgical, Goal-Driven | on |
 | [**superpowers**](https://github.com/obra/superpowers) | claude-plugins-official (plugin) | Brainstorming, debugging, code review, git worktrees, plan writing | off |
 | [**mattpocock/skills**](https://github.com/mattpocock/skills) | npx `skills` | 17 agent skills (tdd, to-prd, to-issues, diagnosing-bugs, handoff, teach, grilling…) installed into `~/.claude/skills/` via the `skills` CLI | on |
+| [**neat-freak**](https://github.com/KKKKhazix/khazix-skills/tree/2b4a645cfdc894156ae347d897723562f719ce95/neat-freak) | bundled skill | Knowledge and governance closeout for project docs, agent rules, authorized memory, and workspace residue | on |
 | **feature-dev** | claude-plugins-official | Guided feature development | on |
 | **ralph-loop** | claude-plugins-official | Automated iteration loop (session-aware REPL) | on |
 | **commit-commands** | claude-plugins-official | Git commit / push / PR workflow | on |

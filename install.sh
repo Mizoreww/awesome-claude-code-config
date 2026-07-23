@@ -524,6 +524,7 @@ Codex CLI|Codex adversarial review (openai/codex)|0|review-codex")
     GROUP_ITEMS+=("andrej-karpathy-skills|Karpathy coding guidelines (Think-First, Simplicity, Surgical)|1|plug-andrej-karpathy-skills
 superpowers|Planning, brainstorming, TDD, debugging|0|plug-superpowers
 mattpocock/skills|17 agent skills via npx: tdd, to-prd, diagnosing-bugs, handoff, teach… (mattpocock)|1|skill-mattpocock
+neat-freak|Knowledge and governance closeout (KKKKhazix/khazix-skills)|1|skill-neat-freak
 feature-dev|Guided feature development|1|plug-feature-dev
 ralph-loop|Automated iteration loop|1|plug-ralph-loop
 commit-commands|git commit / push / PR workflow|1|plug-commit-commands
@@ -979,6 +980,7 @@ researchstudio|Research ideation (Microsoft): idea-spark, paper-search, scoop-ch
             skill-humanizer)        INSTALL_SKILLS=true; SELECTED_SKILLS+=("humanizer") ;;
             skill-humanizer-zh)     INSTALL_SKILLS=true; SELECTED_SKILLS+=("humanizer-zh") ;;
             skill-update-config)    INSTALL_SKILLS=true; SELECTED_SKILLS+=("update-config") ;;
+            skill-neat-freak)       INSTALL_SKILLS=true; SELECTED_SKILLS+=("neat-freak") ;;
             skill-mattpocock)       INSTALL_MATTPOCOCK=true ;;
             # DeepXiv
             deepxiv-cli)            INSTALL_DEEPXIV=true; SELECTED_DEEPXIV_SKILLS+=("deepxiv-cli") ;;

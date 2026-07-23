@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.9.2] - 2026-07-23
+
+### Features
+- Added [`neat-freak`](https://github.com/KKKKhazix/khazix-skills/tree/2b4a645cfdc894156ae347d897723562f719ce95/neat-freak) to the Workflow group as a default-on bundled skill in both Bash and PowerShell installers. It closes out project knowledge by reconciling documentation, agent rules, authorized memory, and workspace residue with current code and runtime facts.
+- Vendored the six-file runtime closure from upstream commit `2b4a645cfdc894156ae347d897723562f719ce95`: `SKILL.md`, four references, and the read-only inventory script. Upstream evaluation fixtures are not shipped.
+
+### Design Rationale
+- Pin and review the runtime instead of fetching mutable code during installation, while preserving every upstream runtime file byte-for-byte. The upstream MIT license is included alongside the skill, and the README links to the exact audited commit.
+- Keep `neat-freak` in Workflow and enabled by default because it is a project closeout workflow, not a background cleanup process; its own trigger and authorization rules continue to control when it runs and what it may change.
+
+### Notes & Caveats
+- The skill has no required third-party package dependency. Its optional inventory helper uses Bash; when Bash, Git, or `rg` is unavailable, the unchanged upstream workflow directs the agent to perform equivalent checks manually.
+- The installer copies the snapshot to `~/.claude/skills/neat-freak/`. No alias skill is created.
+
 ## [2.9.1] - 2026-07-14
 
 ### Features

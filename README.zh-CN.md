@@ -6,7 +6,7 @@
 
 ![Statusline](assets/statusline.png)
 
-[Claude Code](https://claude.com/claude-code) 的生产级配置。一条命令安装：全局指令、多语言编码规则（Python / TypeScript / Go）、10 个 marketplace 下的 25 个精选插件、5 个内置 skill（外加通过 npx 安装的 [mattpocock/skills](https://github.com/mattpocock/skills) 集合）、渐变状态栏，以及能跨会话记住纠正的自我改进回路。
+[Claude Code](https://claude.com/claude-code) 的生产级配置。一条命令安装：全局指令、多语言编码规则（Python / TypeScript / Go）、10 个 marketplace 下的 25 个精选插件、6 个内置 skill（外加通过 npx 安装的 [mattpocock/skills](https://github.com/mattpocock/skills) 集合）、渐变状态栏，以及能跨会话记住纠正的自我改进回路。
 
 ## 示例
 
@@ -35,7 +35,7 @@ irm https://raw.githubusercontent.com/Mizoreww/awesome-claude-code-config/main/i
   > [5/5] Core                   全局指令、设置、规则...
     [0/3] Language Rules          Python / TypeScript / Go
     [2/3] Review                  code-review + adversarial-review
-    [7/8] Workflow                karpathy、mattpocock/skills、update-config...
+    [8/9] Workflow                karpathy、mattpocock/skills、neat-freak...
     [3/3] Integrations            context7、github、playwright
     [4/5] Design & Content        document-skills、frontend-design、humanizer...
     [0/2] Slides                  frontend-slides、ppt-master
@@ -75,13 +75,14 @@ irm https://raw.githubusercontent.com/Mizoreww/awesome-claude-code-config/main/i
 | [**adversarial-review**](https://github.com/poteto/noodle/blob/main/.agents/skills/adversarial-review/SKILL.md) | 内置 skill | 跨模型审查（Skeptic / Architect / Minimalist 视角） | 开启 |
 | [**codex**](https://github.com/openai/codex-plugin-cc) | openai-codex（插件） | Codex CLI 驱动的对抗式审查 | 关闭 |
 
-**Workflow (8)** — 规划、迭代、代码质量、元配置。
+**Workflow (9)** — 规划、迭代、代码质量、元配置。
 
 | 项目 | 来源 | 功能 | 默认 |
 |------|------|------|------|
 | [**andrej-karpathy-skills**](https://github.com/forrestchang/andrej-karpathy-skills) | karpathy-skills（插件） | Karpathy 编码守则：Think-First、Simplicity、Surgical、Goal-Driven | 开启 |
 | [**superpowers**](https://github.com/obra/superpowers) | claude-plugins-official（插件） | 头脑风暴、调试、代码审查、Git worktree、计划编写 | 关闭 |
 | [**mattpocock/skills**](https://github.com/mattpocock/skills) | npx `skills` | 17 个 agent skill（tdd、to-prd、to-issues、diagnosing-bugs、handoff、teach、grilling…），通过 `skills` CLI 安装到 `~/.claude/skills/` | 开启 |
+| [**neat-freak**](https://github.com/KKKKhazix/khazix-skills/tree/2b4a645cfdc894156ae347d897723562f719ce95/neat-freak) | 内置 skill | 对齐项目文档、Agent 规则、获准维护的记忆与工作区残留，完成知识和治理收尾 | 开启 |
 | **feature-dev** | claude-plugins-official | 引导式功能开发 | 开启 |
 | **ralph-loop** | claude-plugins-official | 自动化迭代循环（会话感知 REPL） | 开启 |
 | **commit-commands** | claude-plugins-official | Git 提交 / 推送 / PR 工作流 | 开启 |

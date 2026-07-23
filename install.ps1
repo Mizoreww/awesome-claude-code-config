@@ -271,6 +271,7 @@ function Show-InteractiveMenu {
             @{ Label = "andrej-karpathy-skills"; Desc = "Karpathy coding guidelines (Think-First, Simplicity, Surgical)"; Default = $true; Id = "plug-andrej-karpathy-skills" }
             @{ Label = "superpowers";     Desc = "Planning, brainstorming, TDD, debugging"; Default = $false; Id = "plug-superpowers" }
             @{ Label = "mattpocock/skills"; Desc = "17 agent skills via npx: tdd, to-prd, diagnosing-bugs, handoff, teach... (mattpocock)"; Default = $true; Id = "skill-mattpocock" }
+            @{ Label = "neat-freak";     Desc = "Knowledge and governance closeout (KKKKhazix/khazix-skills)"; Default = $true; Id = "skill-neat-freak" }
             @{ Label = "feature-dev";     Desc = "Guided feature development";        Default = $true;  Id = "plug-feature-dev" }
             @{ Label = "ralph-loop";      Desc = "Automated iteration loop";          Default = $true;  Id = "plug-ralph-loop" }
             @{ Label = "commit-commands"; Desc = "git commit / push / PR workflow";   Default = $true;  Id = "plug-commit-commands" }
@@ -576,6 +577,7 @@ function Show-InteractiveMenu {
             "skill-humanizer"      { $result.Skills = $true; $result.SelectedSkills += "humanizer" }
             "skill-humanizer-zh"   { $result.Skills = $true; $result.SelectedSkills += "humanizer-zh" }
             "skill-update-config"  { $result.Skills = $true; $result.SelectedSkills += "update-config" }
+            "skill-neat-freak"     { $result.Skills = $true; $result.SelectedSkills += "neat-freak" }
             "skill-mattpocock"     { $result.Mattpocock = $true }
             "deepxiv-cli"          { $result.DeepXiv = $true; $result.DeepXivSkills += "deepxiv-cli" }
             "deepxiv-trending-digest" { $result.DeepXiv = $true; $result.DeepXivSkills += "deepxiv-trending-digest" }
