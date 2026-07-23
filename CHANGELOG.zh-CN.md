@@ -1,5 +1,19 @@
 # 更新日志
 
+## [Unreleased] - 2026-07-23
+
+### 功能
+- 在 Bash 与 PowerShell 安装器的 Workflow 分组中新增默认开启的内置 skill [`neat-freak`](https://github.com/KKKKhazix/khazix-skills/tree/2b4a645cfdc894156ae347d897723562f719ce95/neat-freak)。
+- 固定上游提交 `2b4a645cfdc894156ae347d897723562f719ce95` 的六个运行时文件：`SKILL.md`、四份参考文档及只读盘点脚本；不随安装包分发上游 eval 测试夹具。
+
+### 设计考量
+- 安装时不拉取可变上游，而是固定并审计运行时快照；六个上游运行时文件保持逐字节一致，并在 skill 目录附带完全一致的上游 MIT 许可证。
+- 仅保留 canonical 名称 `neat-freak` 及其原始上游语义；来源说明与安装器集成均位于运行时快照之外。
+
+### 注意事项
+- 内置快照只安装到 `~/.codex/skills/neat-freak/`；不会创建别名，也不会复制到共享的 `~/.agents/skills`。
+- 该 skill 没有必需的第三方包依赖。可选盘点脚本使用 Bash；缺少 Bash、Git 或 `rg` 时，未改动的上游流程会让 Agent 手工执行等价检查。
+
 ## [2.10.0] - 2026-07-13
 
 ### 新功能

@@ -14,7 +14,7 @@ Production-ready configuration for [Codex CLI](https://github.com/openai/codex) 
 ├── docs/                  # Migration notes and support docs
 ├── lessons.md             # This project's correction log (created/maintained on demand)
 ├── templates/             # Blank global lessons seed installed into ~/.codex
-├── skills/                # Bundled local skills (paper-reading, adversarial-review, handoff, humanizer, update)
+├── skills/                # Bundled local skills (paper-reading, neat-freak, handoff, humanizer, update, ...)
 ├── VERSION                # Installer version
 └── install.sh / install.ps1
 ```
@@ -73,7 +73,7 @@ Behavior notes:
 |-------|-------|---------|
 | Core | `AGENTS.md`, `config.toml`, `StatusLine`, global `lessons.md`, `explorer`, `reviewer`, `docs-researcher` | On |
 | Review | `code-review`, `adversarial-review` | `code-review` on; `adversarial-review` off |
-| Workflow | `andrej-karpathy-skills`, `superpowers`, `mattpocock/skills`, `handoff`, `update-config` | On except `superpowers` |
+| Workflow | `andrej-karpathy-skills`, `superpowers`, `mattpocock/skills`, `handoff`, `neat-freak`, `update-config` | On except `superpowers` |
 | Development Tools | `context7`, `github`, `playwright`, `openaiDeveloperDocs` | On; `github` requires `GITHUB_PERSONAL_ACCESS_TOKEN` |
 | Design & Content | `document-skills`, `example-skills`, `frontend-design`, `humanizer`, `humanizer-zh` | On except `humanizer-zh` |
 | Lifestyle | `PUA` | Off |
@@ -148,6 +148,7 @@ This keeps common principles and language-specific practices aligned.
 | DeepXiv skills | [DeepXiv/deepxiv_sdk](https://github.com/DeepXiv/deepxiv_sdk) | latest DeepXiv research workflows (`deepxiv-cli`, `deepxiv-baseline-table`, `deepxiv-trending-digest`) fetched fresh during install |
 | ResearchStudio Idea | [microsoft/ResearchStudio](https://github.com/microsoft/ResearchStudio) | opt-in research ideation, paper search, and novelty checking copied from the official source tree |
 | ResearchStudio Reel | [microsoft/ResearchStudio](https://github.com/microsoft/ResearchStudio/tree/main/ResearchStudio-Reel) | default-off paper-to-assets, poster, video, blog, and interactive-reel workflows copied from the official source tree |
+| neat-freak | [KKKKhazix/khazix-skills at `2b4a645`](https://github.com/KKKKhazix/khazix-skills/tree/2b4a645cfdc894156ae347d897723562f719ce95/neat-freak) | default-on vendored project knowledge and governance closeout workflow |
 | AI research skills | [zechenzhangAGI/AI-research-SKILLs](https://github.com/zechenzhangAGI/AI-research-SKILLs) | tokenization, fine-tuning, post-training, inference, distributed training, optimization |
 | frontend-slides | [zarazhangrui/frontend-slides](https://github.com/zarazhangrui/frontend-slides) | slide generation skill via `npx skills`; default off |
 | ppt-master | [hugohe3/ppt-master](https://github.com/hugohe3/ppt-master) | default-off native editable PPTX workflow; installs only the skill definition and defers runtime setup until first use |
@@ -171,6 +172,7 @@ Bundled local skills in this repo:
 - `paper-reading` (`skills/paper-reading/SKILL.md`) — structured research paper summarization
 - `adversarial-review` (`skills/adversarial-review/SKILL.md`) — cross-model adversarial code review via opposite AI CLI (from [poteto/noodle](https://github.com/poteto/noodle/tree/main/.agents/skills/adversarial-review))
 - `handoff` (`skills/handoff/SKILL.md`) — compact the current conversation into a handoff document
+- [`neat-freak`](https://github.com/KKKKhazix/khazix-skills/tree/2b4a645cfdc894156ae347d897723562f719ce95/neat-freak) (`skills/neat-freak/SKILL.md`) — project knowledge and governance closeout from the pinned upstream snapshot
 - `humanizer` (`skills/humanizer/SKILL.md`) — detect and remove AI writing patterns from text (from [blader/humanizer](https://github.com/blader/humanizer))
 - `humanizer-zh` (`skills/humanizer-zh/SKILL.md`) — remove AI writing patterns from Chinese text
 - `update` (`skills/update/SKILL.md`) — update the installed Codex config to the latest `codex` branch version

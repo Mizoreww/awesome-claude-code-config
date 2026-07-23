@@ -98,6 +98,7 @@ SELECT_SKILL_PAPER_READING=false
 SELECT_SKILL_HUMANIZER=false
 SELECT_SKILL_HUMANIZER_ZH=false
 SELECT_SKILL_HANDOFF=false
+SELECT_SKILL_NEAT_FREAK=false
 SELECT_SKILL_ADVERSARIAL_REVIEW=false
 SELECT_SKILL_UPDATE=false
 SELECT_AI_TOKENIZATION=false
@@ -127,6 +128,7 @@ MANAGED_SKILLS=(
   paper-reading
   adversarial-review
   handoff
+  neat-freak
   humanizer
   humanizer-zh
   update
@@ -194,7 +196,7 @@ SUPERPOWERS_SKILLS=(
   test-driven-development using-git-worktrees using-superpowers verification-before-completion
   writing-plans writing-skills
 )
-LOCAL_MANAGED_SKILLS=(paper-reading humanizer humanizer-zh handoff adversarial-review update)
+LOCAL_MANAGED_SKILLS=(paper-reading humanizer humanizer-zh handoff neat-freak adversarial-review update)
 MANAGED_SKILLS_STATE_FILE="$CODEX_DIR/.awesome-claude-code-config-managed-skills"
 if [[ -n "${XDG_STATE_HOME:-}" ]]; then
   GLOBAL_SKILL_LOCK_FILE="$XDG_STATE_HOME/skills/.skill-lock.json"
@@ -1791,6 +1793,7 @@ selected_managed_skill_names() {
   $SELECT_SKILL_HUMANIZER && printf '%s\n' humanizer
   $SELECT_SKILL_HUMANIZER_ZH && printf '%s\n' humanizer-zh
   $SELECT_SKILL_HANDOFF && printf '%s\n' handoff
+  $SELECT_SKILL_NEAT_FREAK && printf '%s\n' neat-freak
   $SELECT_SKILL_ADVERSARIAL_REVIEW && printf '%s\n' adversarial-review
   $SELECT_SKILL_UPDATE && printf '%s\n' update
   $SELECT_AI_TOKENIZATION && printf '%s\n' huggingface-tokenizers sentencepiece
@@ -2274,6 +2277,7 @@ install_local_skills() {
     copy_local_skill "$SELECT_SKILL_HUMANIZER" "humanizer"
     copy_local_skill "$SELECT_SKILL_HUMANIZER_ZH" "humanizer-zh"
     copy_local_skill "$SELECT_SKILL_HANDOFF" "handoff"
+    copy_local_skill "$SELECT_SKILL_NEAT_FREAK" "neat-freak"
     copy_local_skill "$SELECT_SKILL_ADVERSARIAL_REVIEW" "adversarial-review"
     copy_local_skill "$SELECT_SKILL_UPDATE" "update"
     return 0
@@ -2500,6 +2504,7 @@ GROUP_ITEMS+=("andrej-karpathy-skills|Karpathy coding guidelines|1|skill-karpath
 superpowers|Planning, brainstorming, TDD, debugging|0|skill-superpowers
 mattpocock/skills|Agent workflows via npx skills|1|skill-mattpocock
 handoff|Conversation handoff skill|1|skill-handoff
+neat-freak|Knowledge and governance closeout (KKKKhazix/khazix-skills)|1|skill-neat-freak
 update-config|Update Codex config branch install|1|skill-update")
 
   GROUP_LABELS+=("Development Tools")
@@ -2846,6 +2851,7 @@ ppt-master|Native editable PPTX generation with live preview|0|skill-ppt-master"
       skill-humanizer)         SELECT_SKILL_HUMANIZER=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-humanizer-zh)      SELECT_SKILL_HUMANIZER_ZH=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-handoff)           SELECT_SKILL_HANDOFF=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      skill-neat-freak)       SELECT_SKILL_NEAT_FREAK=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-adversarial-review) SELECT_SKILL_ADVERSARIAL_REVIEW=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-update)            SELECT_SKILL_UPDATE=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-pua)               SELECT_SKILL_PUA=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
@@ -2880,7 +2886,7 @@ ppt-master|Native editable PPTX generation with live preview|0|skill-ppt-master"
        $SELECT_SKILL_MATTPOCOCK || $SELECT_SKILL_DOCUMENTS || $SELECT_SKILL_EXAMPLES || \
        $SELECT_SKILL_FRONTEND_DESIGN || \
        $SELECT_SKILL_PAPER_READING || $SELECT_SKILL_HUMANIZER || \
-       $SELECT_SKILL_HUMANIZER_ZH || $SELECT_SKILL_HANDOFF || \
+       $SELECT_SKILL_HUMANIZER_ZH || $SELECT_SKILL_HANDOFF || $SELECT_SKILL_NEAT_FREAK || \
        $SELECT_SKILL_ADVERSARIAL_REVIEW || $SELECT_SKILL_UPDATE || \
        $SELECT_SKILL_PUA || \
        $SELECT_SKILL_FRONTEND_SLIDES || $SELECT_SKILL_PPT_MASTER; then

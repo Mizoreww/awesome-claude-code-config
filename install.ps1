@@ -143,6 +143,7 @@ $script:SelectSkillPaperReading = $true
 $script:SelectSkillHumanizer = $true
 $script:SelectSkillHumanizerZh = $false
 $script:SelectSkillHandoff = $true
+$script:SelectSkillNeatFreak = $true
 $script:SelectSkillAdversarialReview = $false
 $script:SelectSkillUpdate = $true
 $script:SelectAiTokenization = $false
@@ -172,6 +173,7 @@ $MANAGED_SKILLS = @(
     "paper-reading",
     "adversarial-review",
     "handoff",
+    "neat-freak",
     "humanizer",
     "humanizer-zh",
     "update",
@@ -235,7 +237,9 @@ $SUPERPOWERS_SKILLS = @(
     "test-driven-development", "using-git-worktrees", "using-superpowers", "verification-before-completion",
     "writing-plans", "writing-skills"
 )
-$LOCAL_MANAGED_SKILLS = @("paper-reading", "humanizer", "humanizer-zh", "handoff", "adversarial-review", "update")
+$LOCAL_MANAGED_SKILLS = @(
+    "paper-reading", "humanizer", "humanizer-zh", "handoff", "neat-freak", "adversarial-review", "update"
+)
 $MANAGED_SKILLS_STATE_FILE = Join-Path $CODEX_DIR ".awesome-claude-code-config-managed-skills"
 $GLOBAL_SKILL_LOCK_FILE = Get-GlobalSkillLockFile
 $script:OwnedManagedSkills = New-Object 'System.Collections.Generic.HashSet[string]'
@@ -634,6 +638,7 @@ function Reset-InteractiveSelections {
     $script:SelectSkillHumanizer = $true
     $script:SelectSkillHumanizerZh = $false
     $script:SelectSkillHandoff = $true
+    $script:SelectSkillNeatFreak = $true
     $script:SelectSkillAdversarialReview = $false
     $script:SelectSkillUpdate = $true
     $script:SelectAiTokenization = $false
@@ -954,7 +959,8 @@ function Install-SelectedRecommendedSkills {
         Install-PptMaster
     }
     if ($script:SelectSkillPaperReading -or $script:SelectSkillHumanizer -or $script:SelectSkillHumanizerZh -or
-        $script:SelectSkillHandoff -or $script:SelectSkillAdversarialReview -or $script:SelectSkillUpdate) {
+        $script:SelectSkillHandoff -or $script:SelectSkillNeatFreak -or
+        $script:SelectSkillAdversarialReview -or $script:SelectSkillUpdate) {
         if (-not $DryRun) {
             New-Item -ItemType Directory -Path (Join-Path $CODEX_DIR "skills") -Force | Out-Null
         }
@@ -983,6 +989,12 @@ function Install-SelectedRecommendedSkills {
             -Source (Join-Path $script:SCRIPT_DIR "skills/handoff") `
             -Target (Join-Path $CODEX_DIR "skills/handoff") `
             -Label "skills/handoff/"
+    }
+    if ($script:SelectSkillNeatFreak) {
+        Copy-SelectedDirectory -Selected $true `
+            -Source (Join-Path $script:SCRIPT_DIR "skills/neat-freak") `
+            -Target (Join-Path $CODEX_DIR "skills/neat-freak") `
+            -Label "skills/neat-freak/"
     }
     if ($script:SelectSkillAdversarialReview) {
         Copy-SelectedDirectory -Selected $true `
@@ -1221,6 +1233,7 @@ function Show-InteractiveMenu {
                 [pscustomobject]@{ Label = "superpowers"; Description = "Planning, brainstorming, TDD, debugging"; Default = $false; StateVar = "SelectSkillSuperpowers" },
                 [pscustomobject]@{ Label = "mattpocock/skills"; Description = "Agent workflows via npx skills"; Default = $true; StateVar = "SelectSkillMattPocock" },
                 [pscustomobject]@{ Label = "handoff"; Description = "Conversation handoff skill"; Default = $true; StateVar = "SelectSkillHandoff" },
+                [pscustomobject]@{ Label = "neat-freak"; Description = "Knowledge and governance closeout (KKKKhazix/khazix-skills)"; Default = $true; StateVar = "SelectSkillNeatFreak" },
                 [pscustomobject]@{ Label = "update-config"; Description = "Update Codex config branch install"; Default = $true; StateVar = "SelectSkillUpdate" }
             )
         },
@@ -1536,6 +1549,7 @@ function Show-InteractiveMenu {
                 'SelectSkillHumanizer' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillHumanizerZh' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillHandoff' { if ($selected) { $skillsSelected = $true } }
+                'SelectSkillNeatFreak' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillAdversarialReview' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillUpdate' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillPUA' { if ($selected) { $skillsSelected = $true } }
@@ -2355,6 +2369,7 @@ function Get-SelectedManagedSkills {
     Add-Names $script:SelectSkillHumanizer @("humanizer")
     Add-Names $script:SelectSkillHumanizerZh @("humanizer-zh")
     Add-Names $script:SelectSkillHandoff @("handoff")
+    Add-Names $script:SelectSkillNeatFreak @("neat-freak")
     Add-Names $script:SelectSkillAdversarialReview @("adversarial-review")
     Add-Names $script:SelectSkillUpdate @("update")
     Add-Names $script:SelectAiTokenization @("huggingface-tokenizers", "sentencepiece")
