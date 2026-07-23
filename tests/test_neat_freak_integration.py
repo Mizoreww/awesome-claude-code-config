@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
+import shutil
+import subprocess
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +42,20 @@ UPSTREAM_LICENSE_SHA256 = (
 
 def _sha256(file: Path) -> str:
     return hashlib.sha256(file.read_bytes()).hexdigest()
+
+
+def _assert_package_copy_matches(destination: Path) -> None:
+    expected_files = {
+        file.relative_to(SKILL_DIR).as_posix(): _sha256(file)
+        for file in SKILL_DIR.rglob("*")
+        if file.is_file()
+    }
+    actual_files = {
+        file.relative_to(destination).as_posix(): _sha256(file)
+        for file in destination.rglob("*")
+        if file.is_file()
+    }
+    assert actual_files == expected_files
 
 
 def test_runtime_snapshot_matches_pinned_upstream() -> None:
@@ -92,3 +111,129 @@ def test_readmes_document_the_pinned_upstream_and_default() -> None:
         assert UPSTREAM_URL in readme
         assert "[8/9] Workflow" in readme
         assert "**Workflow (9)**" in readme
+
+
+@pytest.mark.integration
+def test_bash_installer_dry_run_and_recursive_copy(tmp_path: Path) -> None:
+    installer = ROOT / "install.sh"
+    syntax = subprocess.run(
+        ["bash", "-n", str(installer)], capture_output=True, text=True, check=False
+    )
+    assert syntax.returncode == 0, syntax.stderr
+
+    dry_home = tmp_path / "dry-home"
+    dry_home.mkdir()
+    dry_env = os.environ | {"HOME": str(dry_home)}
+    dry_run = subprocess.run(
+        ["bash", str(installer), "--all", "--dry-run", "--force"],
+        cwd=ROOT,
+        env=dry_env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert dry_run.returncode == 0, dry_run.stdout + dry_run.stderr
+    assert "Would copy: skills/neat-freak/ ->" in dry_run.stdout
+    assert not (dry_home / ".claude" / "skills" / "neat-freak").exists()
+
+    source = installer.read_text(encoding="utf-8")
+    suffix = '\nmain "$@"\n'
+    assert source.endswith(suffix)
+    loader = tmp_path / "install-functions.sh"
+    loader.write_text(source[: -len(suffix)] + "\n", encoding="utf-8")
+
+    actual_home = tmp_path / "actual-home"
+    actual_home.mkdir()
+    harness = "\n".join(
+        (
+            "set -euo pipefail",
+            f'source "{loader}"',
+            f'SCRIPT_DIR="{ROOT}"',
+            f'CLAUDE_DIR="{actual_home / ".claude"}"',
+            "DRY_RUN=false",
+            'SELECTED_SKILLS=("neat-freak")',
+            "install_skills",
+        )
+    )
+    copied = subprocess.run(
+        ["bash", "-c", harness], capture_output=True, text=True, check=False
+    )
+    assert copied.returncode == 0, copied.stdout + copied.stderr
+    _assert_package_copy_matches(
+        actual_home / ".claude" / "skills" / "neat-freak"
+    )
+
+
+@pytest.mark.integration
+def test_powershell_installer_dry_run_and_recursive_copy(tmp_path: Path) -> None:
+    pwsh = os.environ.get("PWSH") or shutil.which("pwsh")
+    if not pwsh:
+        pytest.skip("PowerShell is not available")
+
+    installer = ROOT / "install.ps1"
+    parse_command = (
+        "$tokens=$null; $errors=$null; "
+        f"[System.Management.Automation.Language.Parser]::ParseFile('{installer}', "
+        "[ref]$tokens, [ref]$errors) > $null; "
+        "if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }"
+    )
+    syntax = subprocess.run(
+        [pwsh, "-NoLogo", "-NoProfile", "-Command", parse_command],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert syntax.returncode == 0, syntax.stdout + syntax.stderr
+
+    dry_home = tmp_path / "ps-dry-home"
+    dry_home.mkdir()
+    dry_cache = tmp_path / "ps-cache"
+    dry_env = os.environ | {
+        "HOME": str(dry_home),
+        "USERPROFILE": str(dry_home),
+        "LOCALAPPDATA": str(dry_home / ".local"),
+        "XDG_CACHE_HOME": str(dry_cache),
+        "POWERSHELL_TELEMETRY_OPTOUT": "1",
+    }
+    dry_run = subprocess.run(
+        [pwsh, "-NoLogo", "-NoProfile", "-File", str(installer), "-All", "-DryRun", "-Force"],
+        cwd=ROOT,
+        env=dry_env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert dry_run.returncode == 0, dry_run.stdout + dry_run.stderr
+    assert "Would copy: skills\\neat-freak\\" in dry_run.stdout
+    assert not (dry_home / ".claude" / "skills" / "neat-freak").exists()
+
+    source = installer.read_text(encoding="utf-8")
+    assert "& {\n" in source
+    suffix = "\nMain\n} @_safeArgs\n"
+    assert source.endswith(suffix)
+    loader_source = source.replace("& {\n", ". {\n", 1)
+    loader_source = loader_source[: -len(suffix)] + "\n}\n"
+    actual_home = tmp_path / "ps-actual-home"
+    actual_home.mkdir()
+    loader_source += "\n".join(
+        (
+            f"$script:SCRIPT_DIR = '{ROOT}'",
+            f"$script:CLAUDE_DIR = '{actual_home / '.claude'}'",
+            "$script:DryRun = $false",
+            "Install-Skills -SelectedSkills @('neat-freak')",
+            "",
+        )
+    )
+    loader = tmp_path / "install-functions.ps1"
+    loader.write_text(loader_source, encoding="utf-8")
+    copied = subprocess.run(
+        [pwsh, "-NoLogo", "-NoProfile", "-File", str(loader)],
+        env=dry_env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert copied.returncode == 0, copied.stdout + copied.stderr
+    _assert_package_copy_matches(
+        actual_home / ".claude" / "skills" / "neat-freak"
+    )
