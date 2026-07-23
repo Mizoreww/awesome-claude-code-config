@@ -1,6 +1,6 @@
 # 更新日志
 
-## [Unreleased] - 2026-07-23
+## [2.10.2] - 2026-07-23
 
 ### 功能
 - 在 Bash 与 PowerShell 安装器的 Workflow 分组中新增默认开启的内置 skill [`neat-freak`](https://github.com/KKKKhazix/khazix-skills/tree/2b4a645cfdc894156ae347d897723562f719ce95/neat-freak)。

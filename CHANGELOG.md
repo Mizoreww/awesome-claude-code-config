@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] - 2026-07-23
+## [2.10.2] - 2026-07-23
 
 ### Features
 - Added [`neat-freak`](https://github.com/KKKKhazix/khazix-skills/tree/2b4a645cfdc894156ae347d897723562f719ce95/neat-freak) to the Workflow group as a default-on bundled skill in both Bash and PowerShell installers.
