@@ -1,27 +1,23 @@
 # Plugins
 
-25 plugins across 10 marketplaces + 3 DeepXiv academic research skills (fetched from GitHub at install time). Context7, GitHub, Playwright migrated from MCP to official plugins.
+21 plugins across 10 marketplaces + 3 DeepXiv academic research skills (fetched from GitHub at install time). Context7 and Playwright migrated from MCP to official plugins.
 
 ## Plugin List
 
 | Plugin | Marketplace | What It Does |
 |--------|-------------|--------------|
 | [**superpowers**](https://github.com/obra/superpowers) | claude-plugins-official | Brainstorming, debugging, code review, git worktrees, plan writing |
+| [**mattpocock-skills**](https://github.com/mattpocock/skills) | mattpocock | 22 agent skills: tdd, to-spec, to-tickets, diagnosing-bugs, handoff, teach, grilling |
 | [**andrej-karpathy-skills**](https://github.com/forrestchang/andrej-karpathy-skills) | karpathy-skills | Karpathy coding guidelines: Think-First, Simplicity, Surgical Changes, Goal-Driven |
 | [**document-skills**](https://github.com/anthropics/skills) | anthropic-agent-skills | PDF, DOCX, PPTX, XLSX creation and manipulation |
 | [**example-skills**](https://github.com/anthropics/skills) | anthropic-agent-skills | Frontend design, MCP builder, canvas design, algorithmic art |
 | [**claude-mem**](https://github.com/thedotmack/claude-mem) | thedotmack | Persistent memory with smart search, timeline, AST-aware code search |
 | [**claude-health**](https://github.com/tw93/claude-health) | claude-health | Health check & wellness dashboard (default off) |
-| [**PUA**](https://github.com/tanweai/pua) | pua-skills | AI agent productivity booster (pua, pua-en, pua-ja) (default off) |
 | **frontend-design** | claude-plugins-official | Production-grade frontend interfaces |
 | [**context7**](https://github.com/upstash/context7) | claude-plugins-official | Up-to-date library documentation lookup |
 | **code-review** | claude-plugins-official | Confidence-based code review |
-| [**github**](https://github.com/github/github-mcp-server) | claude-plugins-official | GitHub integration (issues, PRs, workflows) |
 | [**playwright**](https://github.com/microsoft/playwright-mcp) | claude-plugins-official | Browser automation, E2E testing, screenshots |
-| **feature-dev** | claude-plugins-official | Guided feature development |
 | **code-simplifier** | claude-plugins-official | Code simplification and refactoring |
-| **ralph-loop** | claude-plugins-official | Session-aware AI assistant REPL |
-| **commit-commands** | claude-plugins-official | Git commit, clean branches, commit-push-PR |
 | [**codex**](https://github.com/openai/codex-plugin-cc) | openai-codex | Adversarial code review, Codex CLI integration, cross-model analysis |
 | [**tokenization**](https://github.com/Orchestra-Research/AI-Research-SKILLs) | ai-research-skills | HuggingFace Tokenizers, SentencePiece |
 | [**fine-tuning**](https://github.com/Orchestra-Research/AI-Research-SKILLs) | ai-research-skills | Axolotl, LLaMA-Factory, PEFT, Unsloth |
@@ -58,8 +54,8 @@ claude plugin marketplace add https://github.com/thedotmack/claude-mem
 claude plugin marketplace add https://github.com/zechenzhangAGI/AI-research-SKILLs
 claude plugin marketplace add https://github.com/openai/codex-plugin-cc
 claude plugin marketplace add https://github.com/forrestchang/andrej-karpathy-skills
+claude plugin marketplace add https://github.com/mattpocock/skills
 claude plugin marketplace add https://github.com/tw93/claude-health
-claude plugin marketplace add https://github.com/tanweai/pua
 claude plugin marketplace add https://github.com/zarazhangrui/frontend-slides
 claude plugin marketplace add https://github.com/hugohe3/ppt-master
 

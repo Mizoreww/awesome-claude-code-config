@@ -1,5 +1,26 @@
 # 更新日志
 
+## [3.0.0] - 2026-07-29
+
+### 功能
+- 从配置中移除五个插件：`feature-dev`、`ralph-loop`、`commit-commands`、`github`（均来自 `claude-plugins-official`），以及默认关闭的 `pua@pua-skills`。同时移除已无插件使用的 `pua-skills` marketplace。
+- 五个包全部加入 `PLUGINS_REMOVED` 墓碑列表：升级时会从已有的 `enabledPlugins` 中删除对应键，`--uninstall` 时也会尝试卸载。
+- `mattpocock/skills` 从 `npx skills` 安装方式改为官方插件 `mattpocock-skills@mattpocock`。由此去掉了对 Node.js/npx 的依赖、3 次重试逻辑和逐个 `--skill` 的筛选；升级时会删除此前由 npx 复制进来的 skill 目录（依据我们自己的清单文件），避免重复。
+- 修复本次改动暴露出的两个既有 Bash `settings.json` 合并缺陷：
+  - 墓碑清理发生在最后的递归 `*` 合并之前，合并又把它们从用户文件里恢复了回来。也就是说在 Linux/macOS 上墓碑机制**从未真正生效**；现在改为对最终结果执行清理。
+  - `env` 合并缺少外层括号，导致 `env` 中的键同时被写到 `settings.json` 顶层。
+
+### 设计理由
+- 这四个官方插件与内置工具、自带 skill 的能力重叠，因此移除以精简随包分发的目录。`pua` 本就默认关闭，移除后其 marketplace 也可一并去掉。
+- 采用墓碑而非直接删除键：合并逻辑会原样保留它不认识的键，若不加墓碑，升级后这些条目会永远留在用户的 `settings.json` 里。
+- 升为大版本，因为这改变的是"升级已有安装"的结果，而不仅仅是全新安装。
+- mattpocock 已发布正式插件，且上游明确说明插件与 npx 二选一（"两种都装会让每个 skill 出现两遍"）。改用插件可整体移除一条可选依赖路径——npx 方式在 Node 18 上本就会失败（`node:util` 没有 `styleText` 导出）。
+
+### 注意事项
+- **墓碑在每次合并 settings 时都会生效，而非只执行一次。** 如果你有意重新安装其中某个插件，再次运行安装脚本会再次删除它的 `enabledPlugins` 条目。可用 `claude plugin install <name>@claude-plugins-official` 恢复；PUA 需先重新添加其 marketplace（`claude plugin marketplace add https://github.com/tanweai/pua`），再安装 `pua@pua-skills`。
+- mattpocock 插件包含 22 个 skill，多于 npx 方式的 17 个。上游已将 `to-prd`/`to-issues` 更名为 `to-spec`/`to-tickets`，并新增 `code-review`、`implement`、`research`、`resolving-merge-conflicts`、`wayfinder`。插件是整包安装，因此无法再单独挑选其中某几个 skill。
+- 常规升级只删除 `enabledPlugins` 条目，不会执行 `claude plugin uninstall`，也不会注销 `pua-skills` marketplace——如需彻底清除请自行执行 `claude plugin marketplace remove pua-skills`。
+
 ## [2.9.2] - 2026-07-23
 
 ### 功能

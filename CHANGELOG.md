@@ -1,5 +1,26 @@
 # Changelog
 
+## [3.0.0] - 2026-07-29
+
+### Features
+- Removed five plugins from the shipped configuration: `feature-dev`, `ralph-loop`, `commit-commands`, and `github` (all `claude-plugins-official`), plus the default-off `pua@pua-skills`. This also drops the `pua-skills` marketplace, which no remaining plugin used.
+- Added all five packages to `PLUGINS_REMOVED`, so an upgrade deletes their keys from an existing `enabledPlugins` and `--uninstall` also attempts to uninstall them.
+- Switched `mattpocock/skills` from the `npx skills` installer to the official `mattpocock-skills@mattpocock` plugin. This drops the Node.js/npx dependency, the 3× retry wrapper, and the per-skill `--skill` scoping; upgrading removes the previously npx-copied skill directories (tracked by our own manifest) so nothing is duplicated.
+- Fixed two pre-existing bugs in the Bash `settings.json` merge that this release surfaced:
+  - Tombstoned plugins were deleted before the final recursive `*` merge, which then restored them from the user's existing file. On Linux/macOS **no** tombstone had ever taken effect; the strip now runs on the final object.
+  - Missing parentheses around the `env` merge caused `env` keys to also be written to the top level of `settings.json`.
+
+### Design Rationale
+- These four official plugins overlap with capability already provided by built-in tooling and bundled skills, so they were removed to keep the shipped catalogue smaller. `pua` was shipped default-off; removing it lets the `pua-skills` marketplace go with it.
+- Tombstoning rather than silently dropping the keys: without it, an upgrade would leave the entries enabled in the user's `settings.json` forever, since the merge preserves keys it doesn't recognize.
+- Major version bump because this changes the result of upgrading an existing installation, not only a fresh one.
+- mattpocock now publishes a real plugin, and upstream states the plugin and the npx install are mutually exclusive ("installing both leaves you with every skill twice"). Taking the plugin removes an entire optional-dependency code path — the npx install was already failing on Node 18, where `node:util` has no `styleText` export.
+
+### Notes & Caveats
+- **Tombstones apply on every settings merge, not just once.** If you deliberately reinstall one of these plugins, re-running the installer will remove its `enabledPlugins` entry again. Restore with `claude plugin install <name>@claude-plugins-official`; for PUA you must first re-add its marketplace (`claude plugin marketplace add https://github.com/tanweai/pua`) and then install `pua@pua-skills`.
+- The mattpocock plugin ships 22 skills, up from the 17 the npx path installed. `to-prd`/`to-issues` were renamed upstream to `to-spec`/`to-tickets`; `code-review`, `implement`, `research`, `resolving-merge-conflicts`, and `wayfinder` are new. Because a plugin is an all-or-nothing bundle, individual skills can no longer be cherry-picked.
+- A normal upgrade only removes the `enabledPlugins` entries. It does not run `claude plugin uninstall`, and it does not unregister the `pua-skills` marketplace — remove that yourself with `claude plugin marketplace remove pua-skills` if you want it gone.
+
 ## [2.9.2] - 2026-07-23
 
 ### Features

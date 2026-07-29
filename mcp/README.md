@@ -1,6 +1,6 @@
 # MCP Servers
 
-> **Note**: Context7, GitHub, and Playwright now have official plugin equivalents. Use plugins instead — see [`plugins/README.md`](../plugins/README.md). Lark-MCP remains here as a standalone MCP server.
+> **Note**: Context7 and Playwright now have official plugin equivalents. Use plugins instead — see [`plugins/README.md`](../plugins/README.md). Lark-MCP remains here as a standalone MCP server.
 
 ## Included Servers
 

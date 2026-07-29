@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -106,11 +107,24 @@ def test_claude_installers_register_default_on_workflow_skill() -> None:
 
 
 def test_readmes_document_the_pinned_upstream_and_default() -> None:
+    # Derive the expected Workflow size from install.sh rather than hard-coding it,
+    # so adding or removing a Workflow item does not silently rot this test.
+    bash = (ROOT / "install.sh").read_text(encoding="utf-8")
+    workflow_block = re.search(
+        r'GROUP_LABELS\+=\("Workflow"\).*?GROUP_ITEMS\+=\("(.*?)"\)', bash, re.S
+    )
+    assert workflow_block, "Workflow group not found in install.sh"
+    workflow_items = [
+        line for line in workflow_block.group(1).splitlines() if line.count("|") == 3
+    ]
+    selected = sum(1 for line in workflow_items if line.split("|")[2] == "1")
+    total = len(workflow_items)
+
     for readme_name in ("README.md", "README.zh-CN.md"):
         readme = (ROOT / readme_name).read_text(encoding="utf-8")
         assert UPSTREAM_URL in readme
-        assert "[8/9] Workflow" in readme
-        assert "**Workflow (9)**" in readme
+        assert f"[{selected}/{total}] Workflow" in readme
+        assert f"**Workflow ({total})**" in readme
 
 
 @pytest.mark.integration

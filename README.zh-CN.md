@@ -6,7 +6,7 @@
 
 ![Statusline](assets/statusline.png)
 
-[Claude Code](https://claude.com/claude-code) 的生产级配置。一条命令安装：全局指令、多语言编码规则（Python / TypeScript / Go）、10 个 marketplace 下的 25 个精选插件、6 个内置 skill（外加通过 npx 安装的 [mattpocock/skills](https://github.com/mattpocock/skills) 集合）、渐变状态栏，以及能跨会话记住纠正的自我改进回路。
+[Claude Code](https://claude.com/claude-code) 的生产级配置。一条命令安装：全局指令、多语言编码规则（Python / TypeScript / Go）、10 个 marketplace 下的 21 个精选插件、6 个内置 skill、渐变状态栏，以及能跨会话记住纠正的自我改进回路。
 
 ## 示例
 
@@ -35,11 +35,11 @@ irm https://raw.githubusercontent.com/Mizoreww/awesome-claude-code-config/main/i
   > [5/5] Core                   全局指令、设置、规则...
     [0/3] Language Rules          Python / TypeScript / Go
     [2/3] Review                  code-review + adversarial-review
-    [8/9] Workflow                karpathy、mattpocock/skills、neat-freak...
-    [3/3] Integrations            context7、github、playwright
+    [5/6] Workflow                karpathy、mattpocock-skills、neat-freak...
+    [2/2] Integrations            context7、playwright
     [4/5] Design & Content        document-skills、frontend-design、humanizer...
     [0/2] Slides                  frontend-slides、ppt-master
-    [0/3] Memory & Lifestyle      claude-mem、claude-health、PUA
+    [0/2] Memory & Lifestyle      claude-mem、claude-health
     [1/11] Academic Research      paper-reading、deepxiv-cli、researchstudio...
     [0/1] MCP Servers             Lark/飞书
 ```
@@ -75,26 +75,22 @@ irm https://raw.githubusercontent.com/Mizoreww/awesome-claude-code-config/main/i
 | [**adversarial-review**](https://github.com/poteto/noodle/blob/main/.agents/skills/adversarial-review/SKILL.md) | 内置 skill | 跨模型审查（Skeptic / Architect / Minimalist 视角） | 开启 |
 | [**codex**](https://github.com/openai/codex-plugin-cc) | openai-codex（插件） | Codex CLI 驱动的对抗式审查 | 关闭 |
 
-**Workflow (9)** — 规划、迭代、代码质量、元配置。
+**Workflow (6)** — 规划、迭代、代码质量、元配置。
 
 | 项目 | 来源 | 功能 | 默认 |
 |------|------|------|------|
 | [**andrej-karpathy-skills**](https://github.com/forrestchang/andrej-karpathy-skills) | karpathy-skills（插件） | Karpathy 编码守则：Think-First、Simplicity、Surgical、Goal-Driven | 开启 |
 | [**superpowers**](https://github.com/obra/superpowers) | claude-plugins-official（插件） | 头脑风暴、调试、代码审查、Git worktree、计划编写 | 关闭 |
-| [**mattpocock/skills**](https://github.com/mattpocock/skills) | npx `skills` | 17 个 agent skill（tdd、to-prd、to-issues、diagnosing-bugs、handoff、teach、grilling…），通过 `skills` CLI 安装到 `~/.claude/skills/` | 开启 |
+| [**mattpocock-skills**](https://github.com/mattpocock/skills) | mattpocock（插件） | 22 个 agent skill（tdd、to-spec、to-tickets、diagnosing-bugs、handoff、teach、grilling…），以托管插件形式提供 | 开启 |
 | [**neat-freak**](https://github.com/KKKKhazix/khazix-skills/tree/2b4a645cfdc894156ae347d897723562f719ce95/neat-freak) | 内置 skill | 对齐项目文档、Agent 规则、获准维护的记忆与工作区残留，完成知识和治理收尾 | 开启 |
-| **feature-dev** | claude-plugins-official | 引导式功能开发 | 开启 |
-| **ralph-loop** | claude-plugins-official | 自动化迭代循环（会话感知 REPL） | 开启 |
-| **commit-commands** | claude-plugins-official | Git 提交 / 推送 / PR 工作流 | 开启 |
 | **code-simplifier** | claude-plugins-official | 代码简化与重构 | 开启 |
 | [**update-config**](skills/update-config/) | 内置 skill | `/update-config` — 在会话内重新运行安装器 | 开启 |
 
-**Integrations (3)** — 外部工具与服务。
+**Integrations (2)** — 外部工具与服务。
 
 | 项目 | 来源 | 功能 | 默认 |
 |------|------|------|------|
 | [**context7**](https://github.com/upstash/context7) | claude-plugins-official | 最新库文档查询 | 开启 |
-| [**github**](https://github.com/github/github-mcp-server) | claude-plugins-official | GitHub 集成（Issue、PR、工作流） | 开启 |
 | [**playwright**](https://github.com/microsoft/playwright-mcp) | claude-plugins-official | 浏览器自动化、E2E 测试、截图 | 开启 |
 
 **Design & Content (5)** — 文档、UI、创意与文本"人化"。
@@ -114,13 +110,12 @@ irm https://raw.githubusercontent.com/Mizoreww/awesome-claude-code-config/main/i
 | [**frontend-slides**](https://github.com/zarazhangrui/frontend-slides) | frontend-slides | 零依赖 HTML 幻灯片生成器，支持 PPT 转换与 bold 模板风格 | 关闭 |
 | [**ppt-master**](https://github.com/hugohe3/ppt-master) | ppt-master | 从 PDF/DOCX/URL/Markdown 生成可编辑 PPTX——真实形状与动画（安装后需 `pip install -r requirements.txt`） | 关闭 |
 
-**Memory & Lifestyle (3)** — 会话记忆与个人生产力，默认全部关闭。
+**Memory & Lifestyle (2)** — 会话记忆与个人生产力，默认全部关闭。
 
 | 项目 | 来源 | 功能 | 默认 |
 |------|------|------|------|
 | [**claude-mem**](https://github.com/thedotmack/claude-mem) | thedotmack | 持久化记忆，智能搜索、时间线、AST 感知代码搜索 | 关闭 |
 | [**claude-health**](https://github.com/tw93/claude-health) | claude-health | Claude Code 会话健康检查与状态面板 | 关闭 |
-| [**PUA**](https://github.com/tanweai/pua) | pua-skills | AI Agent 生产力倍增器（中 / 英 / 日） | 关闭 |
 
 **Academic Research (11)** — 训练 / 推理插件 + 论文阅读、DeepXiv、ResearchStudio skill，默认除 `paper-reading` 外全部关闭。
 

@@ -171,31 +171,19 @@ function Confirm-Action {
 
 # --- Plugin groups ---------------------------------------------------------
 
-# Skills shipped by mattpocock/skills (installed via `npx skills`, NOT vendored).
-# Snapshot of the plugin.json skill list at integration time; used for uninstall cleanup.
-$MATTPOCOCK_SKILLS = @(
-    "ask-matt", "diagnosing-bugs", "grill-with-docs", "triage",
-    "improve-codebase-architecture", "setup-matt-pocock-skills", "tdd",
-    "to-issues", "to-prd", "prototype", "domain-modeling", "codebase-design",
-    "grill-me", "grilling", "handoff", "teach", "writing-great-skills"
-)
-
 # ResearchStudio Idea skills (installed via `npx github:microsoft/ResearchStudio`, NOT vendored).
 # Directory names use underscores; menu/quickstart text uses hyphens. Used for uninstall cleanup.
 $RESEARCHSTUDIO_SKILLS = @("idea_spark", "paper_search", "scoop_check")
 
 $PLUGINS_ESSENTIAL = @(
     "andrej-karpathy-skills@karpathy-skills"
+    "mattpocock-skills@mattpocock"
     "context7@claude-plugins-official"
-    "commit-commands@claude-plugins-official"
     "document-skills@anthropic-agent-skills"
     "playwright@claude-plugins-official"
-    "feature-dev@claude-plugins-official"
     "code-simplifier@claude-plugins-official"
-    "ralph-loop@claude-plugins-official"
     "frontend-design@claude-plugins-official"
     "example-skills@anthropic-agent-skills"
-    "github@claude-plugins-official"
 )
 
 # Optional plugins: default OFF, installed only via explicit -All or manual opt-in
@@ -222,14 +210,15 @@ $PLUGINS_HEALTH = @(
     "health@claude-health"
 )
 
-$PLUGINS_PUA = @(
-    "pua@pua-skills"
-)
-
 # Tombstones: plugins removed in a prior version. Stripped from a user's enabledPlugins
 # on upgrade and uninstalled on -Uninstall, so "removed" plugins don't linger.
 $PLUGINS_REMOVED = @(
     "everything-claude-code@everything-claude-code"
+    "feature-dev@claude-plugins-official"
+    "ralph-loop@claude-plugins-official"
+    "commit-commands@claude-plugins-official"
+    "github@claude-plugins-official"
+    "pua@pua-skills"
 )
 
 $MARKETPLACE_LIST = @(
@@ -238,11 +227,11 @@ $MARKETPLACE_LIST = @(
     @{ Name = "claude-plugins-official"; Repo = "anthropics/claude-plugins-official" }
     @{ Name = "thedotmack"; Repo = "thedotmack/claude-mem" }
     @{ Name = "claude-health"; Repo = "tw93/claude-health" }
-    @{ Name = "pua-skills"; Repo = "tanweai/pua" }
     @{ Name = "openai-codex"; Repo = "openai/codex-plugin-cc" }
     @{ Name = "frontend-slides"; Repo = "zarazhangrui/frontend-slides" }
     @{ Name = "ppt-master"; Repo = "hugohe3/ppt-master" }
     @{ Name = "karpathy-skills"; Repo = "forrestchang/andrej-karpathy-skills" }
+    @{ Name = "mattpocock"; Repo = "mattpocock/skills" }
 )
 
 # --- Interactive menu ------------------------------------------------------
@@ -270,17 +259,13 @@ function Show-InteractiveMenu {
         @{ Label = "Workflow"; Hint = "planning, iteration, code quality, meta-config"; Items = @(
             @{ Label = "andrej-karpathy-skills"; Desc = "Karpathy coding guidelines (Think-First, Simplicity, Surgical)"; Default = $true; Id = "plug-andrej-karpathy-skills" }
             @{ Label = "superpowers";     Desc = "Planning, brainstorming, TDD, debugging"; Default = $false; Id = "plug-superpowers" }
-            @{ Label = "mattpocock/skills"; Desc = "17 agent skills via npx: tdd, to-prd, diagnosing-bugs, handoff, teach... (mattpocock)"; Default = $true; Id = "skill-mattpocock" }
+            @{ Label = "mattpocock-skills"; Desc = "22 agent skills: tdd, to-spec, diagnosing-bugs, handoff, teach... (mattpocock)"; Default = $true; Id = "plug-mattpocock" }
             @{ Label = "neat-freak";     Desc = "Knowledge and governance closeout (KKKKhazix/khazix-skills)"; Default = $true; Id = "skill-neat-freak" }
-            @{ Label = "feature-dev";     Desc = "Guided feature development";        Default = $true;  Id = "plug-feature-dev" }
-            @{ Label = "ralph-loop";      Desc = "Automated iteration loop";          Default = $true;  Id = "plug-ralph-loop" }
-            @{ Label = "commit-commands"; Desc = "git commit / push / PR workflow";   Default = $true;  Id = "plug-commit-commands" }
             @{ Label = "code-simplifier"; Desc = "Code simplification & cleanup";     Default = $true;  Id = "plug-code-simplifier" }
             @{ Label = "update-config";   Desc = "Configure Claude Code via settings.json (skill)"; Default = $true; Id = "skill-update-config" }
         )}
         @{ Label = "Integrations"; Hint = "external tools & services"; Items = @(
             @{ Label = "context7";        Desc = "Real-time library documentation";   Default = $true;  Id = "plug-context7" }
-            @{ Label = "github";          Desc = "GitHub integration (issues, PRs, workflows)"; Default = $true;  Id = "plug-github" }
             @{ Label = "playwright";      Desc = "Browser automation & E2E testing";  Default = $true;  Id = "plug-playwright" }
         )}
         @{ Label = "Design & Content"; Hint = "documents, UI, creative artifacts, humanization"; Items = @(
@@ -297,7 +282,6 @@ function Show-InteractiveMenu {
         @{ Label = "Memory & Lifestyle"; Hint = "session memory and personal productivity"; Items = @(
             @{ Label = "claude-mem";      Desc = "Cross-session memory (~3k tokens/session)"; Default = $false; Id = "plug-claude-mem" }
             @{ Label = "claude-health";   Desc = "Health check & wellness dashboard"; Default = $false; Id = "plug-claude-health" }
-            @{ Label = "PUA";             Desc = "AI agent productivity booster (pua, pua-en, pua-ja)"; Default = $false; Id = "plug-pua" }
         )}
         @{ Label = "Academic Research"; Hint = "training/inference plugins + paper-reading & DeepXiv skills"; Items = @(
             @{ Label = "paper-reading";   Desc = "Research paper summarization (skill)"; Default = $true; Id = "skill-paper-reading" }
@@ -508,22 +492,18 @@ function Show-InteractiveMenu {
     # Plugin ID -> package mapping
     $pluginMap = @{
         "plug-andrej-karpathy-skills" = "andrej-karpathy-skills@karpathy-skills"
+        "plug-mattpocock" = "mattpocock-skills@mattpocock"
         "plug-superpowers" = "superpowers@claude-plugins-official"
         "plug-frontend-slides" = "frontend-slides@frontend-slides"
         "plug-ppt-master" = "ppt-master@ppt-master"
         "plug-context7" = "context7@claude-plugins-official"
-        "plug-commit-commands" = "commit-commands@claude-plugins-official"
         "plug-document-skills" = "document-skills@anthropic-agent-skills"
         "plug-playwright" = "playwright@claude-plugins-official"
-        "plug-feature-dev" = "feature-dev@claude-plugins-official"
         "plug-code-simplifier" = "code-simplifier@claude-plugins-official"
-        "plug-ralph-loop" = "ralph-loop@claude-plugins-official"
         "plug-frontend-design" = "frontend-design@claude-plugins-official"
         "plug-example-skills" = "example-skills@anthropic-agent-skills"
-        "plug-github" = "github@claude-plugins-official"
         "plug-claude-mem" = "claude-mem@thedotmack"
         "plug-claude-health" = "health@claude-health"
-        "plug-pua" = "pua@pua-skills"
         "plug-tokenization" = "tokenization@ai-research-skills"
         "plug-fine-tuning" = "fine-tuning@ai-research-skills"
         "plug-post-training" = "post-training@ai-research-skills"
@@ -544,7 +524,6 @@ function Show-InteractiveMenu {
         Lessons            = $false
         Skills             = $false
         SelectedSkills     = @()
-        Mattpocock         = $false
         Plugins            = $false
         SelectedPlugins    = @()
         PluginGroups       = @()
@@ -578,7 +557,6 @@ function Show-InteractiveMenu {
             "skill-humanizer-zh"   { $result.Skills = $true; $result.SelectedSkills += "humanizer-zh" }
             "skill-update-config"  { $result.Skills = $true; $result.SelectedSkills += "update-config" }
             "skill-neat-freak"     { $result.Skills = $true; $result.SelectedSkills += "neat-freak" }
-            "skill-mattpocock"     { $result.Mattpocock = $true }
             "deepxiv-cli"          { $result.DeepXiv = $true; $result.DeepXivSkills += "deepxiv-cli" }
             "deepxiv-trending-digest" { $result.DeepXiv = $true; $result.DeepXivSkills += "deepxiv-trending-digest" }
             "deepxiv-baseline-table"  { $result.DeepXiv = $true; $result.DeepXivSkills += "deepxiv-baseline-table" }
@@ -634,8 +612,7 @@ function Get-EffectiveSelectedPlugins {
             "claude-mem" { $pkgs += $PLUGINS_CLAUDE_MEM }
             "ai-research" { $pkgs += $PLUGINS_AI_RESEARCH }
             "health" { $pkgs += $PLUGINS_HEALTH }
-            "pua" { $pkgs += $PLUGINS_PUA }
-            "all" { $pkgs += $PLUGINS_ESSENTIAL + $PLUGINS_OPTIONAL + $PLUGINS_CLAUDE_MEM + $PLUGINS_AI_RESEARCH + $PLUGINS_HEALTH + $PLUGINS_PUA }
+            "all" { $pkgs += $PLUGINS_ESSENTIAL + $PLUGINS_OPTIONAL + $PLUGINS_CLAUDE_MEM + $PLUGINS_AI_RESEARCH + $PLUGINS_HEALTH }
         }
     }
     return @($pkgs | Select-Object -Unique)
@@ -669,7 +646,7 @@ function Install-Settings {
                     $obj = Get-Content $target -Raw | ConvertFrom-Json
                     # Fresh install: catalogue = source keys ∪ selection so plugins
                     # picked in the menu that aren't declared in the shipped
-                    # settings.json (codex, health, pua) still land as true.
+                    # settings.json (codex, health) still land as true.
                     $filtered = [ordered]@{}
                     $seen = @{}
                     if ($obj.enabledPlugins) {
@@ -748,7 +725,7 @@ function Install-Settings {
         # enabledPlugins: if plugins were interacted with this run, apply the selection
         # filter to the catalogue (source keys ∪ selected keys — so plugins picked in
         # the menu that aren't declared in the shipped settings.json, e.g. codex,
-        # health, pua, still land as true). User-added keys that exist only in
+        # health, still land as true). User-added keys that exist only in
         # $existing (outside our catalogue) are preserved verbatim so the installer
         # never silently disables third-party plugins.
         # If plugins were not interacted with, fall back to union merge with existing
@@ -902,9 +879,8 @@ function Install-Skills {
 
     # Migration: remove renamed/deleted skills from previous installs.
     # NOTE: handoff/teach are intentionally NOT removed here — they were vendored in
-    # <=2.7.x and now ship via mattpocock/skills. Deleting them up front would lose them
-    # for users who lack npx or deselect mattpocock; instead they are overwritten in
-    # place by Install-MattpocockSkills (--copy) when that item is selected.
+    # <=2.7.x and now ship inside the mattpocock-skills plugin. Any loose copies left
+    # by the old npx install are cleaned up by Remove-LegacyMattpocockSkills.
     foreach ($oldSkill in @("update")) {
         $oldPath = Join-Path $skillsDir $oldSkill
         if (Test-Path $oldPath) {
@@ -950,50 +926,35 @@ function Install-Skills {
     }
 }
 
-# Install the full mattpocock/skills collection via the `skills` CLI (npx).
-# Installs globally to ~/.claude/skills/ for Claude Code only, as real copies
-# (not symlinks). Replaces the formerly vendored handoff/teach skills.
-function Install-MattpocockSkills {
-    Write-Info "Installing mattpocock/skills (via npx skills)..."
-    # Scope to the MATTPOCOCK_SKILLS names (the 17 plugin.json skills) via repeated
-    # --skill flags. `--skill '*'` would pull all 35 SKILL.md files in the repo,
-    # including personal/in-progress ones we neither track nor uninstall.
-    $npxArgs = @("-y", "skills@latest", "add", "mattpocock/skills", "--global", "--agent", "claude-code", "--copy", "--yes")
-    foreach ($s in $MATTPOCOCK_SKILLS) { $npxArgs += @("--skill", $s) }
-    $cmdPreview = "`$env:DO_NOT_TRACK='1'; npx " + ($npxArgs -join " ")
-    $npx = Get-Command npx -ErrorAction SilentlyContinue
-    if (-not $npx) {
-        Write-Warn "npx not found (needs Node.js) - skipping mattpocock/skills (optional)."
-        Write-Warn "  Install Node.js to get npx: https://nodejs.org"
-        Write-Warn "  e.g. run 'winget install OpenJS.NodeJS' (or download the installer from the link above)"
-        Write-Warn "  Then run: $cmdPreview"
-        # Optional add-on: do NOT count as an install warning (would block the version stamp).
-        return
-    }
-    if ($DryRun) {
-        Write-Info "Would run: $cmdPreview"
-        return
-    }
-    $prevDnt = $env:DO_NOT_TRACK
-    $env:DO_NOT_TRACK = "1"
-    try {
-        $ok = Invoke-Retry -MaxAttempts 3 -DelaySeconds 5 -Description "mattpocock/skills" -Action {
-            & npx @npxArgs
-            if ($LASTEXITCODE -ne 0) { throw "npx skills exited with code $LASTEXITCODE" }
+# Migration for <=2.9.x installs: mattpocock skills used to be copied into
+# ~/.claude/skills/ via `npx skills`. 3.0.0 installs the official plugin instead, and
+# upstream warns that having both leaves every skill duplicated. Removes only the
+# directories our own manifest records - never a user-authored skill that happens to
+# share a generic name (tdd, handoff, teach, ...). No manifest -> we installed nothing.
+function Remove-LegacyMattpocockSkills {
+    $manifest = Join-Path $CLAUDE_DIR ".mattpocock-skills"
+    if (-not (Test-Path $manifest)) { return }
+
+    $removed = $false
+    foreach ($skill in (Get-Content $manifest)) {
+        $skill = $skill.Trim()
+        if (-not $skill) { continue }
+        $dir = Join-Path $CLAUDE_DIR "skills\$skill"
+        if (-not (Test-Path $dir)) { continue }
+        if ($DryRun) {
+            Write-Info "Would remove npx-installed mattpocock skill: $skill (now provided by the plugin)"
+        } else {
+            Remove-Item $dir -Recurse -Force
+            $removed = $true
         }
-    } finally {
-        $env:DO_NOT_TRACK = $prevDnt
     }
-    if ($ok) {
-        Write-Ok "mattpocock/skills installed (~/.claude/skills/)"
-        # Record what we installed so uninstall removes only these (provenance), never a
-        # user-authored skill that merely shares a generic name (tdd, handoff, ...).
-        try { $MATTPOCOCK_SKILLS | Set-Content -Path (Join-Path $CLAUDE_DIR ".mattpocock-skills") -Encoding UTF8 } catch {}
-    } else {
-        Write-Warn "Failed to install mattpocock/skills via npx (optional - install skipped)."
-        Write-Warn "  Retry manually: $cmdPreview"
-        # Optional add-on failure is non-fatal: do NOT block the version stamp.
+
+    if ($DryRun) {
+        Write-Info "Would remove legacy manifest: $manifest"
+        return
     }
+    Remove-Item $manifest -Force -ErrorAction SilentlyContinue
+    if ($removed) { Write-Ok "Removed npx-installed mattpocock skills (now provided by the mattpocock-skills plugin)" }
 }
 
 function Install-DeepXiv {
@@ -1075,7 +1036,7 @@ function Install-DeepXiv {
 # ~/.claude/skills/ and writes a shared skills/.env. RS_PIP=1 also pip-installs the
 # skills' Python deps to the user site (--user), matching the codex branch behavior.
 # Optional add-on: a missing npx or a failed installer is non-fatal (must not block the
-# version stamp), mirroring Install-MattpocockSkills.
+# version stamp).
 $script:ResearchStudioQuickstartReady = $false
 function Install-ResearchStudio {
     Write-Info "Installing ResearchStudio Idea skills via the official npx installer..."
@@ -1306,8 +1267,7 @@ function Install-Plugins {
             "claude-mem" { $plugins += $PLUGINS_CLAUDE_MEM }
             "ai-research" { $plugins += $PLUGINS_AI_RESEARCH }
             "health" { $plugins += $PLUGINS_HEALTH }
-            "pua" { $plugins += $PLUGINS_PUA }
-            "all" { $plugins += $PLUGINS_ESSENTIAL + $PLUGINS_OPTIONAL + $PLUGINS_CLAUDE_MEM + $PLUGINS_AI_RESEARCH + $PLUGINS_HEALTH + $PLUGINS_PUA }
+            "all" { $plugins += $PLUGINS_ESSENTIAL + $PLUGINS_OPTIONAL + $PLUGINS_CLAUDE_MEM + $PLUGINS_AI_RESEARCH + $PLUGINS_HEALTH }
         }
     }
 
@@ -1442,19 +1402,9 @@ function Invoke-Uninstall {
         Write-Warn "Preserving $CLAUDE_DIR\skills\.env — it may contain ResearchStudio credentials; remove it manually if unused."
     }
 
-    # Remove mattpocock/skills we installed, tracked via the install manifest written at
-    # install time — so we never delete a user-authored skill that merely shares a
-    # generic name (tdd, handoff, teach, ...). No manifest -> we installed nothing -> skip.
-    $mpManifest = Join-Path $CLAUDE_DIR ".mattpocock-skills"
-    if (Test-Path $mpManifest) {
-        foreach ($mpSkill in (Get-Content $mpManifest)) {
-            $mpSkill = $mpSkill.Trim()
-            if (-not $mpSkill) { continue }
-            $mp = Join-Path $CLAUDE_DIR "skills\$mpSkill"
-            if (Test-Path $mp) { Remove-Item $mp -Recurse -Force; Write-Ok "Removed mattpocock skill: $mpSkill" }
-        }
-        Remove-Item $mpManifest -Force
-    }
+    # Remove any skills left behind by the pre-3.0.0 npx install of mattpocock/skills.
+    # Manifest-driven, so a user-authored skill sharing a generic name is never touched.
+    Remove-LegacyMattpocockSkills
 
     $p = Join-Path $CLAUDE_DIR "lessons.md"
     if (Test-Path $p) { Remove-Item $p -Force; Write-Ok "Removed lessons.md" }
@@ -1473,7 +1423,7 @@ function Invoke-Uninstall {
 
     $claudeCmd = Get-Command claude -ErrorAction SilentlyContinue
     if ($claudeCmd) {
-        $allPlugins = $PLUGINS_ESSENTIAL + $PLUGINS_OPTIONAL + $PLUGINS_CLAUDE_MEM + $PLUGINS_AI_RESEARCH + $PLUGINS_HEALTH + $PLUGINS_PUA + $PLUGINS_REMOVED
+        $allPlugins = $PLUGINS_ESSENTIAL + $PLUGINS_OPTIONAL + $PLUGINS_CLAUDE_MEM + $PLUGINS_AI_RESEARCH + $PLUGINS_HEALTH + $PLUGINS_REMOVED
         foreach ($entry in $allPlugins) {
             $pluginName = ($entry -split '@')[0]
             & claude plugin uninstall $entry 2>$null
@@ -1555,7 +1505,6 @@ function Main {
     $doMcp = $false
     $doDeepXiv = $false
     $doResearchStudio = $false
-    $doMattpocock = $false
     $deepXivSkills = @()
     $ruleLangs = @()
     $ruleLangsExplicit = $false
@@ -1567,8 +1516,6 @@ function Main {
 
     if ($All) {
         # Explicit -All: install everything including MCP
-        # mattpocock/skills is installed by default (replaces the former handoff/teach skills)
-        $doMattpocock = $true
         $doClaudeMd = $true
         $doSettings = $true
         $doRules = $true
@@ -1599,7 +1546,6 @@ function Main {
             $doSettings = $menuResult.Settings
             $doRules = $menuResult.Rules
             $doSkills = $menuResult.Skills
-            $doMattpocock = $menuResult.Mattpocock
             $doLessons = $menuResult.Lessons
             $doHooks = $menuResult.Hooks
             $doPlugins = $menuResult.Plugins
@@ -1620,7 +1566,6 @@ function Main {
             $doSettings = $true
             $doRules = $true
             $doSkills = $true
-            $doMattpocock = $true
             $doLessons = $true
             $doHooks = $true
             $doPlugins = $true
@@ -1632,7 +1577,6 @@ function Main {
         $doSettings = $true
         $doRules = $true
         $doSkills = $true
-        $doMattpocock = $true
         $doLessons = $true
         $doHooks = $true
         $doPlugins = $true
@@ -1641,7 +1585,7 @@ function Main {
 
     # Check if anything was selected
     if (-not $doClaudeMd -and -not $doSettings -and -not $doRules -and
-        -not $doSkills -and -not $doMattpocock -and -not $doLessons -and -not $doHooks -and
+        -not $doSkills -and -not $doLessons -and -not $doHooks -and
         -not $doPlugins -and -not $doMcp -and -not $doDeepXiv -and -not $doResearchStudio) {
         Write-Warn "Nothing selected to install."
         return
@@ -1673,7 +1617,9 @@ function Main {
     if ($doSettings) { Install-Settings -InstallPlugins $doPlugins -SelectedPluginsList $selectedPlugins -PluginGroups $pluginGroups }
     if ($doRules) { Install-Rules -Langs $ruleLangs -LangsExplicit $ruleLangsExplicit }
     if ($doSkills) { Install-Skills -SelectedSkills $selectedSkills }
-    if ($doMattpocock) { Install-MattpocockSkills }
+    # Always run: <=2.9.x copied these into ~/.claude/skills/ via npx; the plugin
+    # now provides them, and keeping both duplicates every skill.
+    Remove-LegacyMattpocockSkills
     if ($doLessons) { Install-Lessons }
     if ($doHooks) { Install-Hooks }
     if ($doMcp) { Install-Mcp }

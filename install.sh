@@ -313,7 +313,6 @@ EXPLICIT_ALL=false
 INSTALL_WARNINGS=0
 INSTALL_RULES=false
 INSTALL_SKILLS=false
-INSTALL_MATTPOCOCK=false
 INSTALL_LESSONS=false
 INSTALL_STATUSLINE=false
 INSTALL_MCP=false
@@ -340,29 +339,17 @@ RESEARCHSTUDIO_QUICKSTART_READY=false
 # Directory names use underscores; menu/quickstart text uses hyphens. Used for uninstall cleanup.
 RESEARCHSTUDIO_SKILLS=("idea_spark" "paper_search" "scoop_check")
 
-# Skills shipped by mattpocock/skills (installed via `npx skills`, NOT vendored).
-# Snapshot of the plugin.json skill list at integration time; used for uninstall cleanup.
-MATTPOCOCK_SKILLS=(
-    "ask-matt" "diagnosing-bugs" "grill-with-docs" "triage"
-    "improve-codebase-architecture" "setup-matt-pocock-skills" "tdd"
-    "to-issues" "to-prd" "prototype" "domain-modeling" "codebase-design"
-    "grill-me" "grilling" "handoff" "teach" "writing-great-skills"
-)
-
 # --- Plugin groups ------------------------------------------------------
 
 PLUGINS_ESSENTIAL=(
     "andrej-karpathy-skills@karpathy-skills"
+    "mattpocock-skills@mattpocock"
     "context7@claude-plugins-official"
-    "commit-commands@claude-plugins-official"
     "document-skills@anthropic-agent-skills"
     "playwright@claude-plugins-official"
-    "feature-dev@claude-plugins-official"
     "code-simplifier@claude-plugins-official"
-    "ralph-loop@claude-plugins-official"
     "frontend-design@claude-plugins-official"
     "example-skills@anthropic-agent-skills"
-    "github@claude-plugins-official"
 )
 
 # Optional plugins: default OFF, installed only via explicit --all or manual opt-in
@@ -389,14 +376,15 @@ PLUGINS_HEALTH=(
     "health@claude-health"
 )
 
-PLUGINS_PUA=(
-    "pua@pua-skills"
-)
-
 # Tombstones: plugins removed in a prior version. Stripped from a user's enabledPlugins
 # on upgrade and uninstalled on --uninstall, so "removed" plugins don't linger.
 PLUGINS_REMOVED=(
     "everything-claude-code@everything-claude-code"
+    "feature-dev@claude-plugins-official"
+    "ralph-loop@claude-plugins-official"
+    "commit-commands@claude-plugins-official"
+    "github@claude-plugins-official"
+    "pua@pua-skills"
 )
 
 # --- Terminal detection (single source of truth) -----------------------
@@ -523,11 +511,8 @@ Codex CLI|Codex adversarial review (openai/codex)|0|review-codex")
     GROUP_HINTS+=("planning, iteration, code quality, meta-config")
     GROUP_ITEMS+=("andrej-karpathy-skills|Karpathy coding guidelines (Think-First, Simplicity, Surgical)|1|plug-andrej-karpathy-skills
 superpowers|Planning, brainstorming, TDD, debugging|0|plug-superpowers
-mattpocock/skills|17 agent skills via npx: tdd, to-prd, diagnosing-bugs, handoff, teach… (mattpocock)|1|skill-mattpocock
+mattpocock-skills|22 agent skills: tdd, to-spec, diagnosing-bugs, handoff, teach… (mattpocock)|1|plug-mattpocock
 neat-freak|Knowledge and governance closeout (KKKKhazix/khazix-skills)|1|skill-neat-freak
-feature-dev|Guided feature development|1|plug-feature-dev
-ralph-loop|Automated iteration loop|1|plug-ralph-loop
-commit-commands|git commit / push / PR workflow|1|plug-commit-commands
 code-simplifier|Code simplification & cleanup|1|plug-code-simplifier
 update-config|Configure Claude Code via settings.json (skill)|1|skill-update-config")
 
@@ -535,7 +520,6 @@ update-config|Configure Claude Code via settings.json (skill)|1|skill-update-con
     GROUP_LABELS+=("Integrations")
     GROUP_HINTS+=("external tools & services")
     GROUP_ITEMS+=("context7|Real-time library documentation|1|plug-context7
-github|GitHub integration (issues, PRs, workflows)|1|plug-github
 playwright|Browser automation & E2E testing|1|plug-playwright")
 
     # Group 5: Design & Content
@@ -557,8 +541,7 @@ ppt-master|Editable PPTX from PDF/DOCX/URL/Markdown; needs pip install (hugohe3)
     GROUP_LABELS+=("Memory & Lifestyle")
     GROUP_HINTS+=("session memory and personal productivity")
     GROUP_ITEMS+=("claude-mem|Cross-session memory (~3k tokens/session)|0|plug-claude-mem
-claude-health|Health check & wellness dashboard|0|plug-claude-health
-PUA|AI agent productivity booster (pua, pua-en, pua-ja)|0|plug-pua")
+claude-health|Health check & wellness dashboard|0|plug-claude-health")
 
     # Group 8: Academic Research (AI Research plugins + DeepXiv skills + paper-reading)
     GROUP_LABELS+=("Academic Research")
@@ -929,22 +912,18 @@ researchstudio|Research ideation (Microsoft): idea-spark, paper-search, scoop-ch
     _plug_id_to_pkg() {
         case "$1" in
             plug-andrej-karpathy-skills) echo "andrej-karpathy-skills@karpathy-skills" ;;
+            plug-mattpocock)        echo "mattpocock-skills@mattpocock" ;;
             plug-superpowers)       echo "superpowers@claude-plugins-official" ;;
             plug-frontend-slides)   echo "frontend-slides@frontend-slides" ;;
             plug-ppt-master)        echo "ppt-master@ppt-master" ;;
             plug-context7)          echo "context7@claude-plugins-official" ;;
-            plug-commit-commands)   echo "commit-commands@claude-plugins-official" ;;
             plug-document-skills)   echo "document-skills@anthropic-agent-skills" ;;
             plug-playwright)        echo "playwright@claude-plugins-official" ;;
-            plug-feature-dev)       echo "feature-dev@claude-plugins-official" ;;
             plug-code-simplifier)   echo "code-simplifier@claude-plugins-official" ;;
-            plug-ralph-loop)        echo "ralph-loop@claude-plugins-official" ;;
             plug-frontend-design)   echo "frontend-design@claude-plugins-official" ;;
             plug-example-skills)    echo "example-skills@anthropic-agent-skills" ;;
-            plug-github)            echo "github@claude-plugins-official" ;;
             plug-claude-mem)        echo "claude-mem@thedotmack" ;;
             plug-claude-health)     echo "health@claude-health" ;;
-            plug-pua)               echo "pua@pua-skills" ;;
             plug-tokenization)      echo "tokenization@ai-research-skills" ;;
             plug-fine-tuning)       echo "fine-tuning@ai-research-skills" ;;
             plug-post-training)     echo "post-training@ai-research-skills" ;;
@@ -981,7 +960,6 @@ researchstudio|Research ideation (Microsoft): idea-spark, paper-search, scoop-ch
             skill-humanizer-zh)     INSTALL_SKILLS=true; SELECTED_SKILLS+=("humanizer-zh") ;;
             skill-update-config)    INSTALL_SKILLS=true; SELECTED_SKILLS+=("update-config") ;;
             skill-neat-freak)       INSTALL_SKILLS=true; SELECTED_SKILLS+=("neat-freak") ;;
-            skill-mattpocock)       INSTALL_MATTPOCOCK=true ;;
             # DeepXiv
             deepxiv-cli)            INSTALL_DEEPXIV=true; SELECTED_DEEPXIV_SKILLS+=("deepxiv-cli") ;;
             deepxiv-trending-digest) INSTALL_DEEPXIV=true; SELECTED_DEEPXIV_SKILLS+=("deepxiv-trending-digest") ;;
@@ -1075,8 +1053,7 @@ _effective_selected_plugins_json() {
                 claude-mem)     pkgs+=("${PLUGINS_CLAUDE_MEM[@]}") ;;
                 ai-research)    pkgs+=("${PLUGINS_AI_RESEARCH[@]}") ;;
                 health)         pkgs+=("${PLUGINS_HEALTH[@]}") ;;
-                pua)            pkgs+=("${PLUGINS_PUA[@]}") ;;
-                all)            pkgs+=("${PLUGINS_ESSENTIAL[@]}" "${PLUGINS_OPTIONAL[@]}" "${PLUGINS_CLAUDE_MEM[@]}" "${PLUGINS_AI_RESEARCH[@]}" "${PLUGINS_HEALTH[@]}" "${PLUGINS_PUA[@]}") ;;
+                all)            pkgs+=("${PLUGINS_ESSENTIAL[@]}" "${PLUGINS_OPTIONAL[@]}" "${PLUGINS_CLAUDE_MEM[@]}" "${PLUGINS_AI_RESEARCH[@]}" "${PLUGINS_HEALTH[@]}") ;;
             esac
         done
     fi
@@ -1160,7 +1137,7 @@ install_settings() {
             fi
             # Apply enabledPlugins selection filter. Catalogue = source keys ∪ selection,
             # so plugins picked in the menu that aren't declared in the shipped
-            # settings.json (codex, health, pua) still land as true.
+            # settings.json (codex, health) still land as true.
             if $INSTALL_PLUGINS && command -v jq &>/dev/null && [[ -f "$CLAUDE_DIR/settings.json" ]]; then
                 local sel_json; sel_json="$(_effective_selected_plugins_json)"
                 local tmp; tmp="$(jq --argjson selected "$sel_json" '
@@ -1234,8 +1211,11 @@ install_settings() {
     # $base = incoming (defaults), $over = existing (user overrides)
     .[0] as $base | .[1] as $over |
 
-    # env: incoming as defaults, existing overrides
-    ($base.env // {}) * ($over.env // {}) as $env |
+    # env: incoming as defaults, existing overrides.
+    # NOTE: the outer parens are required — `as` binds looser than `*`, so without
+    # them the remainder of the filter is swallowed into the multiplication and the
+    # env keys get hoisted to the top level of settings.json.
+    (($base.env // {}) * ($over.env // {})) as $env |
 
     # permissions.allow: union
     (($base.permissions.allow // []) + ($over.permissions.allow // []) | unique) as $allow |
@@ -1252,7 +1232,7 @@ install_settings() {
        (
          # Known catalogue = $base keys + $sel keys (so plugins picked in the menu
          # that are not declared in the shipped settings.json — e.g. codex, health,
-         # pua — still land in enabledPlugins as true).
+         # still land in enabledPlugins as true).
          (($base.enabledPlugins // {}) + $sel) as $catalogue |
          ($catalogue | to_entries
            | map({key, value: ($sel[.key] // false)}) | from_entries) as $known_map |
@@ -1282,14 +1262,20 @@ install_settings() {
      else ($over.statusLine // null)
     end) as $status_line |
 
-    # Build merged object: start with incoming, overlay existing, then set merged fields
-    ($base * $over) * {
+    # Build merged object: start with incoming, overlay existing, then set merged fields.
+    # `*` is a RECURSIVE merge, so the enabledPlugins set here is re-unioned with
+    # $over.enabledPlugins — tombstoned keys must therefore be deleted AFTER this
+    # merge, not before it, or they come straight back.
+    (($base * $over) * {
       env: $env,
       enabledPlugins: $plugins,
       statusLine: $status_line,
       permissions: (($base.permissions // {}) * ($over.permissions // {}) + {allow: $allow}),
       hooks: (($base.hooks // {}) * ($over.hooks // {}) + {SessionStart: $session_hooks})
-    }
+    })
+    # Strip tombstoned (removed) plugins from the FINAL object so they cannot be
+    # resurrected by the recursive merge above.
+    | reduce $removed[] as $r (.; del(.enabledPlugins[$r]))
     # Remove null statusLine (when neither side had one)
     | if .statusLine == null then del(.statusLine) else . end
     ' "$incoming" "$existing" > "$merged"
@@ -1391,9 +1377,8 @@ install_skills() {
 
     # Migration: remove renamed/deleted skills from previous installs.
     # NOTE: handoff/teach are intentionally NOT removed here — they were vendored in
-    # <=2.7.x and now ship via mattpocock/skills. Deleting them up front would lose them
-    # for users who lack npx or deselect mattpocock; instead they are overwritten in
-    # place by install_mattpocock_skills (--copy) when that item is selected.
+    # <=2.7.x and now ship inside the mattpocock-skills plugin. Any loose copies left
+    # by the old npx install are cleaned up by remove_legacy_mattpocock_skills().
     for old_skill in "update"; do
         if [[ -d "$CLAUDE_DIR/skills/$old_skill" ]]; then
             if $DRY_RUN; then
@@ -1439,49 +1424,35 @@ install_skills() {
     fi
 }
 
-# The exact `skills add` invocation. Scoped to the MATTPOCOCK_SKILLS names (the 17
-# plugin.json skills) via repeated `--skill` flags — `--skill '*'` would pull all 35
-# SKILL.md files in the repo, including personal/in-progress ones we don't track or
-# uninstall. Installs globally to ~/.claude/skills/ for Claude Code only, as real
-# copies (not symlinks). Returns the command as an array via the global _MP_NPX_CMD.
-_mattpocock_npx_cmd() {
-    _MP_NPX_CMD=(npx -y skills@latest add mattpocock/skills --global --agent claude-code --copy --yes)
-    local s
-    for s in "${MATTPOCOCK_SKILLS[@]}"; do
-        _MP_NPX_CMD+=(--skill "$s")
-    done
-}
+# Migration for <=2.9.x installs: mattpocock skills used to be copied into
+# ~/.claude/skills/ via `npx skills`. 3.0.0 installs the official plugin instead,
+# and upstream warns that having both leaves every skill duplicated. Remove only the
+# directories our own manifest records — never a user-authored skill that happens to
+# share a generic name (tdd, handoff, teach, …). No manifest → we installed nothing.
+remove_legacy_mattpocock_skills() {
+    local manifest="$CLAUDE_DIR/.mattpocock-skills"
+    [[ -f "$manifest" ]] || return 0
 
-_mattpocock_npx() {
-    env DO_NOT_TRACK=1 "${_MP_NPX_CMD[@]}" </dev/null
-}
+    local skill removed=false
+    while IFS= read -r skill; do
+        [[ -n "$skill" ]] || continue
+        [[ -d "$CLAUDE_DIR/skills/$skill" ]] || continue
+        if $DRY_RUN; then
+            info "Would remove npx-installed mattpocock skill: $skill (now provided by the plugin)"
+        else
+            rm -rf "$CLAUDE_DIR/skills/$skill" && removed=true
+        fi
+    done < "$manifest"
 
-install_mattpocock_skills() {
-    info "Installing mattpocock/skills (via npx skills)..."
-    _mattpocock_npx_cmd
-    if ! command -v npx &>/dev/null; then
-        warn "npx not found (needs Node.js) — skipping mattpocock/skills (optional)."
-        warn "  Install Node.js to get npx: https://nodejs.org"
-        warn "  e.g. macOS: 'brew install node' · Debian/Ubuntu: 'sudo apt install nodejs npm' · or use nvm (https://github.com/nvm-sh/nvm)"
-        warn "  Then run: DO_NOT_TRACK=1 ${_MP_NPX_CMD[*]}"
-        # Optional add-on: do NOT count as an install warning (would block the version stamp).
-        return 0
-    fi
     if $DRY_RUN; then
-        info "Would run: DO_NOT_TRACK=1 ${_MP_NPX_CMD[*]}"
+        info "Would remove legacy manifest: $manifest"
         return 0
     fi
-    if retry 3 5 "mattpocock/skills" _mattpocock_npx; then
-        ok "mattpocock/skills installed (~/.claude/skills/)"
-        # Record what we installed so uninstall removes only these (provenance), never a
-        # user-authored skill that merely shares a generic name (tdd, handoff, …).
-        printf '%s\n' "${MATTPOCOCK_SKILLS[@]}" > "$CLAUDE_DIR/.mattpocock-skills" 2>/dev/null || true
-    else
-        warn "Failed to install mattpocock/skills via npx (optional — install skipped)."
-        warn "  Retry manually: DO_NOT_TRACK=1 ${_MP_NPX_CMD[*]}"
-        # Optional add-on failure is non-fatal: do NOT block the version stamp.
-    fi
+    rm -f "$manifest"
+    $removed && ok "Removed npx-installed mattpocock skills (now provided by the mattpocock-skills plugin)"
+    return 0
 }
+
 
 install_deepxiv() {
     local repo_url="https://github.com/DeepXiv/deepxiv_sdk"
@@ -1555,7 +1526,7 @@ install_deepxiv() {
 # ~/.claude/skills/ and writes a shared skills/.env. RS_PIP=1 also pip-installs the
 # skills' Python deps to the user site (--user), matching the codex branch behavior.
 # Optional add-on: a missing npx or a failed installer is non-fatal (must not block the
-# version stamp), mirroring install_mattpocock_skills.
+# version stamp).
 install_researchstudio() {
     local -a npx_args=(-y github:microsoft/ResearchStudio --yes)
     local manual_cmd="DO_NOT_TRACK=1 RS_PLUGINS=idea RS_SCOPE=global RS_AGENTS=claude RS_PIP=1 npx ${npx_args[*]}"
@@ -1703,11 +1674,8 @@ install_plugins() {
                 health)
                     plugins+=("${PLUGINS_HEALTH[@]}")
                     ;;
-                pua)
-                    plugins+=("${PLUGINS_PUA[@]}")
-                    ;;
                 all)
-                    plugins+=("${PLUGINS_ESSENTIAL[@]}" "${PLUGINS_OPTIONAL[@]}" "${PLUGINS_CLAUDE_MEM[@]}" "${PLUGINS_AI_RESEARCH[@]}" "${PLUGINS_HEALTH[@]}" "${PLUGINS_PUA[@]}")
+                    plugins+=("${PLUGINS_ESSENTIAL[@]}" "${PLUGINS_OPTIONAL[@]}" "${PLUGINS_CLAUDE_MEM[@]}" "${PLUGINS_AI_RESEARCH[@]}" "${PLUGINS_HEALTH[@]}")
                     ;;
             esac
         done
@@ -1731,9 +1699,9 @@ install_plugins() {
         "claude-plugins-official|anthropics/claude-plugins-official"
         "thedotmack|thedotmack/claude-mem"
         "claude-health|tw93/claude-health"
-        "pua-skills|tanweai/pua"
         "openai-codex|openai/codex-plugin-cc"
         "karpathy-skills|forrestchang/andrej-karpathy-skills"
+        "mattpocock|mattpocock/skills"
         "frontend-slides|zarazhangrui/frontend-slides"
         "ppt-master|hugohe3/ppt-master"
     )
@@ -1875,19 +1843,9 @@ uninstall() {
         warn "Preserving $CLAUDE_DIR/skills/.env — it may contain ResearchStudio credentials; remove it manually if unused."
     fi
 
-    # Remove mattpocock/skills we installed, tracked via the install manifest written at
-    # install time — so we never delete a user-authored skill that merely shares a
-    # generic name (tdd, handoff, teach, …). No manifest → we installed nothing → skip.
-    local mp_manifest mp_skill
-    mp_manifest="$CLAUDE_DIR/.mattpocock-skills"
-    if [[ -f "$mp_manifest" ]]; then
-        while IFS= read -r mp_skill; do
-            [[ -n "$mp_skill" ]] || continue
-            [[ -d "$CLAUDE_DIR/skills/$mp_skill" ]] || continue
-            rm -rf "$CLAUDE_DIR/skills/$mp_skill" && ok "Removed mattpocock skill: $mp_skill"
-        done < "$mp_manifest"
-        rm -f "$mp_manifest"
-    fi
+    # Remove any skills left behind by the pre-3.0.0 npx install of mattpocock/skills.
+    # Manifest-driven, so a user-authored skill sharing a generic name is never touched.
+    remove_legacy_mattpocock_skills
 
     rm -f "$CLAUDE_DIR/lessons.md" && ok "Removed lessons.md"
 
@@ -1904,7 +1862,7 @@ uninstall() {
     fi
 
     if command -v claude &>/dev/null; then
-        local all_plugins=("${PLUGINS_ESSENTIAL[@]}" "${PLUGINS_OPTIONAL[@]}" "${PLUGINS_CLAUDE_MEM[@]}" "${PLUGINS_AI_RESEARCH[@]}" "${PLUGINS_HEALTH[@]}" "${PLUGINS_PUA[@]}" "${PLUGINS_REMOVED[@]}")
+        local all_plugins=("${PLUGINS_ESSENTIAL[@]}" "${PLUGINS_OPTIONAL[@]}" "${PLUGINS_CLAUDE_MEM[@]}" "${PLUGINS_AI_RESEARCH[@]}" "${PLUGINS_HEALTH[@]}" "${PLUGINS_REMOVED[@]}")
         for entry in "${all_plugins[@]}"; do
             local plugin_name="${entry%%@*}"
             claude plugin uninstall "$entry" 2>/dev/null && \
@@ -1961,8 +1919,6 @@ main() {
         INSTALL_PLUGINS=true
         # Review defaults for --all: adversarial ON, codex OFF
         REVIEW_ADVERSARIAL=true
-        # mattpocock/skills is installed by default (replaces the former handoff/teach skills)
-        INSTALL_MATTPOCOCK=true
         if $EXPLICIT_ALL; then
             # Explicit --all: install everything including MCP, DeepXiv, and all plugin groups
             INSTALL_MCP=true
@@ -1980,7 +1936,7 @@ main() {
 
     # Check if anything was selected
     if ! $INSTALL_CLAUDE_MD && ! $INSTALL_SETTINGS && ! $INSTALL_RULES && \
-       ! $INSTALL_SKILLS && ! $INSTALL_MATTPOCOCK && ! $INSTALL_LESSONS && \
+       ! $INSTALL_SKILLS && ! $INSTALL_LESSONS && \
        ! $INSTALL_STATUSLINE && ! $INSTALL_PLUGINS && ! $INSTALL_MCP && ! $INSTALL_DEEPXIV && \
        ! $INSTALL_RESEARCHSTUDIO; then
         warn "Nothing selected to install."
@@ -2011,7 +1967,9 @@ main() {
     $INSTALL_SETTINGS && install_settings
     $INSTALL_RULES && install_rules
     $INSTALL_SKILLS && install_skills
-    $INSTALL_MATTPOCOCK && install_mattpocock_skills
+    # Always run: <=2.9.x copied these into ~/.claude/skills/ via npx; the plugin
+    # now provides them, and keeping both duplicates every skill.
+    remove_legacy_mattpocock_skills
     $INSTALL_LESSONS && install_lessons
     $INSTALL_STATUSLINE && install_statusline
     $INSTALL_MCP && install_mcp
