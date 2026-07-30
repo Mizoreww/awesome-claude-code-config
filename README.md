@@ -1,6 +1,6 @@
 <!-- This is the source of truth. README.zh-CN.md is the Chinese translation. Keep both in sync. -->
 
-**English** | [中文](./README.zh-CN.md) | [Codex Branch](https://github.com/Mizoreww/awesome-claude-code-config/tree/codex) | [Changelog](./CHANGELOG.md)
+**English** | [中文](./README.zh-CN.md) | [Codex Branch](https://github.com/Mizoreww/awesome-claude-code-config/tree/codex) | [Cursor Branch](https://github.com/Mizoreww/awesome-claude-code-config/tree/cursor) | [Changelog](./CHANGELOG.md)
 
 # Awesome Claude Code Configuration
 
