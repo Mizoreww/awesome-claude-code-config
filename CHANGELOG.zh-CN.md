@@ -1,6 +1,6 @@
 # 更新日志
 
-## [Unreleased] - 2026-07-30
+## [2.11.0] - 2026-07-30
 
 ### 功能
 - Codex 的 Bash 与 PowerShell 安装器新增独立 **Storage** 分组，其中单项 `storage-analyzer` 默认关闭。它只读扫描磁盘占用，把清理候选分成三级，并可生成带受控清理操作的交互式 HTML 报告。

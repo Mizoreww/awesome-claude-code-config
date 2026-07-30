@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] - 2026-07-30
+## [2.11.0] - 2026-07-30
 
 ### Features
 - Added a separate **Storage** group to the Codex Bash and PowerShell installers with one item, `storage-analyzer`, off by default. It performs a read-only disk-usage scan, classifies cleanup candidates into three tiers, and can produce an interactive HTML report with guarded cleanup actions.
