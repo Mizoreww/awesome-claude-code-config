@@ -543,7 +543,12 @@ ppt-master|Editable PPTX from PDF/DOCX/URL/Markdown; needs pip install (hugohe3)
     GROUP_ITEMS+=("claude-mem|Cross-session memory (~3k tokens/session)|0|plug-claude-mem
 claude-health|Health check & wellness dashboard|0|plug-claude-health")
 
-    # Group 8: Academic Research (AI Research plugins + DeepXiv skills + paper-reading)
+    # Group 8: Storage
+    GROUP_LABELS+=("Storage")
+    GROUP_HINTS+=("disk usage analysis · default off")
+    GROUP_ITEMS+=("storage-analyzer|Read-only disk usage analysis with interactive report (KKKKhazix/khazix-skills, Linux support added here)|0|skill-storage-analyzer")
+
+    # Group 9: Academic Research (AI Research plugins + DeepXiv skills + paper-reading)
     GROUP_LABELS+=("Academic Research")
     GROUP_HINTS+=("training/inference plugins + paper-reading & DeepXiv skills")
     GROUP_ITEMS+=("paper-reading|Research paper summarization (skill)|1|skill-paper-reading
@@ -558,7 +563,7 @@ deepxiv-trending-digest|Trending paper digest generation|0|deepxiv-trending-dige
 deepxiv-baseline-table|Baseline comparison table from papers|0|deepxiv-baseline-table
 researchstudio|Research ideation (Microsoft): idea-spark, paper-search, scoop-check|0|ai-researchstudio")
 
-    # Group 9: MCP Servers
+    # Group 10: MCP Servers
     GROUP_LABELS+=("MCP Servers")
     GROUP_HINTS+=("")
     GROUP_ITEMS+=("Lark MCP server|Feishu/Lark integration|0|mcp")
@@ -960,6 +965,7 @@ researchstudio|Research ideation (Microsoft): idea-spark, paper-search, scoop-ch
             skill-humanizer-zh)     INSTALL_SKILLS=true; SELECTED_SKILLS+=("humanizer-zh") ;;
             skill-update-config)    INSTALL_SKILLS=true; SELECTED_SKILLS+=("update-config") ;;
             skill-neat-freak)       INSTALL_SKILLS=true; SELECTED_SKILLS+=("neat-freak") ;;
+            skill-storage-analyzer) INSTALL_SKILLS=true; SELECTED_SKILLS+=("storage-analyzer") ;;
             # DeepXiv
             deepxiv-cli)            INSTALL_DEEPXIV=true; SELECTED_DEEPXIV_SKILLS+=("deepxiv-cli") ;;
             deepxiv-trending-digest) INSTALL_DEEPXIV=true; SELECTED_DEEPXIV_SKILLS+=("deepxiv-trending-digest") ;;

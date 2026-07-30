@@ -6,7 +6,7 @@
 
 ![Statusline](assets/statusline.png)
 
-Production-ready configuration for [Claude Code](https://claude.com/claude-code). One-command install of global instructions, multi-language coding rules (Python / TypeScript / Go), 21 curated plugins across 10 marketplaces, six bundled skills, a gradient status bar, and a self-improvement loop that remembers corrections across sessions.
+Production-ready configuration for [Claude Code](https://claude.com/claude-code). One-command install of global instructions, multi-language coding rules (Python / TypeScript / Go), 21 curated plugins across 10 marketplaces, seven bundled skills, a gradient status bar, and a self-improvement loop that remembers corrections across sessions.
 
 ## Showcase
 
@@ -40,6 +40,7 @@ Launches a two-level interactive selector. Append `--all` / `-All` to skip the m
     [4/5] Design & Content        document-skills, frontend-design, humanizer...
     [0/2] Slides                  frontend-slides, ppt-master
     [0/2] Memory & Lifestyle      claude-mem, claude-health
+    [0/1] Storage                 storage-analyzer
     [1/11] Academic Research      paper-reading, deepxiv-cli, researchstudio...
     [0/1] MCP Servers             Lark/Feishu
 ```
@@ -116,6 +117,12 @@ Launches a two-level interactive selector. Append `--all` / `-All` to skip the m
 |------|--------|--------------|---------|
 | [**claude-mem**](https://github.com/thedotmack/claude-mem) | thedotmack | Persistent memory with smart search, timeline, AST-aware code search | off |
 | [**claude-health**](https://github.com/tw93/claude-health) | claude-health | Health check & wellness dashboard for Claude Code sessions | off |
+
+**Storage (1)** — disk usage analysis, off by default.
+
+| Item | Source | What It Does | Default |
+|------|--------|--------------|---------|
+| [**storage-analyzer**](https://github.com/KKKKhazix/khazix-skills/tree/fcba3adcf5def1ccd4bb688de93060227471b129/storage-analyzer) | bundled skill (modified) | Read-only disk usage analysis that classifies what is eating space and produces an interactive HTML report with guarded one-click cleanup. Linux support and security hardening were added here on top of the pinned upstream — see [UPSTREAM.md](skills/storage-analyzer/UPSTREAM.md); submitted back as [khazix-skills#50](https://github.com/KKKKhazix/khazix-skills/pull/50) | off |
 
 **Academic Research (11)** — training / inference plugins + paper-reading, DeepXiv & ResearchStudio skills, off by default except `paper-reading`.
 

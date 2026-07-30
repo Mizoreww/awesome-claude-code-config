@@ -283,6 +283,9 @@ function Show-InteractiveMenu {
             @{ Label = "claude-mem";      Desc = "Cross-session memory (~3k tokens/session)"; Default = $false; Id = "plug-claude-mem" }
             @{ Label = "claude-health";   Desc = "Health check & wellness dashboard"; Default = $false; Id = "plug-claude-health" }
         )}
+        @{ Label = "Storage"; Hint = "disk usage analysis | default off"; Items = @(
+            @{ Label = "storage-analyzer"; Desc = "Read-only disk usage analysis with interactive report (KKKKhazix/khazix-skills, Linux support added here)"; Default = $false; Id = "skill-storage-analyzer" }
+        )}
         @{ Label = "Academic Research"; Hint = "training/inference plugins + paper-reading & DeepXiv skills"; Items = @(
             @{ Label = "paper-reading";   Desc = "Research paper summarization (skill)"; Default = $true; Id = "skill-paper-reading" }
             @{ Label = "tokenization";    Desc = "Tokenizer training & usage";        Default = $false; Id = "plug-tokenization" }
@@ -557,6 +560,7 @@ function Show-InteractiveMenu {
             "skill-humanizer-zh"   { $result.Skills = $true; $result.SelectedSkills += "humanizer-zh" }
             "skill-update-config"  { $result.Skills = $true; $result.SelectedSkills += "update-config" }
             "skill-neat-freak"     { $result.Skills = $true; $result.SelectedSkills += "neat-freak" }
+            "skill-storage-analyzer" { $result.Skills = $true; $result.SelectedSkills += "storage-analyzer" }
             "deepxiv-cli"          { $result.DeepXiv = $true; $result.DeepXivSkills += "deepxiv-cli" }
             "deepxiv-trending-digest" { $result.DeepXiv = $true; $result.DeepXivSkills += "deepxiv-trending-digest" }
             "deepxiv-baseline-table"  { $result.DeepXiv = $true; $result.DeepXivSkills += "deepxiv-baseline-table" }

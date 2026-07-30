@@ -6,7 +6,7 @@
 
 ![Statusline](assets/statusline.png)
 
-[Claude Code](https://claude.com/claude-code) 的生产级配置。一条命令安装：全局指令、多语言编码规则（Python / TypeScript / Go）、10 个 marketplace 下的 21 个精选插件、6 个内置 skill、渐变状态栏，以及能跨会话记住纠正的自我改进回路。
+[Claude Code](https://claude.com/claude-code) 的生产级配置。一条命令安装：全局指令、多语言编码规则（Python / TypeScript / Go）、10 个 marketplace 下的 21 个精选插件、7 个内置 skill、渐变状态栏，以及能跨会话记住纠正的自我改进回路。
 
 ## 示例
 
@@ -40,6 +40,7 @@ irm https://raw.githubusercontent.com/Mizoreww/awesome-claude-code-config/main/i
     [4/5] Design & Content        document-skills、frontend-design、humanizer...
     [0/2] Slides                  frontend-slides、ppt-master
     [0/2] Memory & Lifestyle      claude-mem、claude-health
+    [0/1] Storage                 storage-analyzer
     [1/11] Academic Research      paper-reading、deepxiv-cli、researchstudio...
     [0/1] MCP Servers             Lark/飞书
 ```
@@ -116,6 +117,12 @@ irm https://raw.githubusercontent.com/Mizoreww/awesome-claude-code-config/main/i
 |------|------|------|------|
 | [**claude-mem**](https://github.com/thedotmack/claude-mem) | thedotmack | 持久化记忆，智能搜索、时间线、AST 感知代码搜索 | 关闭 |
 | [**claude-health**](https://github.com/tw93/claude-health) | claude-health | Claude Code 会话健康检查与状态面板 | 关闭 |
+
+**Storage (1)** — 磁盘占用分析，默认关闭。
+
+| 项目 | 来源 | 功能 | 默认 |
+|------|------|------|------|
+| [**storage-analyzer**](https://github.com/KKKKhazix/khazix-skills/tree/fcba3adcf5def1ccd4bb688de93060227471b129/storage-analyzer) | 内置 skill（已修改） | 只读磁盘占用分析，把占空间大户分级并生成带受控一键清理的交互式 HTML 报告。本仓库在锁定的上游基线之上增加了 Linux 支持与安全加固 —— 详见 [UPSTREAM.md](skills/storage-analyzer/UPSTREAM.md)；已提交回上游 [khazix-skills#50](https://github.com/KKKKhazix/khazix-skills/pull/50) | 关 |
 
 **Academic Research (11)** — 训练 / 推理插件 + 论文阅读、DeepXiv、ResearchStudio skill，默认除 `paper-reading` 外全部关闭。
 

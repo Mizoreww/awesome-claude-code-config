@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.1.0] - 2026-07-30
+
+### Features
+- Added a new **Storage** group to both installers with a single item, `storage-analyzer`, **off by default**. It performs a read-only disk-usage scan, classifies what is eating space into three tiers, and produces an interactive HTML report with a guarded one-click cleanup endpoint.
+- Vendored the skill from [KKKKhazix/khazix-skills](https://github.com/KKKKhazix/khazix-skills) at baseline commit [`fcba3ad`](https://github.com/KKKKhazix/khazix-skills/tree/fcba3adcf5def1ccd4bb688de93060227471b129/storage-analyzer) (MIT, license included alongside the skill).
+- **Unlike `neat-freak`, this copy is modified, not byte-for-byte upstream.** Roughly +998/-63 lines were added here: Linux support (the upstream supports macOS and Windows only) and a hardened safety model. Every change is itemised in `skills/storage-analyzer/UPSTREAM.md` and was submitted back upstream as [khazix-skills#50](https://github.com/KKKKhazix/khazix-skills/pull/50).
+- Added `tests/test_storage_analyzer_integration.py`: asserts provenance and local modifications stay declared, the runtime is stdlib-only, the scanner contains no filesystem-mutating call, the five destructive-operation guards remain present, and both installers register the item as default-off.
+
+### Design Rationale
+- **A separate group rather than folding it into Workflow.** Disk cleanup is not part of a coding loop; it is an occasional operation with real destructive capability. Its own group keeps it visible in the menu without implying it belongs in an everyday workflow.
+- **Default off.** The other bundled skills are read-only or advisory. This one ships an HTTP endpoint that can delete files, so it should be an explicit opt-in rather than something a user discovers already installed. `--all` still installs it, matching the existing "install everything" semantics of that flag.
+- **Provenance recorded in-tree, not only in the README.** `neat-freak` preserves upstream byte-for-byte, so a README link suffices. This skill diverges substantially, so `UPSTREAM.md` sits next to the code and states the baseline commit, what was changed and why, where the changes went back to, and what has not been verified.
+- **Linux could not be a path-table swap.** Three failure modes are specific to it: `du` silently under-reports unreadable root-owned directories while exiting 0; hard-linked caches (uv/pnpm/conda) are counted more than once across separate `du` invocations; and the XDG trash requires writing both `files/` and `info/*.trashinfo` or the file manager cannot restore. Each needed its own mechanism — per-filesystem reconciliation, overlap reporting, and a three-tier trash fallback.
+
+### Notes & Caveats
+- The skill is Python 3 stdlib only; there is nothing to `pip install`. On Linux the trash prefers `gio` or `trash-put` when present and otherwise writes the XDG `.trashinfo` itself.
+- Verified on Ubuntu 24.04.4 / ext4 / GNOME. **Not** verified on Arch, Fedora, NixOS, multi-partition layouts, or a real headless server; the package-cache paths for pacman/dnf/nix were written from documentation. The upstream Windows branch is untouched and remains unverified, as upstream already notes.
+- The vendored copy carries a fix that also affects macOS: `du` now runs with `-x` and compares `st_dev` explicitly, so an external drive mounted under `$HOME` is no longer counted as part of the system disk.
+- Four rounds of adversarial review ran against the Linux work and fixed 8 high-severity and 26 medium/low findings; three of the high-severity ones were introduced by the fix for the previous round. A fifth round could not be completed — the review tool failed to produce output four times — so `_rmtree_at` (rewritten from recursion to an explicit stack) carries author testing only. This is stated in the upstream PR as well.
+
 ## [3.0.0] - 2026-07-29
 
 ### Features

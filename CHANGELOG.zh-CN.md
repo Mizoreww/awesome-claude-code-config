@@ -1,5 +1,25 @@
 # 更新日志
 
+## [3.1.0] - 2026-07-30
+
+### Features
+- 两个安装器新增独立分组 **Storage**，其下单项 `storage-analyzer`，**默认关闭**。它只读扫描磁盘占用，把占空间大户分成三级，并生成带受控一键清理接口的交互式 HTML 报告。
+- 该 skill 取自 [KKKKhazix/khazix-skills](https://github.com/KKKKhazix/khazix-skills)，基线提交 [`fcba3ad`](https://github.com/KKKKhazix/khazix-skills/tree/fcba3adcf5def1ccd4bb688de93060227471b129/storage-analyzer)（MIT，许可证随 skill 一同收录）。
+- **与 `neat-freak` 不同，这份是改过的，不是逐字节保留的上游代码。** 本仓库在其之上增改约 +998/−63 行：Linux 支持（上游仅支持 macOS 与 Windows）与安全模型加固。逐项说明见 `skills/storage-analyzer/UPSTREAM.md`，并已提交回上游 [khazix-skills#50](https://github.com/KKKKhazix/khazix-skills/pull/50)。
+- 新增 `tests/test_storage_analyzer_integration.py`：校验来源与本地修改始终被声明、运行时仅用标准库、扫描器不含任何写文件系统的调用、五道破坏性操作护栏均在位，以及两个安装器都把该项注册为默认关闭。
+
+### Design Rationale
+- **单独开一个分组，而不是塞进 Workflow。** 磁盘清理不属于写代码的循环，它是偶尔进行、且真实具备破坏能力的操作。给它独立分组，既在菜单里可见，又不暗示它属于日常工作流。
+- **默认关闭。** 其他内置 skill 都是只读或仅给建议，这一个会起一个能删文件的 HTTP 接口，因此应当由用户明确勾选，而不是装完才发现它已经在那儿。`--all` 仍会安装它，这与该参数既有的"全都装"语义一致。
+- **来源信息写进代码目录，而不只写在 README。** `neat-freak` 逐字节保留上游，README 里给个链接就够了；这份改动很大，所以 `UPSTREAM.md` 与代码放在一起，写明基线提交、改了什么与为什么改、改动回流到哪里，以及哪些没有验证过。
+- **Linux 不是换一张路径表就能支持的。** 三个失效模式是它独有的：`du` 对读不到的 root 目录静默少报却仍返回 0；硬链接缓存（uv/pnpm/conda）在多次 `du` 中被重复计数；XDG 废纸篓必须同时写 `files/` 与 `info/*.trashinfo`，否则文件管理器无法还原。每一个都需要单独的机制——逐文件系统对账、重叠量上报、三级废纸篓回退。
+
+### Notes & Caveats
+- 该 skill 仅依赖 Python 3 标准库，无需 `pip install`。Linux 上的废纸篓优先用 `gio` 或 `trash-put`，都没有时由自身写 XDG `.trashinfo`。
+- 实测于 Ubuntu 24.04.4 / ext4 / GNOME。**未**在 Arch、Fedora、NixOS、多分区布局或真实无头服务器上验证；pacman/dnf/nix 的包缓存路径按文档写成。上游的 Windows 分支未被触碰，如上游自己所述，同样未经验证。
+- 收录的这份还带一个同样影响 macOS 的修复：`du` 现在加 `-x` 并显式比对 `st_dev`，挂在 `$HOME` 下的外置盘不会再被算进系统盘占用。
+- Linux 部分经过四轮对抗式审查，修复 8 个 high、26 个 medium/low，其中 3 个 high 是修复上一轮时引入的。第五轮未能完成——审查工具四次未产出结果——因此 `_rmtree_at`（由递归改写为显式栈）仅有作者自测。这一点在上游 PR 中同样如实标注。
+
 ## [3.0.0] - 2026-07-29
 
 ### 功能
