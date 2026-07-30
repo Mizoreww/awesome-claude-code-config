@@ -1,5 +1,22 @@
 # Changelog
 
+## [Unreleased] - 2026-07-30
+
+### Features
+- Added a separate **Storage** group to the Codex Bash and PowerShell installers with one item, `storage-analyzer`, off by default. It performs a read-only disk-usage scan, classifies cleanup candidates into three tiers, and can produce an interactive HTML report with guarded cleanup actions.
+- Vendored the same ten-file package released on the Claude/main line in `v3.1.0`, based on [KKKKhazix/khazix-skills commit `fcba3ad`](https://github.com/KKKKhazix/khazix-skills/tree/fcba3adcf5def1ccd4bb688de93060227471b129/storage-analyzer) (MIT). This is a modified copy with Linux support and security hardening, not a byte-for-byte upstream snapshot; provenance and every local change are recorded in `skills/storage-analyzer/UPSTREAM.md` and were submitted upstream as [khazix-skills#50](https://github.com/KKKKhazix/khazix-skills/pull/50).
+- Integrated the skill into Codex-managed ownership, reconciliation, uninstall, and local-copy paths so the authoritative installation lives at `~/.codex/skills/storage-analyzer/`, never `~/.agents/skills/storage-analyzer/`.
+
+### Design Rationale
+- Keep disk cleanup outside Workflow because it is an occasional operation with real destructive capability, not part of an everyday coding loop. The separate group keeps it visible without making it default-on.
+- Preserve the Codex line's explicit opt-in semantics: interactive users must select it; `--all` / `-All` and an explicit `--skills all` / `-Skills -SkillGroup all` include it; bare `--skills` / `-Skills` and standard dry runs do not.
+- Reuse the already reviewed main-line runtime unchanged, while adapting only Codex installer, ownership, documentation, and release surfaces.
+
+### Notes & Caveats
+- The runtime uses only Python 3's standard library. Linux trash prefers `gio` or `trash-put` and otherwise writes an XDG `.trashinfo` entry itself.
+- Platform evidence is unchanged from the main-line release: verified on Ubuntu 24.04.4 / ext4 / GNOME, not on Arch, Fedora, NixOS, multi-partition layouts, a real headless server, or Windows. The vendored macOS path also carries the `du -x` / `st_dev` external-mount fix.
+- The Linux work previously completed four adversarial-review rounds. A fifth review attempt did not produce a conclusion, so the iterative `_rmtree_at` implementation still has author testing only; this limitation remains disclosed in `UPSTREAM.md` and the upstream PR.
+
 ## [2.10.2] - 2026-07-23
 
 ### Features

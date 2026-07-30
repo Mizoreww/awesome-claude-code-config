@@ -1,5 +1,22 @@
 # 更新日志
 
+## [Unreleased] - 2026-07-30
+
+### 功能
+- Codex 的 Bash 与 PowerShell 安装器新增独立 **Storage** 分组，其中单项 `storage-analyzer` 默认关闭。它只读扫描磁盘占用，把清理候选分成三级，并可生成带受控清理操作的交互式 HTML 报告。
+- 收录 Claude/main 线 `v3.1.0` 发布的同一份十文件 package，基于 [KKKKhazix/khazix-skills 提交 `fcba3ad`](https://github.com/KKKKhazix/khazix-skills/tree/fcba3adcf5def1ccd4bb688de93060227471b129/storage-analyzer)（MIT）。这不是逐字节上游快照，而是增加 Linux 支持与安全加固的修改副本；来源与每项本地修改均记录在 `skills/storage-analyzer/UPSTREAM.md`，并已通过 [khazix-skills#50](https://github.com/KKKKhazix/khazix-skills/pull/50) 回馈上游。
+- 将该 skill 纳入 Codex 的受管所有权、交互式对账、卸载与本地复制路径；权威安装位置为 `~/.codex/skills/storage-analyzer/`，不会落到 `~/.agents/skills/storage-analyzer/`。
+
+### 设计考量
+- 磁盘清理是偶发且真实具备破坏能力的操作，不属于日常编码循环，因此不放入 Workflow。独立分组既保持可见，又不会变成默认安装项。
+- 保留 Codex 线的显式选择语义：交互菜单必须主动勾选；`--all` / `-All` 以及显式 `--skills all` / `-Skills -SkillGroup all` 会包含它；裸 `--skills` / `-Skills` 与标准 dry run 不包含。
+- 运行时复用已审查的 main 线版本且保持不变，仅适配 Codex 安装器、所有权、文档与发布表面。
+
+### 注意事项
+- 运行时仅使用 Python 3 标准库。Linux 废纸篓优先用 `gio` 或 `trash-put`，都没有时由自身写 XDG `.trashinfo`。
+- 平台证据与 main 线发布一致：实测于 Ubuntu 24.04.4 / ext4 / GNOME；未在 Arch、Fedora、NixOS、多分区布局、真实无头服务器或 Windows 上验证。vendored 的 macOS 路径同样带有 `du -x` / `st_dev` 外置挂载点修复。
+- Linux 工作此前完成四轮对抗式审查；第五轮审查尝试未产出结论，因此迭代版 `_rmtree_at` 仍只有作者自测。该限制继续在 `UPSTREAM.md` 与上游 PR 中如实披露。
+
 ## [2.10.2] - 2026-07-23
 
 ### 功能

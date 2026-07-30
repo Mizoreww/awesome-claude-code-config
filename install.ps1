@@ -23,7 +23,7 @@
 
 .PARAMETER SkillGroup
   Skill group: core, ai-research, all (default: all). Default-off
-  ResearchStudio/PPT entries require an explicit SkillGroup or -All.
+  ResearchStudio/PPT/Storage entries require an explicit SkillGroup or -All.
 
 .PARAMETER Uninstall
   Uninstall managed files. Combine with -Core, -Mcp, -Skills to select components.
@@ -119,6 +119,7 @@ $script:ResearchStudioNonInteractiveRequested = [bool](
 )
 $script:ResearchStudioReelNonInteractiveRequested = $script:ResearchStudioNonInteractiveRequested
 $script:PptMasterNonInteractiveRequested = [bool]($All -or ($Skills -and $script:SkillGroupExplicit -and $SkillGroup -eq "all"))
+$script:StorageAnalyzerNonInteractiveRequested = [bool]($All -or ($Skills -and $script:SkillGroupExplicit -and $SkillGroup -eq "all"))
 $script:SKIPPED_COMPONENTS = @()
 $script:MCP_FAILED_SERVERS = @()
 $script:LessonsSeeded = $false
@@ -144,6 +145,7 @@ $script:SelectSkillHumanizer = $true
 $script:SelectSkillHumanizerZh = $false
 $script:SelectSkillHandoff = $true
 $script:SelectSkillNeatFreak = $true
+$script:SelectSkillStorageAnalyzer = $false
 $script:SelectSkillAdversarialReview = $false
 $script:SelectSkillUpdate = $true
 $script:SelectAiTokenization = $false
@@ -174,6 +176,7 @@ $MANAGED_SKILLS = @(
     "adversarial-review",
     "handoff",
     "neat-freak",
+    "storage-analyzer",
     "humanizer",
     "humanizer-zh",
     "update",
@@ -238,7 +241,8 @@ $SUPERPOWERS_SKILLS = @(
     "writing-plans", "writing-skills"
 )
 $LOCAL_MANAGED_SKILLS = @(
-    "paper-reading", "humanizer", "humanizer-zh", "handoff", "neat-freak", "adversarial-review", "update"
+    "paper-reading", "humanizer", "humanizer-zh", "handoff", "neat-freak", "storage-analyzer",
+    "adversarial-review", "update"
 )
 $MANAGED_SKILLS_STATE_FILE = Join-Path $CODEX_DIR ".awesome-claude-code-config-managed-skills"
 $GLOBAL_SKILL_LOCK_FILE = Get-GlobalSkillLockFile
@@ -527,7 +531,7 @@ Options:
   -Core                      Install AGENTS.md, blank global lessons.md, config.toml, agents/*
   -Mcp                       Install MCP servers only
   -Skills [-SkillGroup GROUP] Install skills only. GROUP: core, ai-research, all (default: all)
-                             Default-off ResearchStudio/PPT entries require an explicit GROUP or -All
+                             Default-off ResearchStudio/PPT/Storage entries require an explicit GROUP or -All
   -Uninstall [-Core] [-Mcp] [-Skills]
                              Uninstall managed files (all components if none specified)
   -Version                   Show source / installed / remote versions
@@ -639,6 +643,7 @@ function Reset-InteractiveSelections {
     $script:SelectSkillHumanizerZh = $false
     $script:SelectSkillHandoff = $true
     $script:SelectSkillNeatFreak = $true
+    $script:SelectSkillStorageAnalyzer = $false
     $script:SelectSkillAdversarialReview = $false
     $script:SelectSkillUpdate = $true
     $script:SelectAiTokenization = $false
@@ -960,6 +965,7 @@ function Install-SelectedRecommendedSkills {
     }
     if ($script:SelectSkillPaperReading -or $script:SelectSkillHumanizer -or $script:SelectSkillHumanizerZh -or
         $script:SelectSkillHandoff -or $script:SelectSkillNeatFreak -or
+        $script:SelectSkillStorageAnalyzer -or
         $script:SelectSkillAdversarialReview -or $script:SelectSkillUpdate) {
         if (-not $DryRun) {
             New-Item -ItemType Directory -Path (Join-Path $CODEX_DIR "skills") -Force | Out-Null
@@ -995,6 +1001,12 @@ function Install-SelectedRecommendedSkills {
             -Source (Join-Path $script:SCRIPT_DIR "skills/neat-freak") `
             -Target (Join-Path $CODEX_DIR "skills/neat-freak") `
             -Label "skills/neat-freak/"
+    }
+    if ($script:SelectSkillStorageAnalyzer) {
+        Copy-SelectedDirectory -Selected $true `
+            -Source (Join-Path $script:SCRIPT_DIR "skills/storage-analyzer") `
+            -Target (Join-Path $CODEX_DIR "skills/storage-analyzer") `
+            -Label "skills/storage-analyzer/"
     }
     if ($script:SelectSkillAdversarialReview) {
         Copy-SelectedDirectory -Selected $true `
@@ -1263,6 +1275,13 @@ function Show-InteractiveMenu {
             Hint = "personal productivity"
             Items = @(
                 [pscustomobject]@{ Label = "PUA"; Description = "Productivity coaching skills (CN / EN / JA)"; Default = $false; StateVar = "SelectSkillPUA" }
+            )
+        },
+        [pscustomobject]@{
+            Label = "Storage"
+            Hint = "disk usage analysis | default off"
+            Items = @(
+                [pscustomobject]@{ Label = "storage-analyzer"; Description = "Read-only disk usage analysis with interactive report (KKKKhazix/khazix-skills, Linux support added here)"; Default = $false; StateVar = "SelectSkillStorageAnalyzer" }
             )
         },
         [pscustomobject]@{
@@ -1550,6 +1569,7 @@ function Show-InteractiveMenu {
                 'SelectSkillHumanizerZh' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillHandoff' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillNeatFreak' { if ($selected) { $skillsSelected = $true } }
+                'SelectSkillStorageAnalyzer' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillAdversarialReview' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillUpdate' { if ($selected) { $skillsSelected = $true } }
                 'SelectSkillPUA' { if ($selected) { $skillsSelected = $true } }
@@ -2370,6 +2390,7 @@ function Get-SelectedManagedSkills {
     Add-Names $script:SelectSkillHumanizerZh @("humanizer-zh")
     Add-Names $script:SelectSkillHandoff @("handoff")
     Add-Names $script:SelectSkillNeatFreak @("neat-freak")
+    Add-Names $script:SelectSkillStorageAnalyzer @("storage-analyzer")
     Add-Names $script:SelectSkillAdversarialReview @("adversarial-review")
     Add-Names $script:SelectSkillUpdate @("update")
     Add-Names $script:SelectAiTokenization @("huggingface-tokenizers", "sentencepiece")
@@ -2886,7 +2907,10 @@ function Install-LocalSkills {
     Initialize-ManagedSkillOwnership
 
     Get-ChildItem -Path $skillsDir -Directory |
-        Where-Object { $_.Name -ne "adversarial-review" } |
+        Where-Object {
+            $_.Name -ne "adversarial-review" -and
+            ($_.Name -ne "storage-analyzer" -or $script:StorageAnalyzerNonInteractiveRequested)
+        } |
         ForEach-Object {
         $skill = $_.Name
         $dest  = Join-Path $CODEX_DIR "skills/$skill"

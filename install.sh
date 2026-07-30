@@ -63,6 +63,7 @@ INSTALL_SKILLS=false
 INSTALL_RESEARCHSTUDIO_NONINTERACTIVE=false
 INSTALL_RESEARCHSTUDIO_REEL_NONINTERACTIVE=false
 INSTALL_PPT_MASTER_NONINTERACTIVE=false
+INSTALL_STORAGE_ANALYZER_NONINTERACTIVE=false
 UNINSTALL=false
 SHOW_VERSION=false
 INTERACTIVE_MODE=false
@@ -99,6 +100,7 @@ SELECT_SKILL_HUMANIZER=false
 SELECT_SKILL_HUMANIZER_ZH=false
 SELECT_SKILL_HANDOFF=false
 SELECT_SKILL_NEAT_FREAK=false
+SELECT_SKILL_STORAGE_ANALYZER=false
 SELECT_SKILL_ADVERSARIAL_REVIEW=false
 SELECT_SKILL_UPDATE=false
 SELECT_AI_TOKENIZATION=false
@@ -129,6 +131,7 @@ MANAGED_SKILLS=(
   adversarial-review
   handoff
   neat-freak
+  storage-analyzer
   humanizer
   humanizer-zh
   update
@@ -196,7 +199,7 @@ SUPERPOWERS_SKILLS=(
   test-driven-development using-git-worktrees using-superpowers verification-before-completion
   writing-plans writing-skills
 )
-LOCAL_MANAGED_SKILLS=(paper-reading humanizer humanizer-zh handoff neat-freak adversarial-review update)
+LOCAL_MANAGED_SKILLS=(paper-reading humanizer humanizer-zh handoff neat-freak storage-analyzer adversarial-review update)
 MANAGED_SKILLS_STATE_FILE="$CODEX_DIR/.awesome-claude-code-config-managed-skills"
 if [[ -n "${XDG_STATE_HOME:-}" ]]; then
   GLOBAL_SKILL_LOCK_FILE="$XDG_STATE_HOME/skills/.skill-lock.json"
@@ -408,7 +411,7 @@ Options:
   --core                Install AGENTS.md, blank global lessons.md, config.toml, agents/*
   --mcp                 Install MCP servers only
   --skills [GROUP]      Install skills only. GROUP: core, ai-research, all (default: all)
-                        Default-off ResearchStudio/PPT entries require an explicit GROUP or --all
+                        Default-off ResearchStudio/PPT/Storage entries require an explicit GROUP or --all
   --uninstall [COMP...] Uninstall managed files. COMP: --core --mcp --skills
   --version             Show source / installed / remote versions
   --dry-run             Preview changes without applying
@@ -446,6 +449,7 @@ parse_args() {
         INSTALL_RESEARCHSTUDIO_NONINTERACTIVE=true
         INSTALL_RESEARCHSTUDIO_REEL_NONINTERACTIVE=true
         INSTALL_PPT_MASTER_NONINTERACTIVE=true
+        INSTALL_STORAGE_ANALYZER_NONINTERACTIVE=true
         shift
         ;;
       --core)
@@ -488,6 +492,7 @@ parse_args() {
         fi
         if $skill_group_explicit && [[ "$SKILL_GROUP" == "all" ]]; then
           INSTALL_PPT_MASTER_NONINTERACTIVE=true
+          INSTALL_STORAGE_ANALYZER_NONINTERACTIVE=true
         fi
         ;;
       --uninstall)
@@ -1794,6 +1799,7 @@ selected_managed_skill_names() {
   $SELECT_SKILL_HUMANIZER_ZH && printf '%s\n' humanizer-zh
   $SELECT_SKILL_HANDOFF && printf '%s\n' handoff
   $SELECT_SKILL_NEAT_FREAK && printf '%s\n' neat-freak
+  $SELECT_SKILL_STORAGE_ANALYZER && printf '%s\n' storage-analyzer
   $SELECT_SKILL_ADVERSARIAL_REVIEW && printf '%s\n' adversarial-review
   $SELECT_SKILL_UPDATE && printf '%s\n' update
   $SELECT_AI_TOKENIZATION && printf '%s\n' huggingface-tokenizers sentencepiece
@@ -2278,6 +2284,7 @@ install_local_skills() {
     copy_local_skill "$SELECT_SKILL_HUMANIZER_ZH" "humanizer-zh"
     copy_local_skill "$SELECT_SKILL_HANDOFF" "handoff"
     copy_local_skill "$SELECT_SKILL_NEAT_FREAK" "neat-freak"
+    copy_local_skill "$SELECT_SKILL_STORAGE_ANALYZER" "storage-analyzer"
     copy_local_skill "$SELECT_SKILL_ADVERSARIAL_REVIEW" "adversarial-review"
     copy_local_skill "$SELECT_SKILL_UPDATE" "update"
     return 0
@@ -2286,8 +2293,14 @@ install_local_skills() {
   local skill
   for skill in "$SCRIPT_DIR"/skills/*; do
     [[ -d "$skill" && -f "$skill/SKILL.md" ]] || continue
-    [[ "$(basename "$skill")" == "adversarial-review" ]] && continue
-    copy_local_skill true "$(basename "$skill")"
+    local skill_name
+    skill_name="$(basename "$skill")"
+    [[ "$skill_name" == "adversarial-review" ]] && continue
+    if [[ "$skill_name" == "storage-analyzer" ]] &&
+       ! $INSTALL_STORAGE_ANALYZER_NONINTERACTIVE; then
+      continue
+    fi
+    copy_local_skill true "$skill_name"
   done
 }
 
@@ -2525,6 +2538,10 @@ humanizer-zh|Remove Chinese AI writing patterns|0|skill-humanizer-zh")
   GROUP_LABELS+=("Lifestyle")
   GROUP_HINTS+=("personal productivity")
   GROUP_ITEMS+=("PUA|Productivity coaching skills (CN / EN / JA)|0|skill-pua")
+
+  GROUP_LABELS+=("Storage")
+  GROUP_HINTS+=("disk usage analysis · default off")
+  GROUP_ITEMS+=("storage-analyzer|Read-only disk usage analysis with interactive report (KKKKhazix/khazix-skills, Linux support added here)|0|skill-storage-analyzer")
 
   GROUP_LABELS+=("Academic Research")
   GROUP_HINTS+=("research ideation, literature, training/inference")
@@ -2852,6 +2869,7 @@ ppt-master|Native editable PPTX generation with live preview|0|skill-ppt-master"
       skill-humanizer-zh)      SELECT_SKILL_HUMANIZER_ZH=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-handoff)           SELECT_SKILL_HANDOFF=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-neat-freak)       SELECT_SKILL_NEAT_FREAK=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
+      skill-storage-analyzer) SELECT_SKILL_STORAGE_ANALYZER=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-adversarial-review) SELECT_SKILL_ADVERSARIAL_REVIEW=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-update)            SELECT_SKILL_UPDATE=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
       skill-pua)               SELECT_SKILL_PUA=$is_selected; [[ $is_selected == true ]] && skills_selected=true ;;
@@ -2887,6 +2905,7 @@ ppt-master|Native editable PPTX generation with live preview|0|skill-ppt-master"
        $SELECT_SKILL_FRONTEND_DESIGN || \
        $SELECT_SKILL_PAPER_READING || $SELECT_SKILL_HUMANIZER || \
        $SELECT_SKILL_HUMANIZER_ZH || $SELECT_SKILL_HANDOFF || $SELECT_SKILL_NEAT_FREAK || \
+       $SELECT_SKILL_STORAGE_ANALYZER || \
        $SELECT_SKILL_ADVERSARIAL_REVIEW || $SELECT_SKILL_UPDATE || \
        $SELECT_SKILL_PUA || \
        $SELECT_SKILL_FRONTEND_SLIDES || $SELECT_SKILL_PPT_MASTER; then

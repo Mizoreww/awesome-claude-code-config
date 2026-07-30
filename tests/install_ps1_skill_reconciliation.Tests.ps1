@@ -156,6 +156,7 @@ $script:SelectSkillHumanizer = $true
 $script:SelectSkillHumanizerZh = $false
 $script:SelectSkillHandoff = $false
 $script:SelectSkillNeatFreak = $false
+$script:SelectSkillStorageAnalyzer = $false
 $script:SelectSkillAdversarialReview = $false
 $script:SelectSkillUpdate = $false
 $script:SelectAiTokenization = $false

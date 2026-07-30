@@ -14,7 +14,7 @@ Production-ready configuration for [Codex CLI](https://github.com/openai/codex) 
 ├── docs/                  # Migration notes and support docs
 ├── lessons.md             # This project's correction log (created/maintained on demand)
 ├── templates/             # Blank global lessons seed installed into ~/.codex
-├── skills/                # Bundled local skills (paper-reading, neat-freak, handoff, humanizer, update, ...)
+├── skills/                # Bundled local skills (paper-reading, neat-freak, storage-analyzer, handoff, ...)
 ├── VERSION                # Installer version
 └── install.sh / install.ps1
 ```
@@ -59,10 +59,11 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 
 Behavior notes:
 
-- Bash plain no-arg runs are interactive when a terminal is available; if it cannot open a terminal, it warns and falls back to the standard non-interactive install. Opt-in ResearchStudio and PPT Master remain excluded.
-- PowerShell plain no-arg runs are interactive when console I/O is available; if it cannot use the console, it warns and falls back to the standard non-interactive install. Opt-in ResearchStudio and PPT Master remain excluded.
-- In Bash, `--dry-run` previews the standard install non-interactively without opting into ResearchStudio or PPT Master.
-- In PowerShell, `-DryRun` alone previews the standard install non-interactively without opting into ResearchStudio or PPT Master.
+- Bash plain no-arg runs are interactive when a terminal is available; if it cannot open a terminal, it warns and falls back to the standard non-interactive install. Opt-in ResearchStudio, PPT Master, and Storage Analyzer remain excluded.
+- PowerShell plain no-arg runs are interactive when console I/O is available; if it cannot use the console, it warns and falls back to the standard non-interactive install. Opt-in ResearchStudio, PPT Master, and Storage Analyzer remain excluded.
+- In Bash, `--dry-run` previews the standard install non-interactively without opting into ResearchStudio, PPT Master, or Storage Analyzer.
+- In PowerShell, `-DryRun` alone previews the standard install non-interactively without opting into ResearchStudio, PPT Master, or Storage Analyzer.
+- `--all` / `-All`, or an explicit `--skills all` / `-Skills -SkillGroup all`, includes Storage Analyzer. A bare `--skills` / `-Skills` keeps it off.
 - Interactive selections are authoritative for installer-owned skills: on a repeat install, owned skills left unchecked are removed (even if their files were edited), while unowned/custom skills are preserved even if a custom skill has the same name as a catalog entry. Ownership is recorded in `~/.codex/.awesome-claude-code-config-managed-skills`; the first upgraded run adopts only unchanged bundled copies, Codex-owned copies with the expected lock source and a matching legacy staging tree, or a verified superpowers fallback. The legacy `.agents` comparison is only a one-time ownership-safety check; the final Codex source is always `~/.codex/skills`. Verified leftovers from the retired `coding-foundations` pack are cleanup-only and are removed because they no longer have a menu choice.
 - If no skills are selected and owned skills would be removed, the installer asks for confirmation before clearing them. It does not delete `.system`, unowned shared-agent or custom skills, core files, or MCP configuration.
 - Explicit non-interactive component flags (`--all`, `--core`, `--mcp`, `--skills` and their PowerShell equivalents) remain additive and do not reconcile prior skill selections.
@@ -77,6 +78,7 @@ Behavior notes:
 | Development Tools | `context7`, `github`, `playwright`, `openaiDeveloperDocs` | On; `github` requires `GITHUB_PERSONAL_ACCESS_TOKEN` |
 | Design & Content | `document-skills`, `example-skills`, `frontend-design`, `humanizer`, `humanizer-zh` | On except `humanizer-zh` |
 | Lifestyle | `PUA` | Off |
+| Storage | `storage-analyzer` | Off |
 | Academic Research | `paper-reading`, `ResearchStudio Idea`, `ResearchStudio Reel`, `tokenization`, `fine-tuning`, `post-training`, `distributed-training`, `inference-serving`, `optimization`, `deepxiv` | `paper-reading` on; others off |
 | Slides | `frontend-slides`, `ppt-master` | Both off |
 | MCP Servers | `lark-mcp` | Off (needs credentials) |
@@ -149,6 +151,7 @@ This keeps common principles and language-specific practices aligned.
 | ResearchStudio Idea | [microsoft/ResearchStudio](https://github.com/microsoft/ResearchStudio) | opt-in research ideation, paper search, and novelty checking copied from the official source tree |
 | ResearchStudio Reel | [microsoft/ResearchStudio](https://github.com/microsoft/ResearchStudio/tree/main/ResearchStudio-Reel) | default-off paper-to-assets, poster, video, blog, and interactive-reel workflows copied from the official source tree |
 | neat-freak | [KKKKhazix/khazix-skills at `2b4a645`](https://github.com/KKKKhazix/khazix-skills/tree/2b4a645cfdc894156ae347d897723562f719ce95/neat-freak) | default-on vendored project knowledge and governance closeout workflow |
+| storage-analyzer | [KKKKhazix/khazix-skills at `fcba3ad`](https://github.com/KKKKhazix/khazix-skills/tree/fcba3adcf5def1ccd4bb688de93060227471b129/storage-analyzer) | default-off vendored disk-usage analysis and interactive cleanup report; this modified copy adds Linux support and security hardening ([provenance](skills/storage-analyzer/UPSTREAM.md), [upstream PR #50](https://github.com/KKKKhazix/khazix-skills/pull/50)) |
 | AI research skills | [zechenzhangAGI/AI-research-SKILLs](https://github.com/zechenzhangAGI/AI-research-SKILLs) | tokenization, fine-tuning, post-training, inference, distributed training, optimization |
 | frontend-slides | [zarazhangrui/frontend-slides](https://github.com/zarazhangrui/frontend-slides) | slide generation skill via `npx skills`; default off |
 | ppt-master | [hugohe3/ppt-master](https://github.com/hugohe3/ppt-master) | default-off native editable PPTX workflow; installs only the skill definition and defers runtime setup until first use |
@@ -173,6 +176,7 @@ Bundled local skills in this repo:
 - `adversarial-review` (`skills/adversarial-review/SKILL.md`) — cross-model adversarial code review via opposite AI CLI (from [poteto/noodle](https://github.com/poteto/noodle/tree/main/.agents/skills/adversarial-review))
 - `handoff` (`skills/handoff/SKILL.md`) — compact the current conversation into a handoff document
 - [`neat-freak`](https://github.com/KKKKhazix/khazix-skills/tree/2b4a645cfdc894156ae347d897723562f719ce95/neat-freak) (`skills/neat-freak/SKILL.md`) — project knowledge and governance closeout from the pinned upstream snapshot
+- [`storage-analyzer`](https://github.com/KKKKhazix/khazix-skills/tree/fcba3adcf5def1ccd4bb688de93060227471b129/storage-analyzer) (`skills/storage-analyzer/SKILL.md`) — modified vendored disk-usage analysis with Linux support and guarded interactive cleanup
 - `humanizer` (`skills/humanizer/SKILL.md`) — detect and remove AI writing patterns from text (from [blader/humanizer](https://github.com/blader/humanizer))
 - `humanizer-zh` (`skills/humanizer-zh/SKILL.md`) — remove AI writing patterns from Chinese text
 - `update` (`skills/update/SKILL.md`) — update the installed Codex config to the latest `codex` branch version

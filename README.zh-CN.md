@@ -14,7 +14,7 @@
 ├── docs/                  # 迁移说明与支持文档
 ├── lessons.md             # 当前项目的纠正日志（按需创建/维护）
 ├── templates/             # 安装到 ~/.codex 的空白全局 lessons 模板
-├── skills/                # 仓库自带本地技能（paper-reading、neat-freak、handoff、humanizer、update 等）
+├── skills/                # 仓库自带本地技能（paper-reading、neat-freak、storage-analyzer、handoff 等）
 ├── VERSION                # 安装器版本
 └── install.sh / install.ps1
 ```
@@ -59,10 +59,11 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 
 行为说明：
 
-- Bash 的纯无参运行在可用终端中会进入交互模式；如果无法打开终端，就会警告并回退到标准非交互式安装，仍不包含默认关闭的 ResearchStudio 与 PPT Master。
-- PowerShell 的纯无参运行在可用控制台 I/O 下会进入交互模式；如果无法使用控制台，就会警告并回退到标准非交互式安装，仍不包含默认关闭的 ResearchStudio 与 PPT Master。
-- Bash 的 `--dry-run` 会以非交互式方式预览标准安装，不会主动选择 ResearchStudio 或 PPT Master。
-- PowerShell 的 `-DryRun` 单独使用时，会以非交互式方式预览标准安装，不会主动选择 ResearchStudio 或 PPT Master。
+- Bash 的纯无参运行在可用终端中会进入交互模式；如果无法打开终端，就会警告并回退到标准非交互式安装，仍不包含默认关闭的 ResearchStudio、PPT Master 与 Storage Analyzer。
+- PowerShell 的纯无参运行在可用控制台 I/O 下会进入交互模式；如果无法使用控制台，就会警告并回退到标准非交互式安装，仍不包含默认关闭的 ResearchStudio、PPT Master 与 Storage Analyzer。
+- Bash 的 `--dry-run` 会以非交互式方式预览标准安装，不会主动选择 ResearchStudio、PPT Master 或 Storage Analyzer。
+- PowerShell 的 `-DryRun` 单独使用时，会以非交互式方式预览标准安装，不会主动选择 ResearchStudio、PPT Master 或 Storage Analyzer。
+- `--all` / `-All`，或显式 `--skills all` / `-Skills -SkillGroup all`，会包含 Storage Analyzer；裸 `--skills` / `-Skills` 仍保持关闭。
 - 交互菜单对安装器拥有的 skills 具有最终决定权：重复安装时，之前已安装但本次未勾选的 owned skill 会被移除；未被安装器拥有的自定义 skill 即使与清单条目同名也会保留。所有权记录在 `~/.codex/.awesome-claude-code-config-managed-skills`；首次升级只接管未改动的内置副本、与 canonical 副本内容一致且 lock 来源匹配的旧副本，或来源已验证的 superpowers fallback。已退役 `coding-foundations` 包中来源可验证的残留属于 cleanup-only，因为菜单已无对应选项，会被清理。
 - 如果没有选择任何 skill 且存在待删除的 owned skill，安装器会先二次确认；它不会删除 `.system`、共享 agent 或自定义 skill、Core 文件及 MCP 配置。
 - 显式非交互参数（`--all`、`--core`、`--mcp`、`--skills` 及其 PowerShell 对应参数）仍是增量安装，不会按本次选择清理既有 skill。
@@ -77,6 +78,7 @@ pwsh -NoProfile -File .\install.ps1 -DryRun
 | Development Tools | `context7`、`github`、`playwright`、`openaiDeveloperDocs` | 开启；`github` 需要 `GITHUB_PERSONAL_ACCESS_TOKEN` |
 | Design & Content | `document-skills`、`example-skills`、`frontend-design`、`humanizer`、`humanizer-zh` | 除 `humanizer-zh` 外开启 |
 | Lifestyle | `PUA` | 关闭 |
+| Storage | `storage-analyzer` | 关闭 |
 | Academic Research | `paper-reading`、`ResearchStudio Idea`、`ResearchStudio Reel`、`tokenization`、`fine-tuning`、`post-training`、`distributed-training`、`inference-serving`、`optimization`、`deepxiv` | `paper-reading` 开启，其余关闭 |
 | Slides | `frontend-slides`、`ppt-master` | 均关闭 |
 | MCP Servers | `lark-mcp` | 关闭（需凭据） |
@@ -149,6 +151,7 @@ skills/rules  → python-patterns、golang-patterns、frontend-patterns
 | ResearchStudio Idea | [microsoft/ResearchStudio](https://github.com/microsoft/ResearchStudio) | 默认关闭；从官方源码树复制研究创意、论文搜索与新颖性检查 skills |
 | ResearchStudio Reel | [microsoft/ResearchStudio](https://github.com/microsoft/ResearchStudio/tree/main/ResearchStudio-Reel) | 默认关闭；从官方源码树复制 paper-to-assets、poster、video、blog 与 interactive-reel 工作流 |
 | neat-freak | [`2b4a645` 的 KKKKhazix/khazix-skills](https://github.com/KKKKhazix/khazix-skills/tree/2b4a645cfdc894156ae347d897723562f719ce95/neat-freak) | 默认开启；固定 vendored 的项目知识与治理收尾工作流 |
+| storage-analyzer | [`fcba3ad` 的 KKKKhazix/khazix-skills](https://github.com/KKKKhazix/khazix-skills/tree/fcba3adcf5def1ccd4bb688de93060227471b129/storage-analyzer) | 默认关闭；vendored 的磁盘占用分析与交互式清理报告，本修改副本增加 Linux 支持与安全加固（[来源说明](skills/storage-analyzer/UPSTREAM.md)、[上游 PR #50](https://github.com/KKKKhazix/khazix-skills/pull/50)） |
 | AI research skills | [zechenzhangAGI/AI-research-SKILLs](https://github.com/zechenzhangAGI/AI-research-SKILLs) | 分词、微调、后训练、推理服务、分布式训练、优化 |
 | frontend-slides | [zarazhangrui/frontend-slides](https://github.com/zarazhangrui/frontend-slides) | 通过 `npx skills` 安装幻灯片生成 skill；默认关闭 |
 | ppt-master | [hugohe3/ppt-master](https://github.com/hugohe3/ppt-master) | 默认关闭；生成原生可编辑 PPTX，只安装 skill 定义，runtime 留到第一次使用时处理 |
@@ -173,6 +176,7 @@ ResearchStudio Idea、ResearchStudio Reel 与 `ppt-master` 是互相独立、默
 - `adversarial-review`（`skills/adversarial-review/SKILL.md`）— 跨模型对抗式代码审查，通过对立 AI CLI 执行（来自 [poteto/noodle](https://github.com/poteto/noodle/tree/main/.agents/skills/adversarial-review)）
 - `handoff`（`skills/handoff/SKILL.md`）— 将当前对话压缩成交接文档
 - [`neat-freak`](https://github.com/KKKKhazix/khazix-skills/tree/2b4a645cfdc894156ae347d897723562f719ce95/neat-freak)（`skills/neat-freak/SKILL.md`）— 来自固定上游快照的项目知识与治理收尾工作流
+- [`storage-analyzer`](https://github.com/KKKKhazix/khazix-skills/tree/fcba3adcf5def1ccd4bb688de93060227471b129/storage-analyzer)（`skills/storage-analyzer/SKILL.md`）— 增加 Linux 支持与受控交互式清理的修改版磁盘占用分析
 - `humanizer`（`skills/humanizer/SKILL.md`）— 检测并去除文本中的 AI 写作痕迹（来自 [blader/humanizer](https://github.com/blader/humanizer)）
 - `humanizer-zh`（`skills/humanizer-zh/SKILL.md`）— 移除中文文本中的 AI 写作痕迹
 - `update`（`skills/update/SKILL.md`）— 将已安装的 Codex 配置更新到最新 `codex` 分支版本
