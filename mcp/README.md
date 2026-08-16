@@ -8,6 +8,10 @@
 |--------|-----------|---------|
 | **[Lark-MCP](https://github.com/larksuite/lark-openapi-mcp)** | stdio | Official Feishu/Lark OpenAPI — call Lark platform APIs from AI assistants |
 
+## Related QA Servers
+
+- **[Agent QA](https://github.com/vostride/agent-qa)** — The self-improving QA agent for software teams. Run natural-language web and mobile tests through its MCP server, CLI, or portable agent skills. Requires Node.js 24+ and a configured Agent QA workspace; start the server with `npx --yes agent-qa mcp`.
+
 ## Installation
 
 ```bash
