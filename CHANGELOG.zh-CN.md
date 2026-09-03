@@ -1,5 +1,35 @@
 # 更新日志
 
+## [3.2.0] - 2026-09-03
+
+### Features
+- 两个安装器的 **Design & Content** 分组新增 `lieflat-charts`，**默认关闭**。这是一套模板驱动的数据可视化 skill：Lupi / Basics / Glance / Maps 四组图库，外加 12 套中英文整页报告模板，产出均为单文件 HTML。
+- **安装时从 [larashero3-dotcom/lieflat-charts](https://github.com/larashero3-dotcom/lieflat-charts) 拉取，不随本仓库分发。** `install_lieflat_charts` / `Install-LieflatCharts` 使用 blobless + cone 模式 sparse checkout（`git clone --depth 1 --branch main --filter=blob:none --sparse`，随后 `sparse-checkout set templates examples scripts agents`），下载约 1.4 MB 而不是仓库的约 20 MB。
+- 远端或本地 git 不支持 partial clone 时回退为完整浅克隆，再用**同一份白名单**裁剪，隐藏目录同样处理。两条路径因此产出完全一致的目录树——若回退改用黑名单，上游一旦新增顶层目录就会立刻分叉；而只用 `*/` 通配则会让上游的 `.github/` 只在回退路径上漏网。
+- PolyForm 告示打印在**安装前阶段**，先于任何用户配置写入，而不是放在安装函数内部。`--all` 运行不可能在展示许可证之前就装上任何东西，或在装到一半时失败。
+- 安装过程在 `mktemp` 命名的暂存目录 `~/.claude/.lieflat-charts.scratch.XXXXXX/` 中进行，其中同时存放待装入的新目录与退位的旧目录。它位于 `skills/` 之外，半成品不会被当成 skill 加载；又与目标同处一个文件系统，因此换入是一次重命名：旧目录退位、新目录移入、再删除旧的。先删目标再移入有两重危险：复制失败会什么都不剩，而删除失败会让 `mv` 把暂存目录塞进幸存目录**内部**。移入失败时会尝试复原旧目录，且只在目标为空时进行；若复原也失败，备份会**保留在磁盘上并报出其路径**，同时清除归属标记、保留该暂存目录。换入之后还会校验结果，因此并发安装抢先创建目标目录时不会产生静默的"成功"。
+- 卸载由标记文件 `~/.claude/.lieflat-charts-installed` 守门，只有安装器亲手创建过目录时才会写入；用户手动 clone 的副本会被提示保留。该判断放在通用 `skills/` 清扫**之前**——那段清扫的回退分支会删掉整个目录。整套机制只由一条不变量支配：**标记尚在时绝不删除该 skill。** 因此标记先清除，删除动作以清除成功为前提，删除失败时保留其在清扫中的豁免——安装器既不会删掉自己刚声明保留的东西，也不会留下一个宣称拥有某个已被清空路径的标记。
+- 两份 README 的 `## License` 小节都已扩写：本仓库为 MIT，但 `lieflat-charts` 是 [PolyForm Noncommercial 1.0.0](https://github.com/larashero3-dotcom/lieflat-charts/blob/main/LICENSE)，仅限非商业用途。
+- 新增 `tests/test_lieflat_charts_integration.py`。除结构性检查外，它会构造一个镜像上游顶层结构的本地 git 仓库并通过 `file://` 真实安装，从而在不联网的前提下覆盖 sparse 路径、强制回退、覆盖安装、暂存目录清理、标记写入与失败路径。另有一项由 `LIEFLAT_REQUIRE_NETWORK=1` 控制的测试，守住白名单不被上游改动甩开。
+
+### Design Rationale
+- **不 vendor 而是安装时拉取，有两个独立理由。** 上游仓库 20.5 MB，其中 18.7 MB 是 `docs/` 的预览 GIF 与 PNG——即使只收录精简后的 1.36 MB 载荷，也会让 `skills/` 体积翻三倍。另一方面，PolyForm Noncommercial 意味着一旦本仓库携带副本，就成了**再分发者**，须承担该许可证的 Notices 义务。只分发一条 URL 让责任边界保持清晰，同时用户永远拿到上游 `main`。
+- **跟 `main`，不钉 tag。** 上游最新 tag `v1.2.0` 落后 `main` 9 个提交，缺少新增 16 种图型的那次改动；钉住它等于明知故犯地发一个残缺版本。而本仓库没有 lockfile 文化，为单个 skill 引入版本钉扎只会成为孤儿约定。`--branch main` 显式传入，这样上游将来若改动默认分支，会直接报错而不是悄悄装成别的东西。
+- **默认关闭是因为许可证，不是因为风险。** 与 `storage-analyzer` 不同，这里没有任何能破坏机器的能力。但不应让任何人被动获得一个非商业授权的产物，所以改为显式勾选；`--all` 仍会安装它以保持"全都装"的语义不变，同时告示被提到所有安装动作之前。
+- **用标记文件而非 DeepXiv 的 glob。** DeepXiv 可以安全地删掉 `skills/deepxiv-*`，因为没有别的东西会创建那些目录。而 `lieflat-charts` 是一个人们会手动安装的知名 skill，无条件 `rm -rf` 会删掉本安装器从未创建过的目录。
+- **安装时无条件覆盖已存在的目录。** 这与 `install_deepxiv` 一致；且上游 `SKILL.md` 本身就要求自定义色板内联在成品里、不要回写 `color-presets.js`，因此不存在"本地修改需要保留"的预期。
+
+### Notes & Caveats
+- **该 skill 仅限非商业用途。** PolyForm Noncommercial 1.0.0 允许个人、业余、学术、慈善与政府机构使用；商业使用不在授权范围内。
+- 去掉 `docs/` 会让 `templates/reports/index.html` 的 12 张缩略图裂图，并留下三处失效的文档链接（`SKILL.md`、`report-catalog.md`、`examples/README.md`）。图表与报告选型是纯文本驱动的——`catalog.md` 完全没有引用图片——所以选型质量不受影响，受影响的只是人肉浏览预览索引。
+- sparse checkout 是白名单，上游若新增顶层目录会被静默跳过。任何不联网的测试都发现不了这一点，这正是那项联网测试存在的理由；运行方式：`LIEFLAT_REQUIRE_NETWORK=1 pytest tests/test_lieflat_charts_integration.py`。
+- 跟 `main` 意味着安装结果不可跨时间复现，这是不钉版本所接受的代价。
+- 克隆根目录会直接成为 skill 目录，因此复制前会删掉 `.git`——否则一个绑定 promisor remote 的 partial clone 会被塞进 `~/.claude/skills/`。
+- `install_lieflat_charts` 以 `... || true` 调用，使这个可选、默认关闭的 skill 遇到网络故障时不会中断整个安装。Bash 在这种调用形式下会关闭函数体内的 `errexit`，因此函数中每一步破坏性操作都显式检查自身返回值，不依赖 `set -e`。
+- `install.ps1` 中的 git 调用一律放在 `try`/`catch` 内、只凭 `$LASTEXITCODE` 判定，且输出不经管道。在 `$ErrorActionPreference = "Stop"` 下，Windows PowerShell 5.1 可能把原生命令的 stderr 升格为终止性 `NativeCommandError`，那会让一行普通的 git 进度输出直接中断运行、永远走不到回退分支。
+- 本次改动经过八轮对抗式审查（Codex；Skeptic / Architect / Minimalist 三个视角），修复 11 个 high 与 26 个 medium/low。前六轮中每一轮都发现了上一轮修复引入的新缺陷：第一轮的暂存协议会在目标删除失败时把暂存目录塞进其内部；第二轮的回滚在复原失败时仍会删掉退位副本；第三轮的孤儿回收器删除的恰恰是回滚特意保留的备份；第四轮移除该回收器后，第五轮又发现同一条数据丢失链仍可经由带 PID 的暂存目录名到达——同一个 shell 中重跑会复用 `$$`。第六轮与第八轮未发现 high；第七轮发现标记清理只是被排在删除之前、却没有成为删除的前提条件，这条修复最终凝结成上面那条唯一的不变量。
+- 两项环境限制：开发沙箱禁止 `git clone` 走 HTTPS，因此安装路径是对着本地 fixture 仓库验证的，而非真实远端；开发机未安装 `pwsh`，因此 `install.ps1` 照 Bash 实现镜像编写、**未实际执行**，相应测试在缺少 `pwsh` 时跳过。
+
 ## [3.1.0] - 2026-07-30
 
 ### Features

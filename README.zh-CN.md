@@ -37,7 +37,7 @@ irm https://raw.githubusercontent.com/Mizoreww/awesome-claude-code-config/main/i
     [2/3] Review                  code-review + adversarial-review
     [5/6] Workflow                karpathy、mattpocock-skills、neat-freak...
     [2/2] Integrations            context7、playwright
-    [4/5] Design & Content        document-skills、frontend-design、humanizer...
+    [4/6] Design & Content        document-skills、frontend-design、humanizer...
     [0/2] Slides                  frontend-slides、ppt-master
     [0/2] Memory & Lifestyle      claude-mem、claude-health
     [0/1] Storage                 storage-analyzer
@@ -94,7 +94,7 @@ irm https://raw.githubusercontent.com/Mizoreww/awesome-claude-code-config/main/i
 | [**context7**](https://github.com/upstash/context7) | claude-plugins-official | 最新库文档查询 | 开启 |
 | [**playwright**](https://github.com/microsoft/playwright-mcp) | claude-plugins-official | 浏览器自动化、E2E 测试、截图 | 开启 |
 
-**Design & Content (5)** — 文档、UI、创意与文本"人化"。
+**Design & Content (6)** — 文档、UI、创意与文本"人化"。
 
 | 项目 | 来源 | 功能 | 默认 |
 |------|------|------|------|
@@ -103,6 +103,7 @@ irm https://raw.githubusercontent.com/Mizoreww/awesome-claude-code-config/main/i
 | **frontend-design** | claude-plugins-official | 生产级前端界面设计 | 开启 |
 | [**humanizer**](https://github.com/blader/humanizer) | 内置 skill | 去除 AI 写作特征（英文） | 开启 |
 | [**humanizer-zh**](https://github.com/op7418/Humanizer-zh) | 内置 skill | 去除 AI 写作特征（中文） | 关闭 |
+| [**lieflat-charts**](https://github.com/larashero3-dotcom/lieflat-charts) | lieflat-charts (GitHub, PolyForm-NC) | 模板驱动的 HTML 图表与整页报告：Lupi / Basics / Glance / Maps 图库，外加 12 套中英文报告模板。安装时以 sparse checkout 从上游 `main` 拉取（排除 `docs/` 预览素材），不随仓库分发。仅限非商业用途 | 关闭 |
 
 **Slides (2)** — AI 幻灯片 / PPTX 生成，默认全部关闭。
 
@@ -200,4 +201,4 @@ irm https://raw.githubusercontent.com/Mizoreww/awesome-claude-code-config/main/i
 
 ## License
 
-MIT
+本仓库为 MIT。安装器从上游拉取的第三方组件各自遵循自己的许可证 —— 其中 **lieflat-charts** 为 [PolyForm Noncommercial 1.0.0](https://github.com/larashero3-dotcom/lieflat-charts/blob/main/LICENSE)，仅限非商业用途。它默认关闭，且在安装时从上游下载，本仓库不做再分发。

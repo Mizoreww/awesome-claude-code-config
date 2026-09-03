@@ -37,7 +37,7 @@ Launches a two-level interactive selector. Append `--all` / `-All` to skip the m
     [2/3] Review                  code-review + adversarial-review
     [5/6] Workflow                karpathy, mattpocock-skills, neat-freak...
     [2/2] Integrations            context7, playwright
-    [4/5] Design & Content        document-skills, frontend-design, humanizer...
+    [4/6] Design & Content        document-skills, frontend-design, humanizer...
     [0/2] Slides                  frontend-slides, ppt-master
     [0/2] Memory & Lifestyle      claude-mem, claude-health
     [0/1] Storage                 storage-analyzer
@@ -94,7 +94,7 @@ Launches a two-level interactive selector. Append `--all` / `-All` to skip the m
 | [**context7**](https://github.com/upstash/context7) | claude-plugins-official | Up-to-date library documentation lookup | on |
 | [**playwright**](https://github.com/microsoft/playwright-mcp) | claude-plugins-official | Browser automation, E2E testing, screenshots | on |
 
-**Design & Content (5)** — documents, UI, creative artifacts, text humanization.
+**Design & Content (6)** — documents, UI, creative artifacts, text humanization.
 
 | Item | Source | What It Does | Default |
 |------|--------|--------------|---------|
@@ -103,6 +103,7 @@ Launches a two-level interactive selector. Append `--all` / `-All` to skip the m
 | **frontend-design** | claude-plugins-official | Production-grade frontend interfaces | on |
 | [**humanizer**](https://github.com/blader/humanizer) | bundled skill | Remove AI writing patterns (English) | on |
 | [**humanizer-zh**](https://github.com/op7418/Humanizer-zh) | bundled skill | Remove AI writing patterns (Chinese) | off |
+| [**lieflat-charts**](https://github.com/larashero3-dotcom/lieflat-charts) | lieflat-charts (GitHub, PolyForm-NC) | Template-driven HTML charts and full-page reports: Lupi / Basics / Glance / Maps galleries plus 12 bilingual report templates. Fetched from upstream `main` at install time via sparse checkout (`docs/` preview media excluded), not vendored. Noncommercial use only | off |
 
 **Slides (2)** — AI slide / PPTX generation, both off by default.
 
@@ -200,4 +201,4 @@ Smart merge on re-install preserves your overrides for `env`, `permissions.allow
 
 ## License
 
-MIT
+This repository is MIT. Third-party components the installer fetches keep their own licenses — notably **lieflat-charts**, which is [PolyForm Noncommercial 1.0.0](https://github.com/larashero3-dotcom/lieflat-charts/blob/main/LICENSE) and may be used for noncommercial purposes only. It is off by default and is downloaded from upstream at install time rather than redistributed here.

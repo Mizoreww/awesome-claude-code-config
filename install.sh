@@ -320,6 +320,7 @@ INSTALL_PLUGINS=false
 INSTALL_CLAUDE_MD=false
 INSTALL_SETTINGS=false
 INSTALL_DEEPXIV=false
+INSTALL_LIEFLAT=false
 UNINSTALL=false
 FORCE=false
 SHOW_VERSION=false
@@ -338,6 +339,15 @@ RESEARCHSTUDIO_QUICKSTART_READY=false
 # ResearchStudio Idea skills (installed via `npx github:microsoft/ResearchStudio`, NOT vendored).
 # Directory names use underscores; menu/quickstart text uses hyphens. Used for uninstall cleanup.
 RESEARCHSTUDIO_SKILLS=("idea_spark" "paper_search" "scoop_check")
+# lieflat-charts (larashero3-dotcom/lieflat-charts) is fetched at install time, NOT vendored:
+# it is 20 MB (18.7 MB of which is docs/ preview media) and licensed PolyForm Noncommercial
+# 1.0.0, so this repo distributes a URL rather than a copy. Cone-mode sparse checkout keeps
+# every root file (SKILL.md, LICENSE, catalog.md, *.js) plus these directories.
+LIEFLAT_REPO_URL="https://github.com/larashero3-dotcom/lieflat-charts"
+LIEFLAT_SPARSE_DIRS=("templates" "examples" "scripts" "agents")
+# Written only when this installer created the skill directory, so uninstall never removes a
+# hand-installed copy it did not put there.
+LIEFLAT_MARKER_FILE=".lieflat-charts-installed"
 
 # --- Plugin groups ------------------------------------------------------
 
@@ -529,7 +539,8 @@ playwright|Browser automation & E2E testing|1|plug-playwright")
 example-skills|Frontend/design/canvas/algorithmic-art skills|1|plug-example-skills
 frontend-design|Frontend UI design|1|plug-frontend-design
 humanizer|Remove AI writing patterns (English, blader) (skill)|1|skill-humanizer
-humanizer-zh|Remove AI writing patterns (Chinese, op7418) (skill)|0|skill-humanizer-zh")
+humanizer-zh|Remove AI writing patterns (Chinese, op7418) (skill)|0|skill-humanizer-zh
+lieflat-charts|HTML chart & report templates (larashero3, PolyForm-NC · noncommercial)|0|lieflat-charts")
 
     # Group 6: Slides
     GROUP_LABELS+=("Slides")
@@ -966,6 +977,8 @@ researchstudio|Research ideation (Microsoft): idea-spark, paper-search, scoop-ch
             skill-update-config)    INSTALL_SKILLS=true; SELECTED_SKILLS+=("update-config") ;;
             skill-neat-freak)       INSTALL_SKILLS=true; SELECTED_SKILLS+=("neat-freak") ;;
             skill-storage-analyzer) INSTALL_SKILLS=true; SELECTED_SKILLS+=("storage-analyzer") ;;
+            # lieflat-charts (fetched from GitHub, not vendored)
+            lieflat-charts)         INSTALL_LIEFLAT=true ;;
             # DeepXiv
             deepxiv-cli)            INSTALL_DEEPXIV=true; SELECTED_DEEPXIV_SKILLS+=("deepxiv-cli") ;;
             deepxiv-trending-digest) INSTALL_DEEPXIV=true; SELECTED_DEEPXIV_SKILLS+=("deepxiv-trending-digest") ;;
@@ -1527,6 +1540,220 @@ install_deepxiv() {
     rm -rf "$deepxiv_tmp"
 }
 
+# Announce the PolyForm Noncommercial licence. Called from the pre-install summary, before
+# the installer touches anything, so the notice cannot be buried behind -- or lost to a
+# failure in -- the work that a `--all` run does before reaching the skill itself.
+announce_lieflat_license() {
+    warn "lieflat-charts is licensed under PolyForm Noncommercial 1.0.0 -- noncommercial use only."
+    warn "  $LIEFLAT_REPO_URL/blob/main/LICENSE"
+}
+
+# Clear the ownership marker, reporting failure rather than swallowing it: a marker left
+# behind would claim ownership of whatever the user installs at that path next.
+# Returns non-zero when the marker is still there, so callers can refuse to act on a claim
+# of ownership they were unable to give up.
+lieflat_clear_marker() {
+    rm -f "$CLAUDE_DIR/$LIEFLAT_MARKER_FILE" 2>/dev/null || true
+    [[ -e "$CLAUDE_DIR/$LIEFLAT_MARKER_FILE" ]] || return 0
+    warn "Could not remove $CLAUDE_DIR/$LIEFLAT_MARKER_FILE; delete it by hand"
+    (( INSTALL_WARNINGS++ )) || true
+    return 1
+}
+
+# Reduce a full clone to the same tree the sparse checkout produces: every root file plus
+# the allow-listed directories. Without this the two paths diverge the moment upstream adds
+# a top-level directory -- sparse clients would miss it, fallback clients would ship it.
+lieflat_apply_allowlist() {
+    local root="$1" entry name keep allowed
+    # dotglob so hidden top-level directories (.github, .git) are trimmed too. Cone-mode
+    # sparse checkout does not materialise them, so leaving them here would reintroduce the
+    # very divergence between the two paths that this function exists to prevent.
+    local had_dotglob=false
+    shopt -q dotglob && had_dotglob=true
+    shopt -s dotglob
+    for entry in "$root"/*/; do
+        [[ -d "$entry" ]] || continue
+        name="$(basename "$entry")"
+        keep=false
+        for allowed in "${LIEFLAT_SPARSE_DIRS[@]}"; do
+            [[ "$name" == "$allowed" ]] && { keep=true; break; }
+        done
+        if $keep; then continue; fi
+        if ! rm -rf "$entry"; then
+            # Report rather than silently install a directory the sparse path would omit.
+            warn "lieflat-charts: could not trim '$name' from the fallback clone"
+            (( INSTALL_WARNINGS++ )) || true
+        fi
+    done
+    $had_dotglob || shopt -u dotglob
+}
+
+# Install lieflat-charts from GitHub. Fetched rather than vendored: the upstream repo is
+# ~20 MB (18.7 MB of it docs/ preview media) and carries PolyForm Noncommercial 1.0.0, so
+# this repo ships a URL instead of a copy and always installs upstream main.
+#
+# Called as `install_lieflat_charts || true`, which disables errexit for the whole body, so
+# every destructive step below checks its own status instead of relying on `set -e`.
+install_lieflat_charts() {
+    info "Installing lieflat-charts from github.com/larashero3-dotcom/lieflat-charts..."
+
+    if ! command -v git &>/dev/null; then
+        error "git is required to install lieflat-charts but was not found. Please install git first."
+        (( INSTALL_WARNINGS++ )) || true
+        return 1
+    fi
+
+    local dest="$CLAUDE_DIR/skills/lieflat-charts"
+    # One scratch directory holds both the incoming tree and the retired one. mktemp names
+    # it at swap time; it deliberately does NOT use $$, because a rerun from the same shell
+    # reuses that PID and would then clear the backup a previous failed rollback preserved.
+    local scratch="" staged="" retired=""
+
+    if $DRY_RUN; then
+        info "Would clone $LIEFLAT_REPO_URL branch main (sparse: ${LIEFLAT_SPARSE_DIRS[*]} + root files, docs/ excluded)"
+        info "Would install skill: lieflat-charts -> $dest/"
+        info "Would mark it installer-managed: $CLAUDE_DIR/$LIEFLAT_MARKER_FILE"
+        return 0
+    fi
+
+    if ! mkdir -p "$CLAUDE_DIR/skills"; then
+        error "lieflat-charts: cannot create $CLAUDE_DIR/skills"
+        (( INSTALL_WARNINGS++ )) || true
+        return 1
+    fi
+
+    # Deliberately no reaping of orphaned .incoming.*/.retired.* scratch here: a .retired.*
+    # tree is what the failed-rollback path below preserves as the user's only copy, and a
+    # reaper would delete exactly that on the retry they run to recover. A directory leaked
+    # by a SIGKILL is inert; destroying a backup is not.
+    local lieflat_tmp
+    lieflat_tmp="$(mktemp -d "${TMPDIR:-/tmp}/lieflat_charts.XXXXXX")" || {
+        error "lieflat-charts: failed to create a temporary directory under ${TMPDIR:-/tmp}"
+        # Counted so an otherwise-successful run does not stamp a version while silently
+        # having skipped this skill -- the caller suppresses the return value.
+        (( INSTALL_WARNINGS++ )) || true
+        return 1
+    }
+    local src="$lieflat_tmp/lieflat-charts"
+
+    # Blobless + cone sparse checkout pulls ~1.4 MB instead of ~20 MB. Cone mode keeps every
+    # root file (SKILL.md, catalog.md, LICENSE, THIRD_PARTY_NOTICES.md, *.js) on its own.
+    # A remote or a local git too old for partial clone falls back to a full shallow clone.
+    # --branch main is explicit: the licence URL and the drift test both name that branch, so
+    # a future change to upstream's default branch must fail loudly rather than silently
+    # installing something else.
+    if git clone --depth 1 --branch main --filter=blob:none --sparse "$LIEFLAT_REPO_URL" "$src" >/dev/null 2>&1 \
+       && git -C "$src" sparse-checkout set "${LIEFLAT_SPARSE_DIRS[@]}" >/dev/null 2>&1; then
+        ok "lieflat-charts cloned (sparse, docs/ excluded)"
+    else
+        # Each attempt clears the destination: git leaves a partial directory behind when it
+        # is interrupted mid-transfer, and a second clone into a non-empty path fails at once.
+        if retry 3 3 "Clone lieflat-charts" \
+               bash -c 'rm -rf "$2" && git clone --depth 1 --branch main "$1" "$2"' _ \
+               "$LIEFLAT_REPO_URL" "$src"; then
+            warn "Partial clone unavailable -- falling back to a full clone, then trimming"
+            lieflat_apply_allowlist "$src"
+        else
+            error "Failed to clone lieflat-charts. Check network/proxy and try again."
+            (( INSTALL_WARNINGS++ )) || true
+            rm -rf "$lieflat_tmp"
+            return 1
+        fi
+    fi
+
+    if [[ ! -f "$src/SKILL.md" ]]; then
+        error "lieflat-charts: SKILL.md not found in cloned repo"
+        (( INSTALL_WARNINGS++ )) || true
+        rm -rf "$lieflat_tmp"
+        return 1
+    fi
+
+    # The clone root becomes the skill directory, so its .git -- a partial clone bound to a
+    # promisor remote -- must not travel into ~/.claude/skills/. Checked, because errexit is
+    # disabled here and a silent failure would install the broken repo.
+    if ! rm -rf "$src/.git"; then
+        error "lieflat-charts: could not strip .git from the clone"
+        (( INSTALL_WARNINGS++ )) || true
+        rm -rf "$lieflat_tmp"
+        return 1
+    fi
+
+    # Stage, then swap by rename: retire the old tree, move the new one in, delete the old.
+    # Deleting the destination first would be unsafe twice over -- a failed copy would leave
+    # nothing behind, and a failed delete would make `mv` drop the staged tree *inside* the
+    # surviving directory. Every step below is checked, so a failure at any point leaves
+    # exactly one complete installation in place.
+    # mktemp gives a name no other invocation can hold, so nothing here ever has to delete a
+    # pre-existing scratch path -- and therefore can never delete a preserved backup.
+    scratch="$(mktemp -d "$CLAUDE_DIR/.lieflat-charts.scratch.XXXXXX")" || {
+        error "lieflat-charts: cannot create a scratch directory under $CLAUDE_DIR"
+        (( INSTALL_WARNINGS++ )) || true
+        rm -rf "$lieflat_tmp"
+        return 1
+    }
+    staged="$scratch/incoming"
+    retired="$scratch/retired"
+    if ! cp -r "$src" "$staged"; then
+        error "lieflat-charts: failed to stage the skill into $staged"
+        (( INSTALL_WARNINGS++ )) || true
+        rm -rf "$scratch" "$lieflat_tmp"
+        return 1
+    fi
+    if [[ -e "$dest" ]] && ! mv "$dest" "$retired"; then
+        error "lieflat-charts: cannot replace the existing $dest"
+        (( INSTALL_WARNINGS++ )) || true
+        rm -rf "$scratch" "$lieflat_tmp"
+        return 1
+    fi
+    if ! mv "$staged" "$dest"; then
+        error "lieflat-charts: failed to move the staged skill into $dest"
+        (( INSTALL_WARNINGS++ )) || true
+        if [[ -e "$retired" ]]; then
+            # Only into an empty slot: moving onto an occupied $dest would nest the backup
+            # inside it and still exit 0, which would make the message below a lie.
+            if [[ ! -e "$dest" ]] && mv "$retired" "$dest"; then
+                info "lieflat-charts: restored the previous installation"
+            else
+                # Never delete what is now the only surviving copy -- name where it is so
+                # the user can put it back by hand.
+                error "lieflat-charts: previous installation left at $retired -- move it back manually"
+            fi
+        fi
+        if [[ ! -e "$dest" ]]; then
+            # Nothing managed sits at the canonical path any more, so the ownership marker
+            # must go too -- otherwise uninstall would later delete whatever the user puts
+            # there by hand, believing this installer had put it there. Nothing can be kept
+            # back here the way uninstall does, so an undeletable marker is called out.
+            if ! lieflat_clear_marker; then
+                error "lieflat-charts: $CLAUDE_DIR/$LIEFLAT_MARKER_FILE still claims $dest, which is now empty -- delete it before installing anything there by hand"
+            fi
+        fi
+        # $scratch survives only when it still holds the preserved backup named above.
+        [[ -e "$retired" ]] || rm -rf "$scratch"
+        rm -rf "$lieflat_tmp"
+        return 1
+    fi
+    # A concurrent installer can create $dest between the check above and this rename, in
+    # which case mv silently drops the staged tree *inside* it. Verify the result rather
+    # than reporting a success that did not happen.
+    if [[ ! -f "$dest/SKILL.md" ]] || [[ -e "$dest/incoming" ]]; then
+        error "lieflat-charts: $dest looks corrupted after install (concurrent installer?)"
+        (( INSTALL_WARNINGS++ )) || true
+        rm -rf "$lieflat_tmp"
+        return 1
+    fi
+    rm -rf "$scratch"
+
+    if ! : > "$CLAUDE_DIR/$LIEFLAT_MARKER_FILE"; then
+        # Without the marker uninstall would treat this copy as hand-installed and keep it.
+        warn "lieflat-charts: could not write $CLAUDE_DIR/$LIEFLAT_MARKER_FILE; uninstall will keep the skill"
+        (( INSTALL_WARNINGS++ )) || true
+    fi
+    ok "lieflat-charts installed (PolyForm Noncommercial 1.0.0)"
+
+    rm -rf "$lieflat_tmp"
+}
+
 # Install ResearchStudio Idea skills via the official npx installer
 # (github:microsoft/ResearchStudio). Copies idea_spark/paper_search/scoop_check into
 # ~/.claude/skills/ and writes a shared skills/.env. RS_PIP=1 also pip-installs the
@@ -1787,6 +2014,7 @@ uninstall() {
     echo "  - $CLAUDE_DIR/rules/"
     echo "  - $CLAUDE_DIR/skills/ (installer-managed only)"
     echo "  - $CLAUDE_DIR/skills/deepxiv-* (DeepXiv skills)"
+    echo "  - $CLAUDE_DIR/skills/lieflat-charts (only if installed by this installer)"
     echo "  - $CLAUDE_DIR/skills/{idea_spark,paper_search,scoop_check} (ResearchStudio, .env preserved)"
     echo "  - $CLAUDE_DIR/lessons.md"
     echo "  - $CLAUDE_DIR/hooks/ (installer-managed only)"
@@ -1815,6 +2043,37 @@ uninstall() {
 
     rm -rf "$CLAUDE_DIR/rules" && ok "Removed rules/"
 
+    # lieflat-charts is settled BEFORE the generic sweep below. That sweep's fallback branch
+    # removes the whole skills/ directory, which would delete the hand-installed copy this
+    # marker guard exists to protect.
+    local lieflat_keep=false
+    if [[ -f "$CLAUDE_DIR/$LIEFLAT_MARKER_FILE" ]]; then
+        # Marker first, deliberately. Clearing it after the directory is gone risks the
+        # unsafe failure direction: a marker left behind would make the next uninstall
+        # delete a replacement the user installed by hand. Losing the record while the
+        # directory survives is the safe direction -- uninstall simply stops tracking it.
+        if ! lieflat_clear_marker; then
+            # Ownership could not be relinquished. Removing the skill anyway would leave a
+            # marker with nothing behind it, and the next uninstall would delete whatever
+            # the user installs at that path instead.
+            warn "Keeping $CLAUDE_DIR/skills/lieflat-charts because its marker could not be cleared"
+            lieflat_keep=true
+        elif [[ -d "$CLAUDE_DIR/skills/lieflat-charts" ]]; then
+            if rm -rf "$CLAUDE_DIR/skills/lieflat-charts"; then
+                ok "Removed skill: lieflat-charts"
+            else
+                # lieflat_keep guards the sweep below, so it cannot delete what we just
+                # failed to remove and could not report as removed either.
+                warn "Could not remove $CLAUDE_DIR/skills/lieflat-charts; it is no longer tracked as installer-managed"
+                (( INSTALL_WARNINGS++ )) || true
+                lieflat_keep=true
+            fi
+        fi
+    elif [[ -d "$CLAUDE_DIR/skills/lieflat-charts" ]]; then
+        lieflat_keep=true
+        info "Kept $CLAUDE_DIR/skills/lieflat-charts (not installed by this installer)"
+    fi
+
     # Only remove skills that ship with this repo
     if [[ -d "$SCRIPT_DIR/skills" ]]; then
         for skill_dir in "$SCRIPT_DIR"/skills/*/; do
@@ -1823,6 +2082,9 @@ uninstall() {
             skill=$(basename "$skill_dir")
             rm -rf "$CLAUDE_DIR/skills/$skill" && ok "Removed skill: $skill"
         done
+    elif [[ -d "$CLAUDE_DIR/skills" ]] && $lieflat_keep; then
+        find "$CLAUDE_DIR/skills" -mindepth 1 -maxdepth 1 ! -name lieflat-charts \
+            -exec rm -rf {} + && ok "Removed skills/ (kept lieflat-charts)"
     else
         rm -rf "$CLAUDE_DIR/skills" && ok "Removed skills/"
     fi
@@ -1930,6 +2192,9 @@ main() {
             INSTALL_MCP=true
             INSTALL_DEEPXIV=true
             SELECTED_DEEPXIV_SKILLS=("${DEEPXIV_KNOWN_SKILLS[@]}")
+            # Keeps --all meaning "everything"; announce_lieflat_license runs in the
+            # pre-install phase so nobody gets it without seeing the license first.
+            INSTALL_LIEFLAT=true
             INSTALL_RESEARCHSTUDIO=true
             PLUGIN_GROUPS=("all")
             # Add code-review plugin (normally from Review group)
@@ -1944,7 +2209,7 @@ main() {
     if ! $INSTALL_CLAUDE_MD && ! $INSTALL_SETTINGS && ! $INSTALL_RULES && \
        ! $INSTALL_SKILLS && ! $INSTALL_LESSONS && \
        ! $INSTALL_STATUSLINE && ! $INSTALL_PLUGINS && ! $INSTALL_MCP && ! $INSTALL_DEEPXIV && \
-       ! $INSTALL_RESEARCHSTUDIO; then
+       ! $INSTALL_LIEFLAT && ! $INSTALL_RESEARCHSTUDIO; then
         warn "Nothing selected to install."
         exit 0
     fi
@@ -1958,6 +2223,13 @@ main() {
 
     if $DRY_RUN; then
         warn "DRY RUN MODE -- no changes will be made"
+        echo ""
+    fi
+
+    # Surfaced here, before any file is touched, so a --all run cannot do substantial work
+    # (or fail part-way) before the noncommercial licence has been shown.
+    if $INSTALL_LIEFLAT; then
+        announce_lieflat_license
         echo ""
     fi
 
@@ -1981,6 +2253,10 @@ main() {
     $INSTALL_MCP && install_mcp
     $INSTALL_PLUGINS && install_plugins
     $INSTALL_DEEPXIV && install_deepxiv
+    # Optional add-on: a failed clone is counted as a warning, not fatal, so a network
+    # hiccup on this default-off skill cannot abort the rest of the install (set -e would
+    # otherwise exit on the function's non-zero return).
+    if $INSTALL_LIEFLAT; then install_lieflat_charts || true; fi
     $INSTALL_RESEARCHSTUDIO && install_researchstudio
 
     # Stamp version (skip if there were critical warnings)

@@ -175,6 +175,16 @@ function Confirm-Action {
 # Directory names use underscores; menu/quickstart text uses hyphens. Used for uninstall cleanup.
 $RESEARCHSTUDIO_SKILLS = @("idea_spark", "paper_search", "scoop_check")
 
+# lieflat-charts (larashero3-dotcom/lieflat-charts) is fetched at install time, NOT vendored:
+# it is 20 MB (18.7 MB of which is docs/ preview media) and licensed PolyForm Noncommercial
+# 1.0.0, so this repo distributes a URL rather than a copy. Cone-mode sparse checkout keeps
+# every root file (SKILL.md, LICENSE, catalog.md, *.js) plus these directories.
+$LIEFLAT_REPO_URL = "https://github.com/larashero3-dotcom/lieflat-charts"
+$LIEFLAT_SPARSE_DIRS = @("templates", "examples", "scripts", "agents")
+# Written only when this installer created the skill directory, so uninstall never removes a
+# hand-installed copy it did not put there.
+$LIEFLAT_MARKER_FILE = ".lieflat-charts-installed"
+
 $PLUGINS_ESSENTIAL = @(
     "andrej-karpathy-skills@karpathy-skills"
     "mattpocock-skills@mattpocock"
@@ -274,6 +284,7 @@ function Show-InteractiveMenu {
             @{ Label = "frontend-design"; Desc = "Frontend UI design";                Default = $true;  Id = "plug-frontend-design" }
             @{ Label = "humanizer";       Desc = "Remove AI writing patterns (English, blader) (skill)"; Default = $true; Id = "skill-humanizer" }
             @{ Label = "humanizer-zh";    Desc = "Remove AI writing patterns (Chinese, op7418) (skill)"; Default = $false; Id = "skill-humanizer-zh" }
+            @{ Label = "lieflat-charts";  Desc = "HTML chart & report templates (larashero3, PolyForm-NC | noncommercial)"; Default = $false; Id = "lieflat-charts" }
         )}
         @{ Label = "Slides"; Hint = "AI slide / PPTX generation | default off"; Items = @(
             @{ Label = "frontend-slides"; Desc = "HTML slide generator with PPT conversion (zarazhangrui)"; Default = $false; Id = "plug-frontend-slides" }
@@ -533,6 +544,7 @@ function Show-InteractiveMenu {
         Mcp                = $false
         DeepXiv            = $false
         DeepXivSkills      = @()
+        Lieflat            = $false
         ResearchStudio     = $false
         ReviewAdversarial  = $false
         ReviewCodex        = $false
@@ -564,6 +576,7 @@ function Show-InteractiveMenu {
             "deepxiv-cli"          { $result.DeepXiv = $true; $result.DeepXivSkills += "deepxiv-cli" }
             "deepxiv-trending-digest" { $result.DeepXiv = $true; $result.DeepXivSkills += "deepxiv-trending-digest" }
             "deepxiv-baseline-table"  { $result.DeepXiv = $true; $result.DeepXivSkills += "deepxiv-baseline-table" }
+            "lieflat-charts"     { $result.Lieflat = $true }
             "ai-researchstudio"  { $result.ResearchStudio = $true }
             "mcp"                { $result.Mcp = $true }
             "plug-*"             {
@@ -1035,6 +1048,211 @@ function Install-DeepXiv {
     if (Test-Path $deepxivTmp) { Remove-Item $deepxivTmp -Recurse -Force }
 }
 
+# Announce the PolyForm Noncommercial licence. Called from the pre-install phase, before the
+# installer touches anything, so the notice cannot be buried behind -- or lost to a failure
+# in -- the work that an -All run does before reaching the skill itself.
+function Show-LieflatLicenseNotice {
+    Write-Warn "lieflat-charts is licensed under PolyForm Noncommercial 1.0.0 -- noncommercial use only."
+    Write-Warn "  $LIEFLAT_REPO_URL/blob/main/LICENSE"
+}
+
+# Clear the ownership marker, reporting failure rather than swallowing it: a marker left
+# behind would claim ownership of whatever the user installs at that path next.
+# Returns $false when the marker is still there, so callers can refuse to act on a claim of
+# ownership they were unable to give up.
+function Remove-LieflatMarker {
+    param([string]$Marker)
+    Remove-Item $Marker -Force -ErrorAction SilentlyContinue
+    if (-not (Test-Path $Marker)) { return $true }
+    Write-Warn "Could not remove $Marker; delete it by hand"
+    $script:InstallWarnings++
+    return $false
+}
+
+# Reduce a full clone to the same tree the sparse checkout produces: every root file plus the
+# allow-listed directories. Without this the two paths diverge the moment upstream adds a
+# top-level directory -- sparse clients would miss it, fallback clients would ship it.
+function Invoke-LieflatAllowList {
+    param([string]$Root)
+    Get-ChildItem -LiteralPath $Root -Directory -Force | ForEach-Object {
+        if ($LIEFLAT_SPARSE_DIRS -notcontains $_.Name) {
+            Remove-Item -LiteralPath $_.FullName -Recurse -Force
+        }
+    }
+}
+
+# Install lieflat-charts from GitHub. Fetched rather than vendored: the upstream repo is
+# ~20 MB (18.7 MB of it docs/ preview media) and carries PolyForm Noncommercial 1.0.0, so
+# this repo ships a URL instead of a copy and always installs upstream main.
+function Install-LieflatCharts {
+    Write-Info "Installing lieflat-charts from github.com/larashero3-dotcom/lieflat-charts..."
+
+    $skillsDir = Join-Path $CLAUDE_DIR "skills"
+    $dst = Join-Path $skillsDir "lieflat-charts"
+    # Staged outside skills\ so a partial or interrupted copy can never be picked up as a
+    # skill. Both live under CLAUDE_DIR, hence on one filesystem, so the swap below is a
+    # rename. The suffix is random rather than $PID: a rerun in the same session reuses that
+    # PID, and clearing the resulting path would destroy the .retired.* backup a previous
+    # failed rollback preserved. A random name never collides, so nothing here needs to
+    # delete a pre-existing scratch path.
+    $scratchId = [System.IO.Path]::GetRandomFileName()
+    $scratch = Join-Path $CLAUDE_DIR ".lieflat-charts.scratch.$scratchId"
+    $staged = Join-Path $scratch "incoming"
+    $retired = Join-Path $scratch "retired"
+    $marker = Join-Path $CLAUDE_DIR $LIEFLAT_MARKER_FILE
+
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+        Write-Err "git is required to install lieflat-charts but was not found. Please install git first."
+        $script:InstallWarnings++
+        return
+    }
+
+    # Before any directory is created: a dry run must not touch the filesystem.
+    if ($DryRun) {
+        Write-Info "Would clone $LIEFLAT_REPO_URL branch main (sparse: $($LIEFLAT_SPARSE_DIRS -join ' ') + root files, docs/ excluded)"
+        Write-Info "Would install skill: lieflat-charts -> $dst"
+        Write-Info "Would mark it installer-managed: $marker"
+        return
+    }
+
+    New-Item -ItemType Directory -Path $skillsDir -Force | Out-Null
+
+    # Deliberately no reaping of orphaned .incoming.*/.retired.* scratch here: a .retired.*
+    # tree is what the failed-rollback path below preserves as the user's only copy, and a
+    # reaper would delete exactly that on the retry they run to recover. A directory leaked
+    # by a hard kill is inert; destroying a backup is not.
+    $src = Join-Path ([System.IO.Path]::GetTempPath()) ("lieflat_charts_" + [System.IO.Path]::GetRandomFileName())
+
+    # Blobless + cone sparse checkout pulls ~1.4 MB instead of ~20 MB. Cone mode keeps every
+    # root file (SKILL.md, catalog.md, LICENSE, THIRD_PARTY_NOTICES.md, *.js) on its own.
+    # A remote or a local git too old for partial clone falls back to a full shallow clone.
+    # --branch main is explicit: the licence URL and the drift test both name that branch, so
+    # a future change to upstream's default branch must fail loudly rather than silently
+    # installing something else.
+    #
+    # git writes progress to stderr, and under $ErrorActionPreference = "Stop" Windows
+    # PowerShell 5.1 can turn native stderr into a terminating NativeCommandError. Both calls
+    # therefore run inside try/catch and are judged on $LASTEXITCODE, never on stream state --
+    # otherwise a routine progress line would abort the run before the fallback is reached.
+    $sparseOk = $false
+    try {
+        git clone --depth 1 --branch main --filter=blob:none --sparse $LIEFLAT_REPO_URL $src --quiet
+        if ($LASTEXITCODE -eq 0) {
+            # PowerShell unrolls the array into one argument per directory for native commands.
+            git -C $src sparse-checkout set $LIEFLAT_SPARSE_DIRS
+            if ($LASTEXITCODE -eq 0) { $sparseOk = $true }
+        }
+    } catch {
+        $sparseOk = $false
+    }
+
+    if ($sparseOk) {
+        Write-Ok "lieflat-charts cloned (sparse, docs/ excluded)"
+    } else {
+        $cloneOk = Invoke-Retry -MaxAttempts 3 -DelaySeconds 3 -Description "Clone lieflat-charts" -Action {
+            # Each attempt clears the destination: git leaves a partial directory behind when
+            # interrupted, and a second clone into a non-empty path fails immediately.
+            if (Test-Path $src) { Remove-Item $src -Recurse -Force }
+            git clone --depth 1 --branch main $LIEFLAT_REPO_URL $src --quiet
+            if ($LASTEXITCODE -ne 0) { throw "git clone failed" }
+        }
+        if (-not $cloneOk) {
+            Write-Err "Failed to clone lieflat-charts. Check network/proxy and try again."
+            $script:InstallWarnings++
+            if (Test-Path $src) { Remove-Item $src -Recurse -Force }
+            return
+        }
+        Write-Warn "Partial clone unavailable -- falling back to a full clone, then trimming"
+        try {
+            Invoke-LieflatAllowList -Root $src
+        } catch {
+            # Under $ErrorActionPreference = "Stop" a failed Remove-Item would otherwise
+            # terminate the whole -All run over one optional, default-off skill.
+            Write-Warn "lieflat-charts: could not fully trim the fallback clone -- $_"
+            $script:InstallWarnings++
+        }
+    }
+
+    if (-not (Test-Path (Join-Path $src "SKILL.md"))) {
+        Write-Err "lieflat-charts: SKILL.md not found in cloned repo"
+        $script:InstallWarnings++
+        if (Test-Path $src) { Remove-Item $src -Recurse -Force }
+        return
+    }
+
+    # The clone root becomes the skill directory, so its .git -- a partial clone bound to a
+    # promisor remote -- must not travel into ~/.claude/skills/.
+    $gitDir = Join-Path $src ".git"
+    if (Test-Path $gitDir) { Remove-Item $gitDir -Recurse -Force }
+
+    # Stage, then swap by rename: retire the old tree, move the new one in, delete the old.
+    # Deleting the destination first would be unsafe twice over -- a failed copy would leave
+    # nothing behind, and a failed delete would make Move-Item drop the staged tree *inside*
+    # the surviving directory. A failure at any step leaves one complete installation.
+    try {
+        # No -Force: on the astronomically unlikely name collision this throws into the
+        # catch below rather than reusing a scratch directory that may hold a preserved
+        # backup, matching the atomicity Bash gets from `mktemp -d`.
+        New-Item -ItemType Directory -Path $scratch | Out-Null
+        Copy-Item $src $staged -Recurse -Force
+        if (Test-Path $dst) { Move-Item $dst $retired -Force }
+        Move-Item $staged $dst -Force
+        # A concurrent installer can create $dst between the test above and this rename, in
+        # which case Move-Item silently drops the staged tree *inside* it. Checking for
+        # SKILL.md alone is not enough -- the competing install supplies one -- so look for
+        # the nested staging directory too.
+        $nested = Join-Path $dst "incoming"
+        if ((-not (Test-Path (Join-Path $dst "SKILL.md") -PathType Leaf)) -or (Test-Path $nested)) {
+            throw "$dst looks corrupted after install (concurrent installer?)"
+        }
+    } catch {
+        Write-Err "lieflat-charts: failed to install into $dst -- $_"
+        $script:InstallWarnings++
+        # Put the previous installation back if it was already moved aside, and never delete
+        # $retired unless it is safely back in place -- it may be the only surviving copy.
+        if (Test-Path $retired) {
+            if (-not (Test-Path $dst)) {
+                Move-Item $retired $dst -Force -ErrorAction SilentlyContinue
+            }
+            if (Test-Path $retired) {
+                Write-Err "lieflat-charts: previous installation left at $retired -- move it back manually"
+            }
+        }
+        if (-not (Test-Path $dst)) {
+            # Nothing managed sits at the canonical path any more, so the ownership marker
+            # must go too -- otherwise uninstall would later delete whatever the user puts
+            # there by hand, believing this installer had put it there.
+            # Nothing can be kept back here the way uninstall does, so an undeletable
+            # marker is called out instead.
+            if (-not (Remove-LieflatMarker -Marker $marker)) {
+                Write-Err "lieflat-charts: $marker still claims $dst, which is now empty -- delete it before installing anything there by hand"
+            }
+        }
+        # $scratch survives only when it still holds the preserved backup named above.
+        if (-not (Test-Path $retired)) {
+            Remove-Item $scratch -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path $src) { Remove-Item $src -Recurse -Force -ErrorAction SilentlyContinue }
+        return
+    }
+
+    try {
+        New-Item -ItemType File -Path $marker -Force | Out-Null
+    } catch {
+        # Without the marker uninstall would treat this copy as hand-installed and keep it.
+        Write-Warn "lieflat-charts: could not write $marker; uninstall will keep the skill"
+        $script:InstallWarnings++
+    }
+
+    # After the marker, and outside the swap's try: the install is already complete and
+    # valid here, so a failure to delete the retired copy must not send us down the catch
+    # path and skip the marker.
+    if (Test-Path $scratch) { Remove-Item $scratch -Recurse -Force -ErrorAction SilentlyContinue }
+    Write-Ok "lieflat-charts installed (PolyForm Noncommercial 1.0.0)"
+
+    if (Test-Path $src) { Remove-Item $src -Recurse -Force }
+}
+
 # Install ResearchStudio Idea skills via the official npx installer
 # (github:microsoft/ResearchStudio). Copies idea_spark/paper_search/scoop_check into
 # ~/.claude/skills/ and writes a shared skills/.env. RS_PIP=1 also pip-installs the
@@ -1338,6 +1556,7 @@ function Invoke-Uninstall {
     Write-Host "  - $CLAUDE_DIR\rules\"
     Write-Host "  - $CLAUDE_DIR\skills\ (installer-managed only)"
     Write-Host "  - $CLAUDE_DIR\skills\deepxiv-* (DeepXiv skills)"
+    Write-Host "  - $CLAUDE_DIR\skills\lieflat-charts (only if installed by this installer)"
     Write-Host "  - $CLAUDE_DIR\skills\{idea_spark,paper_search,scoop_check} (ResearchStudio, .env preserved)"
     Write-Host "  - $CLAUDE_DIR\lessons.md"
     Write-Host "  - $CLAUDE_DIR\hooks\ (installer-managed only)"
@@ -1371,6 +1590,41 @@ function Invoke-Uninstall {
     $p = Join-Path $CLAUDE_DIR "rules"
     if (Test-Path $p) { Remove-Item $p -Recurse -Force; Write-Ok "Removed rules/" }
 
+    # lieflat-charts is settled BEFORE the generic sweep below. That sweep's fallback branch
+    # removes the whole skills\ directory, which would delete the hand-installed copy this
+    # marker guard exists to protect. -PathType Leaf so a directory of that name cannot pass
+    # as proof of ownership.
+    $lieflatMarker = Join-Path $CLAUDE_DIR $LIEFLAT_MARKER_FILE
+    $lieflatDir = Join-Path $CLAUDE_DIR "skills\lieflat-charts"
+    $lieflatKeep = $false
+    if (Test-Path $lieflatMarker -PathType Leaf) {
+        # Marker first, deliberately. Clearing it after the directory is gone risks the
+        # unsafe failure direction: a marker left behind would make the next uninstall
+        # delete a replacement the user installed by hand. Losing the record while the
+        # directory survives is the safe direction -- uninstall simply stops tracking it.
+        if (-not (Remove-LieflatMarker -Marker $lieflatMarker)) {
+            # Ownership could not be relinquished. Removing the skill anyway would leave a
+            # marker with nothing behind it, and the next uninstall would delete whatever
+            # the user installs at that path instead.
+            Write-Warn "Keeping $lieflatDir because its marker could not be cleared"
+            $lieflatKeep = $true
+        } elseif (Test-Path $lieflatDir) {
+            try {
+                Remove-Item $lieflatDir -Recurse -Force
+                Write-Ok "Removed skill: lieflat-charts"
+            } catch {
+                # $lieflatKeep guards the sweep below so it cannot delete what we just failed
+                # to remove -- and could not report as removed either.
+                Write-Warn "Could not remove $lieflatDir; it is no longer tracked as installer-managed"
+                $script:InstallWarnings++
+                $lieflatKeep = $true
+            }
+        }
+    } elseif (Test-Path $lieflatDir) {
+        $lieflatKeep = $true
+        Write-Info "Kept $lieflatDir (not installed by this installer)"
+    }
+
     # Only remove skills that ship with this repo
     $skillsSrc = Join-Path $SCRIPT_DIR "skills"
     if (Test-Path $skillsSrc) {
@@ -1380,7 +1634,15 @@ function Invoke-Uninstall {
         }
     } else {
         $p = Join-Path $CLAUDE_DIR "skills"
-        if (Test-Path $p) { Remove-Item $p -Recurse -Force; Write-Ok "Removed skills/" }
+        if (Test-Path $p) {
+            if ($lieflatKeep) {
+                Get-ChildItem -LiteralPath $p -Force | Where-Object { $_.Name -ne "lieflat-charts" } |
+                    ForEach-Object { Remove-Item $_.FullName -Recurse -Force }
+                Write-Ok "Removed skills/ (kept lieflat-charts)"
+            } else {
+                Remove-Item $p -Recurse -Force; Write-Ok "Removed skills/"
+            }
+        }
     }
 
     # Remove DeepXiv skills (glob to catch any installed by --All)
@@ -1508,6 +1770,7 @@ function Main {
     $doPlugins = $false
     $doMcp = $false
     $doDeepXiv = $false
+    $doLieflat = $false
     $doResearchStudio = $false
     $deepXivSkills = @()
     $ruleLangs = @()
@@ -1530,6 +1793,9 @@ function Main {
         $doMcp = $true
         $doDeepXiv = $true
         $deepXivSkills = @("deepxiv-cli", "deepxiv-trending-digest", "deepxiv-baseline-table")
+        # Keeps -All meaning "everything"; Show-LieflatLicenseNotice runs in the
+        # pre-install phase so nobody gets it without seeing the license first.
+        $doLieflat = $true
         $doResearchStudio = $true
         $pluginGroups = @("all")
         $reviewAdversarial = $true
@@ -1556,6 +1822,7 @@ function Main {
             $doMcp = $menuResult.Mcp
             $doDeepXiv = $menuResult.DeepXiv
             $deepXivSkills = $menuResult.DeepXivSkills
+            $doLieflat = $menuResult.Lieflat
             $doResearchStudio = $menuResult.ResearchStudio
             $ruleLangs = $menuResult.RuleLangs
             $ruleLangsExplicit = $menuResult.RuleLangsExplicit
@@ -1590,7 +1857,8 @@ function Main {
     # Check if anything was selected
     if (-not $doClaudeMd -and -not $doSettings -and -not $doRules -and
         -not $doSkills -and -not $doLessons -and -not $doHooks -and
-        -not $doPlugins -and -not $doMcp -and -not $doDeepXiv -and -not $doResearchStudio) {
+        -not $doPlugins -and -not $doMcp -and -not $doDeepXiv -and -not $doLieflat -and
+        -not $doResearchStudio) {
         Write-Warn "Nothing selected to install."
         return
     }
@@ -1605,6 +1873,13 @@ function Main {
 
     if ($DryRun) {
         Write-Warn "DRY RUN MODE -- no changes will be made"
+        Write-Host ""
+    }
+
+    # Surfaced here, before any file is touched, so an -All run cannot do substantial work
+    # (or fail part-way) before the noncommercial licence has been shown.
+    if ($doLieflat) {
+        Show-LieflatLicenseNotice
         Write-Host ""
     }
 
@@ -1629,6 +1904,7 @@ function Main {
     if ($doMcp) { Install-Mcp }
     if ($doPlugins) { Install-Plugins -Groups $pluginGroups -SelectedPluginsList $selectedPlugins }
     if ($doDeepXiv) { Install-DeepXiv -SelectedDeepXivSkills $deepXivSkills }
+    if ($doLieflat) { Install-LieflatCharts }
     if ($doResearchStudio) { Install-ResearchStudio }
 
     if (-not $DryRun) {
